@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getReportCards } from "@/lib/report-cards";
 import { ReportBoard } from "@/components/report-board";
+import { GuestSessionWatcher } from "@/components/guest-toasts";
+import { expireGuestIfNeeded, getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 import { purgeExpiredDeletions } from "@/lib/account-deletion";
 import Link from "next/link";
 
@@ -19,6 +21,16 @@ export default async function HomePage() {
   if (!session) {
     redirect("/");
   }
+
+  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
+  if (await expireGuestIfNeeded(session)) {
+    redirect("/?guestExpired=1");
+  }
+
+  // 访客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）
+  const guestExpiry = isGuestEmail(session.user.email)
+    ? await getGuestExpiry(session.user.id)
+    : null;
 
   // 从数据库读当前用户的报告
   const reports = await getReportCards(session.user.id);
@@ -65,6 +77,9 @@ export default async function HomePage() {
 
         <ReportBoard reports={reports} />
       </div>
+      {guestExpiry && (
+        <GuestSessionWatcher expiresAt={guestExpiry.toISOString()} />
+      )}
     </main>
   );
 }

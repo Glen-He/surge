@@ -3,6 +3,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { AccountForm } from "./account-form";
+import { GuestSessionWatcher } from "@/components/guest-toasts";
+import {
+  expireGuestIfNeeded,
+  getGuestExpiry,
+  isGuestEmail,
+} from "@/lib/guest-sandbox";
 import {
   getDeletionRequestedAt,
   purgeExpiredDeletions,
@@ -21,7 +27,17 @@ export default async function AccountPage() {
     redirect("/");
   }
 
+  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
+  if (await expireGuestIfNeeded(session)) {
+    redirect("/?guestExpired=1");
+  }
+
   const deletionRequestedAt = await getDeletionRequestedAt(session.user.id);
+
+  // 访客：读沙箱到期时间（倒计时展示 + 守望器到期前提醒/到点退出）
+  const guestExpiry = isGuestEmail(session.user.email)
+    ? await getGuestExpiry(session.user.id)
+    : null;
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
@@ -55,8 +71,12 @@ export default async function AccountPage() {
           deletionRequestedAt={
             deletionRequestedAt ? deletionRequestedAt.toISOString() : null
           }
+          guestExpiresAt={guestExpiry ? guestExpiry.toISOString() : null}
         />
       </div>
+      {guestExpiry && (
+        <GuestSessionWatcher expiresAt={guestExpiry.toISOString()} />
+      )}
     </main>
   );
 }

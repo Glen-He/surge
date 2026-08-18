@@ -4,11 +4,17 @@
    样式与 vela/nexus/kttks 模板内的 rpt-head / btn-light 保持一致。 */
 .rpt-sys-head {
   display: flex;
+  /* body 是 flex 列容器且有固定视口高，头部/iframe 必须禁止 flex 收缩，
+     否则长报告的 iframe 会被压回一屏高（外层滚动失效） */
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  /* 与模板 .wrap 一致：固定 1280px 居中，保证标题/返回按钮与正文卡片左右缘对齐 */
-  min-width: 1280px;
+  /* 与模板 .wrap 一致：1280px 居中，保证标题/返回按钮与正文卡片左右缘对齐。
+     上限 1280 而非固定：窗口 ≥1280 时行为不变；窄窗口时收缩到窗口宽，
+     避免外层出现横向滚动（报告正文的横向平移由 iframe 内部完成） */
+  width: 100%;
+  min-width: 0;
   max-width: 1280px;
   box-sizing: border-box;
   margin: 0 auto;
@@ -20,6 +26,11 @@
 }
 .rpt-sys-head .rpt-sys-title {
   margin: 0;
+  min-width: 0;
+  /* 窄窗口收缩时标题截断省略，不挤右侧按钮 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 32px;
   font-weight: 700;
   line-height: 1.15;
@@ -101,14 +112,15 @@ body {
   height: 100%;
 }
 
-/* 全局隐藏滚动条（滚动功能保留：滚轮/触控板/键盘/拖拽均可）：
-   滚动条不占布局空间，各页面居中轴天然一致，无左右偏移 */
-html {
-  scrollbar-width: none; /* Firefox */
+/* 全局根除滚动条/滚动框（页面级 + 元素级：textarea、pre、内部滚动容器等）。
+   滚动功能完整保留（滚轮/触控板/键盘/触摸），仅不渲染滚动条。
+   Chrome/Safari/Edge 走 ::-webkit-scrollbar；Firefox 走 scrollbar-width。
+   Safari 同为 WebKit 前者即覆盖；iOS 移动端本就是悬浮条自动消失，无感。 */
+* {
+  scrollbar-width: none;
 }
-
-html::-webkit-scrollbar {
-  display: none; /* Chrome / Safari / Edge */
+*::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -942,7 +954,7 @@ button {
 
 .auth-brand-title {
   font-size: 30px;
-  line-height: 1.22;
+  line-height: 1.42;
   font-weight: 650;
   letter-spacing: -0.025em;
   color: var(--text-primary);
@@ -1004,7 +1016,8 @@ button {
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.08),
     0 1px 1px rgba(0, 0, 0, 0.03);
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* 缓入缓出 + 300ms：滑动全程可见（重 ease-out 会前冲过快，看起来像跳变） */
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .auth-tab {

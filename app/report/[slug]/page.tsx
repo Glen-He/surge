@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getReportBySlug } from "@/lib/reports-db";
 import { ReportShareButton } from "@/components/report-share-button";
+import { ReportFrame } from "@/components/report-frame";
+import { GuestSessionWatcher } from "@/components/guest-toasts";
+import { expireGuestIfNeeded, getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +28,20 @@ export default async function ReportPage({
     redirect("/");
   }
 
+  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
+  if (await expireGuestIfNeeded(session)) {
+    redirect("/?guestExpired=1");
+  }
+
   // 归属校验：从数据库确认该报告属于当前用户
   const report = await getReportBySlug(session.user.id, slug);
   if (!report) {
     redirect("/home");
   }
+
+  const guestExpiry = isGuestEmail(session.user.email)
+    ? await getGuestExpiry(session.user.id)
+    : null;
 
   return (
     <>
@@ -51,14 +63,12 @@ export default async function ReportPage({
         报告脚本可执行（图表正常渲染），但运行于 opaque origin——
         读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
         文档响应另带 CSP（sandbox allow-scripts 等）作为第二道防线。
+        iframe 随报告内容自适应高度，本页整体滚动（头部随内容一起滚走）。
       */}
-      <iframe
-        src={`/api/reports/${slug}/page`}
-        title={report.title}
-        sandbox="allow-scripts"
-        className="block w-full border-0 bg-transparent"
-        style={{ height: "calc(100vh - 118px)", minHeight: 480 }}
-      />
+      <ReportFrame src={`/api/reports/${slug}/page`} title={report.title} />
+      {guestExpiry && (
+        <GuestSessionWatcher expiresAt={guestExpiry.toISOString()} />
+      )}
     </>
   );
 }

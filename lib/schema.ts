@@ -115,7 +115,7 @@ export async function ensureSchema() {
       ON "user" (email)`,
   );
 
-  // 访客沙箱元信息（30 分钟过期、登出即销毁；过期用户由懒清理任务级联删除）
+  // 访客沙箱元信息（60 分钟过期、登出即销毁；过期用户由懒清理任务级联删除）
   await db.query(`
     CREATE TABLE IF NOT EXISTS guest_sessions (
       user_id     TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,

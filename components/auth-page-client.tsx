@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 
 type Mode = "signin" | "signup";
@@ -32,7 +30,10 @@ function toChineseError(error: { code?: string; message?: string } | undefined):
   if (error.code && AUTH_ERROR_MESSAGES[error.code]) {
     return AUTH_ERROR_MESSAGES[error.code];
   }
-  return error.message ?? "操作失败，请稍后重试";
+  // 英文消息（better-auth 未知错误）不直接展示，统一中文兜底
+  const msg = error.message ?? "";
+  if (msg && /[\u4e00-\u9fff]/.test(msg)) return msg;
+  return "操作失败，请稍后重试";
 }
 
 const ICON_MAIL = (
@@ -50,7 +51,6 @@ const ICON_LOCK = (
 );
 
 export function AuthPageClient() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -150,8 +150,9 @@ export function AuthPageClient() {
         setError("设置密码失败，请重试");
         return;
       }
-      router.push("/home");
-      router.refresh();
+      // 整页跳转（非客户端路由）：Safari 下 router.push 的 RSC 请求可能不带
+      // 刚 Set-Cookie 的会话，服务端视为未登录弹回登录页（"要登录两次"）
+      window.location.assign("/home");
     } finally {
       setLoading(false);
     }
@@ -175,8 +176,8 @@ export function AuthPageClient() {
         setError(toChineseError(error));
         return;
       }
-      router.push("/home");
-      router.refresh();
+      // 整页跳转，理由同上（Safari cookie 竞态）
+      window.location.assign("/home");
     } finally {
       setLoading(false);
     }
@@ -190,15 +191,24 @@ export function AuthPageClient() {
       const res = await fetch("/api/auth/guest-login", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "访客登录失败，请稍后重试");
+        // 服务端已统一中文；若仍有英文漏网（如代理层异常），前端兜底替换
+        const raw = typeof data?.error === "string" ? data.error : "";
+        setError(
+          raw && /[\u4e00-\u9fff]/.test(raw) ? raw : "访客登录失败，请稍后重试",
+        );
         return;
       }
-      toast.success("访客登录成功", {
-        description: `会话有效期 ${data.ttlMinutes ?? 30} 分钟，体验所有功能`,
-        duration: 3000,
-      });
-      router.push("/home");
-      router.refresh();
+      // 落标记：整页跳到 /home 后由布局里的 GuestToasts 展示
+      // 「访客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
+      try {
+        sessionStorage.setItem(
+          "surge:guest-login-toast",
+          String(data.ttlMinutes ?? 60),
+        );
+      } catch {
+        /* 无痕模式等场景静默忽略 */
+      }
+      window.location.assign("/home");
     } finally {
       setGuestLoading(false);
     }
@@ -502,7 +512,7 @@ export function AuthPageClient() {
                       : "登录"}
                 </button>
 
-                {/* 游客登录：一键进入，自带 5 张示例卡片，30 分钟沙箱 */}
+                {/* 游客登录：一键进入，自带 5 张示例卡片，60 分钟沙箱 */}
                 <button
                   type="button"
                   onClick={() => void handleGuestLogin()}

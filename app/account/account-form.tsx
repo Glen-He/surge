@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { CardHead } from "@/components/card-head";
@@ -8,6 +8,55 @@ import { EmailChangeModal } from "./email-change-modal";
 import { PasswordChangeModal } from "./password-change-modal";
 import { SignOutModal } from "./sign-out-modal";
 import { DeleteAccountModal } from "./delete-account-modal";
+
+/** 访客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
+function GuestCountdown({ expiresAt }: { expiresAt: string }) {
+  // 首帧渲染占位，挂载后再计时（避免服务端/客户端时间差导致的水合不一致）
+  const [left, setLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    const end = new Date(expiresAt).getTime();
+    if (!Number.isFinite(end)) return;
+    const tick = () =>
+      setLeft(Math.max(0, Math.floor((end - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
+
+  const label =
+    left === null
+      ? "--:--"
+      : `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(
+          left % 60,
+        ).padStart(2, "0")}`;
+
+  return (
+    // 第二行：邮箱正下方（同一文字列内，天然与邮箱左对齐）。
+    // 文字列总高 ≈ 24 + 10 + 20 = 54px < 头像 56px，行高不变 → 卡片高度不增
+    <div className="mt-[10px] flex items-center gap-1.5 text-[13px] leading-[1.5] text-[#6e6e73]">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#C77700"
+        strokeWidth={1.8}
+        className="h-[15px] w-[15px] shrink-0"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3.5 2" />
+      </svg>
+      访客会话剩余
+      <span
+        className="font-semibold"
+        style={{ color: "#C77700", fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}
+      >
+        {label}
+      </span>
+      ，到期自动退出
+    </div>
+  );
+}
 
 const ICON_USER = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[19px] w-[19px]">
@@ -46,9 +95,11 @@ const ICON_CHEVRON = (
 export function AccountForm({
   email,
   deletionRequestedAt,
+  guestExpiresAt,
 }: {
   email: string;
   deletionRequestedAt: string | null;
+  guestExpiresAt: string | null;
 }) {
   const router = useRouter();
   const [openEmail, setOpenEmail] = useState(false);
@@ -92,9 +143,12 @@ export function AccountForm({
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#1d1d1f] text-[22px] font-semibold text-white">
               {email.slice(0, 1).toUpperCase()}
             </div>
-            <p className="break-email min-w-0 text-[17px] font-semibold leading-[1.4] text-[#1d1d1f]">
-              {email}
-            </p>
+            <div className="min-w-0">
+              <p className="break-email text-[17px] font-semibold leading-[1.4] text-[#1d1d1f]">
+                {email}
+              </p>
+              {guestExpiresAt && <GuestCountdown expiresAt={guestExpiresAt} />}
+            </div>
           </div>
           <div className="card-action-wrap">
             <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[#ff3b30]">

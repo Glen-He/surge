@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { GuestOtpModal } from "@/components/guest-otp-modal";
+import { GuestToasts } from "@/components/guest-toasts";
 
 export const metadata: Metadata = {
   title: "工作汇报系统",
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <Toaster position="top-center" richColors closeButton toastOptions={{ duration: 5000 }} />
         <GuestOtpModal />
+        <GuestToasts />
       </body>
     </html>
   );

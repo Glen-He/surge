@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { findValidShare, unlockProof } from "@/lib/shares";
 import { SharePasswordGate } from "./password-gate";
+import { ReportFrame } from "@/components/report-frame";
 
 export const dynamic = "force-dynamic";
 
@@ -44,33 +45,25 @@ export default async function SharePage({
   }
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
-      <div className="account-shell">
-        <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em]">
-              {found.reportTitle}
-            </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
-              来自 SURGE 工作汇报系统的分享 · 内容由分享者提供
-            </p>
-          </div>
+    <>
+      {/* 系统级报告头：与登录态查看页（/report/[slug]）完全一致的 1280px 头部，
+          右侧信息与返回按钮同处 40px 高的垂直带（上下居中对齐同一水平线）。
+          头部随内容一起滚动（本页整体滚动，iframe 自适应报告高度）。 */}
+      <header className="rpt-sys-head">
+        <h1 className="rpt-sys-title">{found.reportTitle}</h1>
+        <div className="flex h-[40px] shrink-0 items-center">
+          <span className="text-[13px] text-[#86868b]">
+            分享页面 · 来自 SURGE 工作汇报系统
+          </span>
         </div>
-
-        {/*
-          sandbox="allow-scripts" 且不带 allow-same-origin：
-          报告脚本可执行（图表正常渲染），但运行于 opaque origin——
-          读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
-          文档响应另带 CSP（connect-src 'none' 等）作为第二道防线。
-        */}
-        <iframe
-          src={`/api/share/${token}/page`}
-          title={found.reportTitle}
-          sandbox="allow-scripts"
-          className="block w-full rounded-[16px] border border-black/8 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)]"
-          style={{ height: "calc(100vh - 220px)", minHeight: 480 }}
-        />
-      </div>
-    </main>
+      </header>
+      {/*
+        sandbox="allow-scripts" 且不带 allow-same-origin：
+        报告脚本可执行（图表正常渲染），但运行于 opaque origin——
+        读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
+        文档响应另带 CSP（connect-src 'none' 等）作为第二道防线。
+      */}
+      <ReportFrame src={`/api/share/${token}/page`} title={found.reportTitle} />
+    </>
   );
 }
