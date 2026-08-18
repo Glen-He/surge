@@ -36,6 +36,36 @@ function toChineseError(error: { code?: string; message?: string } | undefined):
   return "操作失败，请稍后重试";
 }
 
+/**
+ * Safari/WebKit 专用防御：fetch 响应里的 Set-Cookie 在 WebKit 中可能
+ * 晚于紧随其后的整页导航提交到 cookie jar——导航请求读不到会话 cookie，
+ * /home 服务端判未登录 307 弹回（线上日志：登录 200 → GET /home 307 →
+ * GET / 200，且秒级后第二次登录即成功 = cookie 最终已落盘，纯时序问题）。
+ * Chrome/Blink 无此问题（cookie 同步提交）。
+ *
+ * 登录成功后先轮询 get-session 直到服务端能读到会话（说明 jar 已生效），
+ * 再执行跳转。Chrome 下第一次轮询即命中，只多一个 ~10ms 请求；
+ * WebKit 卡住时最多等 3s，超时仍跳转（退化为旧行为，不会更糟）。
+ */
+async function awaitSessionReady(timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      // 原生 fetch 直连服务端（不经 better-auth 客户端的 cookie 缓存）
+      const r = await fetch("/api/auth/get-session", { cache: "no-store" });
+      if (r.ok) {
+        const j = (await r.json().catch(() => null)) as
+          | { session?: unknown }
+          | null;
+        if (j && j.session) return;
+      }
+    } catch {
+      /* 网络抖动等，继续重试 */
+    }
+    await new Promise((res) => setTimeout(res, 150));
+  }
+}
+
 const ICON_MAIL = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
     <rect x="3" y="5" width="18" height="14" rx="3" />
@@ -150,8 +180,9 @@ export function AuthPageClient() {
         setError("设置密码失败，请重试");
         return;
       }
-      // 整页跳转（非客户端路由）：Safari 下 router.push 的 RSC 请求可能不带
-      // 刚 Set-Cookie 的会话，服务端视为未登录弹回登录页（"要登录两次"）
+      // 整页跳转（非客户端路由）。先等会话可读再跳（Safari WebKit 的
+      // cookie 落盘可能晚于导航请求，见 awaitSessionReady 注释）
+      await awaitSessionReady();
       window.location.assign("/home");
     } finally {
       setLoading(false);
@@ -176,7 +207,8 @@ export function AuthPageClient() {
         setError(toChineseError(error));
         return;
       }
-      // 整页跳转，理由同上（Safari cookie 竞态）
+      // 整页跳转，理由同上（Safari cookie 落盘竞态，先等会话可读）
+      await awaitSessionReady();
       window.location.assign("/home");
     } finally {
       setLoading(false);
@@ -208,6 +240,7 @@ export function AuthPageClient() {
       } catch {
         /* 无痕模式等场景静默忽略 */
       }
+      await awaitSessionReady();
       window.location.assign("/home");
     } finally {
       setGuestLoading(false);

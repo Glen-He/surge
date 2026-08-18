@@ -17,8 +17,23 @@ export default async function HomePage() {
     headers: await headers(),
   });
 
-  // 未登录：重定向到登录页
+  // 未登录：重定向到登录页。
+  // Safari「登录两次」排查用诊断：区分「请求根本没带 cookie」（客户端
+  // cookie jar 时序问题，见 auth-page-client 的 awaitSessionReady）与
+  // 「带了 cookie 但服务端判无效」（服务端问题：secret 轮换/代理改写等）。
+  // 只记录 cookie 名，绝不打印值。
   if (!session) {
+    const hs = await headers();
+    const cookieHeader = hs.get("cookie") ?? "";
+    const names = cookieHeader
+      .split(";")
+      .map((c) => c.split("=")[0].trim())
+      .filter(Boolean);
+    console.warn(
+      `[home] bounce to / : session null, cookie header ${
+        names.length > 0 ? `PRESENT [${names.join(",")}]` : "ABSENT"
+      }`,
+    );
     redirect("/");
   }
 
