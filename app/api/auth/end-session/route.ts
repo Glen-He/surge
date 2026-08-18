@@ -58,6 +58,10 @@ export async function POST() {
   }
 
   // 3) 兜底：再清一次前端的 better-auth cookie（防止 handler 返回没有清除干净）
+  //    ⚠️ 清理指令必须带 secure + sameSite 与主 cookie 一致：
+  //    __Secure- 前缀的 Set-Cookie 若缺 Secure 属性，浏览器（尤其 Safari/WebKit）
+  //    会拒绝整条指令，且同名多条 Set-Cookie 竞争会让 WebKit 的 cookie jar
+  //    进入异常状态——随后登录响应的新 cookie 不被提交，表现为"登录要两次"。
   const resp = NextResponse.json({ ok: true });
   const setCookies =
     (signOutResp.headers as Headers).getSetCookie?.() ??
@@ -65,7 +69,12 @@ export async function POST() {
   for (const sc of setCookies) resp.headers.append("set-cookie", sc);
   for (const c of (await nextCookies()).getAll()) {
     if (/better_auth|authjs|session/i.test(c.name)) {
-      resp.cookies.set(c.name, "", { expires: new Date(0), path: "/" });
+      resp.cookies.set(c.name, "", {
+        expires: new Date(0),
+        path: "/",
+        secure: true,
+        sameSite: "lax",
+      });
     }
   }
   return resp;
