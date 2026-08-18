@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 摘要功能技术可行性分析报告</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
+    --card: #ffffff; --bg: #f5f5f7; --soft: #f9f9fb;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card > :last-child { margin-bottom:0 !important; }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-done { background:#e9fbe9; color:#166534; }
+  .b-note { background:#eef0fb; color:#3730a3; }
+  .b-warn { background:#fff4e5; color:#9b4b00; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .fact { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .fact .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.2; }
+  .fact.good .value { color:#21833c; }
+  .fact .label { display:block; margin-top:5px; font-size:12px; font-weight:650; }
+  .fact .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+
+  .decision-note { margin-top:22px; padding:14px 18px; border-left:4px solid var(--accent-2); border-radius:0 10px 10px 0; background:#fff9ef; color:#5f470f; }
+  .decision-note.indigo { border-left-color:var(--accent); background:rgba(88,86,214,.055); color:#403e9f; }
+  .decision-note > p { margin:0 0 6px; }
+  .decision-note > p:last-child { margin-bottom:0; }
+
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
+  .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
+
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:13px; line-height:1.6; }
+  th, td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:var(--soft); border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  th.numeric, td.numeric { text-align:right; }
+
+  .arch-flow { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .arch-row { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:12px; width:100%; }
+  .arch-node { border:2px solid rgba(88,86,214,.45); border-radius:12px; padding:13px 16px; text-align:center; background:var(--soft); }
+  .arch-node .n { font-weight:650; font-size:13.5px; }
+  .arch-node .d { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.5; }
+  .arch-arrow { font-size:11px; color:var(--muted); margin:5px 0; }
+  .arch-node.hub { min-width:320px; border-style:dashed; }
+  .arch-node.hub .n { color:var(--accent); }
+  .arch-node.out { border-color:rgba(52,199,89,.45); }
+  .arch-node.out .n { color:#166534; }
+
+  .outcome-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px; }
+  .outcome { padding:16px 18px; border-left:4px solid var(--accent-3); border-radius:0 10px 10px 0; background:#f3fbf5; color:#245c33; }
+
+  .rpt-foot { margin-top:-14px; color:var(--muted-2); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <h2>结论与建议</h2>
+    <p class="subt">两周 PoC 使用生产脱敏语料 12,000 条，覆盖工单、知识库文档与邮件三类内容源。</p>
+    <div class="kpi-grid">
+      <div class="fact good"><span class="value">6 / 6</span><span class="label">PoC 指标达标</span><span class="detail">全部指标超过立项门槛</span></div>
+      <div class="fact good"><span class="value">¥0.032</span><span class="label">单条摘要成本</span><span class="detail">预算上限 ¥0.05 · 距上限 36%</span></div>
+      <div class="fact"><span class="value">1.8 s</span><span class="label">P50 生成时延</span><span class="detail">P95 2.4s · 目标 ≤3s</span></div>
+      <div class="fact"><span class="value">V2.5</span><span class="label">建议排期版本</span><span class="detail">08-19 立项评审 · 优先级 P1</span></div>
+    </div>
+    <div class="decision-note indigo"><strong>总体结论：可行，建议立项。</strong>质量、时延、成本、合规四类指标全部达标；推荐「脱敏前置 + RAG 增强 + 抽检回流」架构，模型侧保持双供应商可切换，避免单点锁定。</div>
+  </section>
+
+  <section class="card">
+    <h2>PoC 质量与成本表现</h2>
+    <p class="subt">质量维度按「实测 vs 目标基线」归一化打分；成本按 2026 年增长预测的月度调用量估算。</p>
+    <div class="chart-grid">
+      <div class="panel">
+        <p class="p-title">质量雷达 · 实测 vs 目标</p>
+        <p class="p-sub">五维归一化评分 · 满分 100</p>
+        <div id="chartRadar" style="width:100%;height:320px"></div>
+      </div>
+      <div class="panel">
+        <p class="p-title">月度成本预测</p>
+        <p class="p-sub">AI 方案 vs 人工基线 · 按调用量增长</p>
+        <div id="chartCost" style="width:100%;height:320px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>PoC 指标明细</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:22%">指标</th><th class="numeric" style="width:18%">目标（立项门槛）</th><th class="numeric" style="width:18%">PoC 实测</th>
+          <th style="width:12%">结论</th><th style="width:30%">测量方法</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><strong>摘要准确率</strong></td><td class="numeric">≥85%</td><td class="numeric">91.2%</td><td><span class="badge b-done">达标</span></td><td>3 人标注小组 · 1,200 条双盲评分</td></tr>
+          <tr><td><strong>要点覆盖率</strong></td><td class="numeric">≥80%</td><td class="numeric">88.4%</td><td><span class="badge b-done">达标</span></td><td>与全文要点清单比对</td></tr>
+          <tr><td><strong>生成时延 P95</strong></td><td class="numeric">≤3.0 s</td><td class="numeric">2.4 s</td><td><span class="badge b-done">达标</span></td><td>生产等配环境压测 · 12,000 次</td></tr>
+          <tr><td><strong>幻觉率</strong></td><td class="numeric">≤2.0%</td><td class="numeric">0.8%</td><td><span class="badge b-done">达标</span></td><td>事实性核对 · 逐条溯源校验</td></tr>
+          <tr><td><strong>脱敏覆盖率</strong></td><td class="numeric">100%</td><td class="numeric">100%</td><td><span class="badge b-done">达标</span></td><td>PII 正则 + NER 双通道</td></tr>
+          <tr><td><strong>单条成本</strong></td><td class="numeric">≤¥0.05</td><td class="numeric">¥0.032</td><td><span class="badge b-done">达标</span></td><td>token 用量 × 合同单价</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>推荐架构</h2>
+    <p class="subt">脱敏在进模型前完成，PII 不出内网；RAG 检索约束事实来源，降低幻觉；审核抽检形成质量回流闭环。</p>
+    <div class="arch-flow">
+      <div class="arch-row">
+        <div class="arch-node"><div class="n">工单流水</div><div class="d">客服 / 运营工单</div></div>
+        <div class="arch-node"><div class="n">知识库文档</div><div class="d">内部 Wiki / SOP</div></div>
+        <div class="arch-node"><div class="n">邮件线程</div><div class="d">客户往来邮件</div></div>
+      </div>
+      <div class="arch-arrow">↓ 三类内容源统一接入</div>
+      <div class="arch-node"><div class="n">预处理与脱敏</div><div class="d">PII 识别（正则 + NER 双通道）· 分段与长度控制 · 质量过滤</div></div>
+      <div class="arch-arrow">↓ 脱敏后内容进入检索与生成</div>
+      <div class="arch-row">
+        <div class="arch-node hub" style="min-width:0"><div class="n">RAG 检索增强</div><div class="d">向量库召回 Top-K 相关片段<br/>为摘要提供可溯源事实约束</div></div>
+        <div class="arch-node hub" style="min-width:0"><div class="n">LLM 摘要生成</div><div class="d">温度 0.2 · JSON Schema 结构化输出<br/>双供应商可切换（A/B 流量）</div></div>
+      </div>
+      <div class="arch-arrow">↓ 生成结果进入质量闭环</div>
+      <div class="arch-node out"><div class="n">审核与回流</div><div class="d">线上抽检 5% 人工复核 · 差评样本进入微调评估池 · 指标周报</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>风险与前置条件</h2>
+    <div class="decision-note" style="margin-top:0">
+      <p><strong>⚠ 风险一：供应商锁定。</strong>单一模型供应商在议价与稳定性上都存在单点风险。缓解：模型网关层保持 A/B 双供应商，切换成本控制在 1 周内。</p>
+      <p><strong>⚠ 风险二：长文档质量衰减。</strong>超过 8,000 字的文档要点覆盖率下降约 6pp。缓解：分段摘要 + 汇总的两级生成策略，PoC 已验证可拉回 2pp 以内。</p>
+    </div>
+    <div class="outcome-grid">
+      <div class="outcome"><strong>前置条件一：安全评审</strong><br/>数据链路安全评审 + 供应商合同合规审查，08-28 前完成。</div>
+      <div class="outcome"><strong>前置条件二：灰度方案</strong><br/>09 月中起 5% 流量灰度，抽检合格率 ≥95% 后逐级放量。</div>
+    </div>
+  </section>
+
+  <p class="rpt-foot">SURGE Report Engine · 生成于 2026-08-07 16:20 · 访客演示数据</p>
+</div>
+
+<script>
+(function () {
+  var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
+  var TOOLTIP = {
+    trigger:'axis',
+    backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+    textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+    axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
+    extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
+  };
+  var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
+  var charts = [];
+
+  // ── 质量雷达 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartRadar'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip:{ backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+        textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+        extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;' },
+      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect',
+        textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      radar:{
+        indicator:[
+          { name:'摘要准确率', max:100 }, { name:'要点覆盖', max:100 }, { name:'时延得分', max:100 },
+          { name:'幻觉控制', max:100 }, { name:'脱敏覆盖', max:100 }
+        ],
+        radius:'62%', center:['50%','56%'],
+        axisName:{ color:'#6e6e73', fontSize:11.5, fontFamily:FONT },
+        splitLine:{ lineStyle:{ color:'#ececf0' } },
+        splitArea:{ areaStyle:{ color:['#fafafc','#f4f4f8'] } },
+        axisLine:{ lineStyle:{ color:'#ececf0' } }
+      },
+      series:[{
+        type:'radar',
+        data:[
+          { value:[85,80,75,90,100], name:'目标基线',
+            symbol:'circle', symbolSize:4,
+            itemStyle:{ color:'#c8cdd4' },
+            lineStyle:{ width:1.5, color:'#c8cdd4', type:'dashed' },
+            areaStyle:{ color:'rgba(200,205,212,.12)' } },
+          { value:[91,88,85,96,100], name:'PoC 实测',
+            symbol:'circle', symbolSize:5,
+            itemStyle:{ color:'#5856d6', borderWidth:2, borderColor:'#fff' },
+            lineStyle:{ width:2.5, color:'#5856d6' },
+            areaStyle:{ color:'rgba(88,86,214,.14)' } }
+        ]
+      }]
+    });
+  })();
+
+  // ── 月度成本预测 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartCost'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip:{ ...TOOLTIP, valueFormatter:function(v){ return '¥' + v.toFixed(1) + ' 万'; } },
+      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      grid: GRID,
+      xAxis:{ type:'category', data:['9 月','10 月','11 月','12 月','1 月'], boundaryGap:false,
+        axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },
+      yAxis:{ type:'value', splitLine:{ lineStyle:{ color:'#ececf0' } },
+        axisLabel:{ fontSize:11, color:'#6e6e73', fontFamily:FONT, formatter:function(v){ return v + ' 万'; } } },
+      series:[
+        { name:'人工基线', type:'line', smooth:true, symbol:'none',
+          data:[12.0, 12.6, 13.8, 15.0, 16.2],
+          itemStyle:{ color:'#c8cdd4' }, lineStyle:{ width:1.5, color:'#c8cdd4', type:'dashed' } },
+        { name:'AI 方案', type:'line', smooth:true, symbol:'circle', symbolSize:7,
+          data:[0.32, 0.65, 1.10, 1.85, 2.60],
+          itemStyle:{ color:'#34c759', borderWidth:2, borderColor:'#fff' },
+          lineStyle:{ width:2.5, color:'#34c759' },
+          areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'rgba(52,199,89,.16)' }, { offset:1, color:'rgba(52,199,89,0)' }]) } }
+      ]
+    });
+  })();
+
+  window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+})();
+</script>
+</body>
+</html>

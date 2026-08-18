@@ -1,0 +1,59 @@
+# 参考文档：https://help.github.com/articles/ignoring-files/
+
+# 依赖安装目录
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# 测试覆盖率
+/coverage
+
+# Next.js 构建输出
+/.next/
+/out/
+
+# 生产构建
+/build
+
+# 系统与编辑器文件
+.DS_Store
+*.pem
+
+# 调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 环境变量文件（如需提交可自行调整）
+.env*
+!.env.example
+
+# Vercel 部署
+.vercel
+
+# TypeScript 编译缓存与自动生成文件
+*.tsbuildinfo
+next-env.d.ts
+
+# 本地开发配置（不提交到生产仓库）
+compose.dev.yml
+
+# 项目记忆 / 工作痕迹（不部署）
+.workbuddy/
+tmp/
+
+# 运行时用户数据（部署后由上传生成，不进 git）
+reports/users/
+!reports/_shared/
+
+# 本地笔记
+查看当前项目_*.md
+
+# 数据库备份（含用户数据，严禁提交）
+output/backup/

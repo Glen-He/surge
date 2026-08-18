@@ -1,0 +1,1830 @@
+@import "tailwindcss";
+
+/* 报告页系统级头部：所有报告统一提供标题 + 返回按钮，不依赖提交的 HTML。
+   样式与 vela/nexus/kttks 模板内的 rpt-head / btn-light 保持一致。 */
+.rpt-sys-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  /* 与模板 .wrap 一致：固定 1280px 居中，保证标题/返回按钮与正文卡片左右缘对齐 */
+  min-width: 1280px;
+  max-width: 1280px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  /* 顶部 32px 同 wrap；底部 10px + wrap 自身 32px 顶内边距 = 原模板 42px 的标题下间距 */
+  padding: 32px 36px 10px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+.rpt-sys-head .rpt-sys-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+}
+.rpt-sys-head .rpt-sys-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #d2d2d7;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d1d1f;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.rpt-sys-head .rpt-sys-back:hover {
+  background: #ededf2;
+}
+.rpt-sys-head .rpt-sys-back:focus {
+  outline: none;
+  border-color: #007aff;
+}
+.rpt-sys-head .rpt-sys-back svg {
+  width: 15px;
+  height: 15px;
+}
+
+
+@theme inline {
+  --color-background: #f5f5f7;
+  --color-foreground: #1d1d1f;
+  --font-sans:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
+/* ============ 设计 Token（Apple 风格、克制、黑/白/灰） ============ */
+:root {
+  --page-bg: #f5f5f7;
+  --surface: #ffffff;
+
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.14);
+
+  --accent: #007aff;
+  --accent-hover: #006ee6;
+  --accent-soft: rgba(0, 122, 255, 0.08);
+
+  --success: #34c759;
+  --success-text: #18864b;
+  --success-soft: rgba(52, 199, 89, 0.1);
+
+  --danger: #ff3b30;
+  --danger-hover: #e63229;
+  --danger-soft: rgba(255, 59, 48, 0.08);
+}
+
+/* ============ 基础 ============ */
+html,
+body {
+  height: 100%;
+}
+
+/* 全局隐藏滚动条（滚动功能保留：滚轮/触控板/键盘/拖拽均可）：
+   滚动条不占布局空间，各页面居中轴天然一致，无左右偏移 */
+html {
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / Edge */
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  cursor: pointer;
+  /* 只继承字体族，不整体 font: inherit —— 未分层规则会覆盖 Tailwind 工具类，
+     导致按钮上的 text-[13px] 等字号/字重全部失效（一律回退 16px） */
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============ 账户中心 Shell（1080px 标准内容轨道） ============ */
+.account-shell {
+  width: min(1080px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-block: 32px 96px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.account-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 280px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 22px;
+  padding: 28px 30px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 10px 30px rgba(0, 0, 0, 0.018);
+}
+
+/* 卡片三段骨架：标题区 → 主内容 → 弹性空间 → 操作（auto 推底，四卡 Y 对齐） */
+.card-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.card-main {
+  margin-top: 24px;
+}
+
+/* 其余卡片内容下移：与账号信息卡的邮箱文字顶部对齐（48head + 40 = 88px） */
+.card-main.shifted {
+  margin-top: 40px;
+}
+
+.card-action {
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 贴底操作区：提示文字 + 操作按钮一起沉底，卡片高度不被内容撑大 */
+.card-action-wrap {
+  margin-top: auto;
+}
+
+/* ============ 通用控件 ============ */
+.input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  font-size: 16px;
+  color: var(--text-primary);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.input::placeholder {
+  color: #a1a1a6;
+}
+
+/* 聚焦：只变边框颜色，不做任何外扩光环 */
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input.input-error {
+  border-color: var(--danger);
+}
+
+.input.input-error:focus {
+  border-color: var(--danger);
+}
+
+.input:disabled {
+  background: #f5f5f7;
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+/* ============ 按钮 ============ */
+/* 规则：全部胶囊形；深色按钮 hover 变浅，浅色按钮 hover 变深；成对按钮视觉等大 */
+/* 光学修正：实心（深色）按钮比带边框（浅色）按钮四周各小 1px —— 高 42 vs 44、宽 -2px，对齐边框内芯 */
+/* 主操作按钮：胶囊、实心蓝 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 验证码发送按钮：固定宽，文案在 获取验证码/发送中/Xs 后重发 之间切换时尺寸不跳 */
+.otp-send {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background: #fafafa;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 单一主 CTA 行：桌面右对齐、按钮自适应宽度；手机全宽 */
+.modal-cta-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .modal-cta-row {
+    flex-direction: column;
+  }
+
+  .modal-cta-row > .btn-primary {
+    width: 100%;
+  }
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--danger);
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.btn-danger-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 轻量文字 Action（主页卡片里的“修改邮箱 / 修改密码”），Web 蓝 */
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  color: #0071e3;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.btn-action:hover {
+  color: #0062c4;
+}
+
+/* 同格式的危险文字 Action（删除账号），红仅危险 */
+.btn-action-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  color: #ff3b30;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.btn-action-danger:hover {
+  color: #d32f25;
+}
+
+/* 浅色胶囊按钮（返回 / 用户中心）：hover 变深而不是变浅 */
+.btn-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-light:hover {
+  background: #e4e4e9;
+  color: #1d1d1f;
+}
+
+/* Modal 底部操作行：右对齐、次按钮 + 主按钮，不再使用两个 50% 巨型按钮 */
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 成对按钮视觉等高同宽：带边框 112×44，实心四周各收 1px → 110×42（对齐边框内芯） */
+.modal-actions > button,
+.modal-actions > a {
+  width: 112px;
+}
+
+.modal-actions > .btn-primary,
+.modal-actions > .btn-danger {
+  width: 110px;
+}
+
+@media (max-width: 420px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions > button,
+  .modal-actions > a {
+    width: 100%;
+  }
+
+  .modal-actions > .btn-primary,
+  .modal-actions > .btn-danger {
+    width: 100%;
+  }
+}
+
+/* ============ Badge（已验证 / 活跃） ============ */
+.badge-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success-text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-success::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+/* ============ 输入行包装 ============ */
+.field-error {
+  margin-top: 6px;
+  /* 固定单行高度：配合“始终渲染空串占位”的用法，错误出现/消失不引起布局跳动 */
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.inline-success {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--success-text);
+  line-height: 1.4;
+}
+
+/* 长邮箱兼容：任何邮箱都允许在任意字符处断行 */
+.break-email {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ============ 动画 ============ */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease both;
+}
+
+/* 步骤切换：fade + translateX 8px */
+.animate-step {
+  animation: step-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-shake {
+  animation: shake 0.28s ease;
+}
+
+/* ============ 安全操作 Modal ============ */
+.security-modal {
+  width: min(496px, calc(100vw - 32px));
+  /* 相对弹窗容器（= 可见视口，键盘弹出时被 visualViewport 缩小），
+     而非 100dvh（iOS 上 dvh 不响应键盘），保证键盘弹出时内容可完整滚读 */
+  max-height: calc(100% - 32px);
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.security-modal-overlay {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+/* Header：68px，标题 20px/650，底部分隔线 */
+.security-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.security-modal-title {
+  font-size: 20px;
+  font-weight: 650;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+/* 无分隔线变体（如退出登录确认） */
+.security-modal-header-plain {
+  border-bottom: 0;
+}
+
+/* 关闭按钮 36×36，浅灰圆 */
+.security-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f5f5f7;
+  color: #6e6e73;
+  border: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.security-modal-close:hover {
+  background: #ebebed;
+  color: #1d1d1f;
+}
+
+.security-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* 轻量步骤指示器：24px 圆点 + 13px 文字 + 细连接线 */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.step-dot-current,
+.step-dot-done {
+  background: var(--accent);
+  color: #fff;
+}
+
+.step-dot-todo {
+  background: #f0f0f2;
+  color: #86868b;
+}
+
+.step-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.step-label-current {
+  color: var(--accent);
+}
+
+.step-label-done {
+  color: var(--text-primary);
+}
+
+.step-label-todo {
+  color: var(--text-tertiary);
+}
+
+.step-line {
+  flex: 1 0 10px;
+  min-width: 10px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.step-line-done {
+  background: rgba(0, 122, 255, 0.35);
+}
+
+/* 当前绑定邮箱等轻量信息行 */
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f7f9;
+}
+
+.info-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d1d1f;
+  flex-shrink: 0;
+}
+
+/* 密码强度：三条小 bar + 文字 */
+.pw-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pw-bars {
+  display: flex;
+  gap: 4px;
+}
+
+.pw-bar {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e5e5ea;
+  transition: background-color 0.2s ease;
+}
+
+.pw-strength-label {
+  font-size: 12px;
+  color: #86868b;
+}
+
+/* 验证方式选择：桌面双列小卡，手机单列 */
+.verify-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.verify-method {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 116px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.verify-method:hover {
+  background: rgba(0, 122, 255, 0.035);
+  border-color: rgba(0, 122, 255, 0.25);
+}
+
+.verify-method-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .verify-methods {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 返回链接（‹ 选择其他验证方式） */
+.modal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.modal-back:hover {
+  color: var(--accent-hover);
+}
+
+/* OTP 外壳（错误时整体变红 + shake 由组件触发） */
+.otp-shell {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .security-modal {
+    width: calc(100vw - 24px);
+    /* 同桌面：相对容器（= 可见视口），iOS 键盘弹出时 dvh 不收缩 */
+    max-height: calc(100% - 24px);
+    border-radius: 20px;
+  }
+
+  .security-modal-header {
+    padding: 0 20px;
+    min-height: 64px;
+  }
+
+  .security-modal-body {
+    padding: 20px 20px 24px;
+  }
+
+  .otp-shell {
+    gap: 6px;
+  }
+}
+
+/* ============ 手机响应式 ============ */
+@media (max-width: 768px) {
+  .account-shell {
+    width: calc(100% - 32px);
+    padding-block: 20px 64px;
+  }
+
+  .account-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+    gap: 16px;
+  }
+
+  .account-card {
+    min-height: 280px;
+    padding: 24px 22px;
+    border-radius: 20px;
+  }
+}
+
+/* ============ 登录 / 注册 Auth ============ */
+.auth-page {
+  min-height: 100dvh;
+  background: var(--page-bg);
+}
+
+/* 视觉中心略上移，四周大留白 */
+.auth-main {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px calc(24px + 7vh);
+}
+
+/* 大型横向认证舞台：左品牌区 + 右表单区，只有一张大卡 */
+.auth-stage {
+  width: min(1080px, 100%);
+  min-height: 640px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 20px 60px rgba(0, 0, 0, 0.035);
+}
+
+/* 左侧：安静的品牌区，不塞插画和功能列表 */
+.auth-brand {
+  padding: 56px 52px;
+  background: #f7f7f9;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.auth-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.auth-brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.auth-brand-title {
+  font-size: 30px;
+  line-height: 1.22;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.auth-brand-foot {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* 右侧：表单面板；表单本身限宽 380px */
+.auth-form-panel {
+  padding: 52px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-form-inner {
+  width: min(100%, 380px);
+  margin-inline: auto;
+}
+
+.auth-title {
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.auth-subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+/* 分段滑块：全圆胶囊；indicator 宽度按“容器可用宽度”计算，天然对称 */
+.auth-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 44px;
+  padding: 4px;
+  margin-top: 28px;
+  background: #f2f2f4;
+  border-radius: 999px;
+}
+
+.auth-tab-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 2);
+  background: #fff;
+  border-radius: 999px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 1px rgba(0, 0, 0, 0.03);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.auth-tab {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.auth-tab:hover {
+  color: var(--text-primary);
+}
+
+.auth-tab-active,
+.auth-tab-active:hover {
+  color: var(--text-primary);
+}
+
+.auth-field {
+  position: relative;
+  margin-top: 14px;
+  /* 底部预留错误提示位：间距恒定，报错不引起跳变 */
+  padding-bottom: 20px;
+}
+
+.auth-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3a3a3c;
+}
+
+.auth-input-wrap {
+  position: relative;
+}
+
+.auth-input {
+  height: 50px;
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 14px 0 44px;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+.auth-input::placeholder {
+  color: #a1a1a6;
+}
+
+/* 聚焦：只变边框颜色，不外扩光环 */
+.auth-input:focus {
+  border-color: var(--accent);
+}
+
+.auth-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auth-input-pw {
+  padding-right: 48px;
+}
+
+.auth-input-error,
+.auth-input-error:focus {
+  border-color: var(--danger);
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: #86868b;
+  pointer-events: none;
+}
+
+/* 眼睛：视觉轻、点击区域 40px */
+.auth-eye {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #86868b;
+  transition: color 0.15s ease;
+}
+
+.auth-eye:hover {
+  color: var(--text-primary);
+}
+
+.auth-otp-shell {
+  display: flex;
+  gap: 8px;
+}
+
+.auth-otp {
+  height: 50px;
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+.auth-otp:focus {
+  border-color: var(--accent);
+}
+
+/* 注册验证码阶段：邮箱/密码收起后的轻量摘要行 */
+.auth-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #f7f7f9;
+}
+
+.auth-summary-value {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* 折叠容器内第一个字段与上方元素的标准间距 */
+.auth-field-top {
+  margin-top: 32px;
+}
+
+/* 错误提示：落在字段预留的底部间隙里，出现/消失不改变任何尺寸 */
+.auth-error-slot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+/* 元信息行：登录=右对齐忘记密码，注册=居中提示；两种模式同高，元素位置固定 */
+.auth-meta-row {
+  margin-top: 10px;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.auth-meta-center {
+  justify-content: center;
+}
+
+/* 验证码区域：grid-rows 过渡平滑展开，避免卡片跳变 */
+.auth-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.auth-collapse-open {
+  grid-template-rows: 1fr;
+}
+
+.auth-collapse > div {
+  overflow: hidden;
+}
+
+.auth-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0071e3;
+}
+
+.auth-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.auth-link:disabled {
+  color: #c7c7cc;
+  cursor: not-allowed;
+}
+
+/* 主提交：黑色品牌动作 */
+.auth-submit {
+  margin-top: 24px;
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: #1d1d1f;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.auth-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 游客登录：浅色次级按钮，hover 变深 */
+.auth-guest {
+  margin-top: 12px;
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.auth-guest:hover {
+  background: #e4e4e9;
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+@media (max-width: 768px) {
+  .auth-stage {
+    display: block;
+    width: 100%;
+    min-height: auto;
+  }
+
+  .auth-brand {
+    padding: 28px 24px 22px;
+    gap: 24px;
+  }
+
+  .auth-brand-title {
+    font-size: 25px;
+  }
+
+  .auth-form-panel {
+    padding: 28px 24px 32px;
+  }
+
+  .auth-form-inner {
+    width: 100%;
+  }
+}
+
+/* ============ 新建项目 ============ */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 24px;
+}
+
+/* 四卡高度兜底 280px：内容超出时整行一起等高变高（grid 1fr），始终一致 */
+.project-card {
+  min-width: 0;
+  min-height: 280px;
+  padding: 20px 30px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 10px 30px rgba(0, 0, 0, 0.018);
+  display: flex;
+  flex-direction: column;
+}
+
+.project-field {
+  margin-top: 10px;
+}
+
+.project-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #3a3a3c;
+}
+
+/* 必填星号：保留但降低视觉重量 */
+.project-req {
+  margin-left: 2px;
+  color: var(--danger);
+  font-weight: 400;
+}
+
+.project-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+.project-input::placeholder {
+  color: #a1a1a6;
+}
+
+.project-input:focus {
+  border-color: var(--accent);
+}
+
+textarea.project-input {
+  height: auto;
+  min-height: 120px;
+  padding: 12px 14px;
+  resize: none;
+  line-height: 1.6;
+}
+
+/* 报错槽位常驻：单行 18px + 2px 上距，紧凑不占位；报错出现/消失零位移 */
+.project-error {
+  min-height: 18px;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+/* 报告文件卡错误槽位：上传框下方、左对齐、常驻占位，报错出现时零位移 */
+.upload-error-slot {
+  min-height: 22px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+/* 上传区：顶部与项目说明 textarea 顶对齐（上方留出标签行高度 33px），
+   高度同为 120px，底边随之对齐 */
+.upload-zone {
+  margin-top: 33px;
+  height: 120px;
+  padding: 12px 16px;
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+  background: #f7f7f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.upload-zone:hover,
+.upload-zone-drag {
+  border-color: rgba(0, 122, 255, 0.4);
+  background: rgba(0, 122, 255, 0.03);
+}
+
+.upload-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* 已选文件状态：与 upload-zone 同位替换，同样顶对齐 + 120px */
+.file-state {
+  margin-top: 33px;
+  height: 120px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  background: #f7f7f9;
+}
+
+.file-state-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.file-name {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.file-check {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--success-text);
+}
+
+.file-swap {
+  margin-top: 2px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 页面级操作行：裸按钮，右对齐与卡片同轴 */
+.page-actions {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.page-actions-error {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+/* 页面级成对按钮：带边框 112×44，实心四周各收 1px → 110×42，并排视觉等大 */
+.btn-create {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 110px;
+  height: 42px;
+  background: #1d1d1f;
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-create:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btn-create:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 44px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6e6e73;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-cancel-page:hover {
+  background: #e4e4e9;
+  color: var(--text-primary);
+}
+
+/* 输入框错误态：只改边框颜色，不产生红色外发光 */
+.project-input-error,
+.project-input-error:focus {
+  border-color: var(--danger);
+}
+
+/* ============ 日期选择器 ============ */
+.date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-trigger svg {
+  color: #86868b;
+  flex-shrink: 0;
+}
+
+.date-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 280px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: fade-in 0.15s ease;
+}
+
+.date-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 8px;
+}
+
+.date-pop-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6e6e73;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.date-nav:hover {
+  background: #f2f2f4;
+  color: var(--text-primary);
+}
+
+.date-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.date-week span {
+  text-align: center;
+  font-size: 12px;
+  color: #86868b;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background-color 0.12s ease;
+}
+
+.date-day:hover {
+  background: #f2f2f4;
+}
+
+.date-day-today {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.date-day-sel,
+.date-day-sel:hover {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .project-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+    gap: 16px;
+  }
+
+  .project-card {
+    min-height: 280px;
+    padding: 20px 22px;
+  }
+
+  .page-actions {
+    flex-wrap: wrap;
+  }
+
+  .page-actions-error {
+    margin-right: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .page-actions button,
+  .page-actions a {
+    width: 100%;
+  }
+}
+
+/* ============ Toast（Apple 风格磨砂玻璃） ============ */
+[data-sonner-toaster] {
+  --normal-bg: rgba(255, 255, 255, 0.78);
+  --normal-border: rgba(0, 0, 0, 0.06);
+  --normal-text: #1d1d1f;
+  --accent: #007aff;
+  --success: #34c759;
+  --danger: #ff3b30;
+  --warning: #ff9500;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
+[data-sonner-toaster] {
+  gap: 10px;
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  position: relative;
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: rgba(255, 255, 255, 0.82);
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 0.5px 1px rgba(0, 0, 0, 0.04),
+    0 8px 28px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 12px 16px 12px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+  min-width: 300px;
+  max-width: min(420px, calc(100vw - 32px));
+  overflow: hidden;
+}
+
+[data-sonner-toaster] [data-sonner-toast]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"]::before {
+  background: var(--success);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"]::before {
+  background: var(--danger);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"]::before {
+  background: var(--warning);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: 12.5px;
+  font-weight: 450;
+  line-height: 1.45;
+  margin-top: 2px;
+  color: #6e6e73;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-icon] {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
+  color: var(--success);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
+  color: var(--danger);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: var(--warning);
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  color: #86868b;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+[data-sonner-toaster] [data-sonner-toast]:hover [data-close-button] {
+  opacity: 1;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1d1d1f;
+}

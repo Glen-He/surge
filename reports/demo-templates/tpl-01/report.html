@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台服务性能优化与迁移进度</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
+    --card: #ffffff; --bg: #f5f5f7; --soft: #f9f9fb;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card > :last-child { margin-bottom:0 !important; }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-done { background:#e9fbe9; color:#166534; }
+  .b-note { background:#eef0fb; color:#3730a3; }
+  .b-warn { background:#fff4e5; color:#9b4b00; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .fact { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .fact .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.2; }
+  .fact.good .value { color:#21833c; }
+  .fact .label { display:block; margin-top:5px; font-size:12px; font-weight:650; }
+  .fact .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
+  .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
+
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:13px; line-height:1.6; }
+  th, td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:var(--soft); border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  th.numeric, td.numeric { text-align:right; }
+
+  .count-flow { display:grid; grid-template-columns:repeat(4,1fr); gap:30px; }
+  .count-node { position:relative; min-height:122px; padding:18px 14px; border:2px solid rgba(88,86,214,.28); border-radius:12px; background:var(--soft); text-align:center; }
+  .count-node:not(:last-child)::after { content:"→"; position:absolute; top:50%; right:-15px; transform:translate(50%,-50%); color:rgba(88,86,214,.5); font-size:20px; }
+  .count-node .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.1; }
+  .count-node .label { display:block; margin-top:7px; font-size:13px; font-weight:650; }
+  .count-node .detail { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.4; }
+  .count-node.final { border-color:rgba(52,199,89,.42); background:#f3fbf5; }
+  .count-node.final .value { color:#21833c; }
+  .count-node.doing { border-style:dashed; }
+
+  .decision-note { margin-top:22px; padding:14px 18px; border-left:4px solid var(--accent-2); border-radius:0 10px 10px 0; background:#fff9ef; color:#5f470f; }
+  .decision-note.indigo { border-left-color:var(--accent); background:rgba(88,86,214,.055); color:#403e9f; }
+
+  .outcome-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px; }
+  .outcome { padding:16px 18px; border-left:4px solid var(--accent-3); border-radius:0 10px 10px 0; background:#f3fbf5; color:#245c33; }
+
+  .rpt-foot { margin-top:-14px; color:var(--muted-2); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <h2>本周核心指标</h2>
+    <p class="subt">三项优化叠加后，订单主链路在晚高峰流量下首次稳定满足 250ms P99 目标。</p>
+    <div class="kpi-grid">
+      <div class="fact good"><span class="value">212 ms</span><span class="label">P99 接口响应</span><span class="detail">上周 486 ms · 环比 ↓56%</span></div>
+      <div class="fact good"><span class="value">5,810</span><span class="label">QPS 峰值</span><span class="detail">上周 3,420 · 环比 ↑70%</span></div>
+      <div class="fact good"><span class="value">0.04%</span><span class="label">5xx 错误率</span><span class="detail">上周 0.18% · 环比 ↓78%</span></div>
+      <div class="fact"><span class="value">58%</span><span class="label">DB 平均连接使用率</span><span class="detail">上周 76% · 下降 18pp</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>流量与响应趋势</h2>
+    <p class="subt">数据取自网关分钟级聚合，按天取峰值；P99 目标线为 250ms（V2.4 性能预算）。</p>
+    <div class="chart-grid">
+      <div class="panel">
+        <p class="p-title">QPS 趋势对比</p>
+        <p class="p-sub">上周 vs 本周 · 按天峰值</p>
+        <div id="chartQps" style="width:100%;height:300px"></div>
+      </div>
+      <div class="panel">
+        <p class="p-title">订单接口 P99 响应时间</p>
+        <p class="p-sub">08-08 ~ 08-14 · 虚线为 250ms 目标</p>
+        <div id="chartP99" style="width:100%;height:300px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>关键改动与收益</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:24%">改动</th><th style="width:13%">模块</th><th class="numeric" style="width:13%">上线时间</th>
+          <th style="width:34%">核心收益</th><th style="width:16%">状态</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><strong>批量写入模型</strong></td><td>订单服务</td><td class="numeric">08-11</td><td>单条 INSERT 合并为 200 条/批，DB TPS 9,000 → 480，主从延迟稳定 &lt;10ms</td><td><span class="badge b-done">已全量</span></td></tr>
+          <tr><td><strong>ES → OpenSearch 双写</strong></td><td>搜索服务</td><td class="numeric">08-09</td><td>冷数据双写完成，灰度 20% 流量一周，搜索结果一致性 99.97%</td><td><span class="badge b-note">灰度 20%</span></td></tr>
+          <tr><td><strong>本地一级缓存</strong></td><td>用户画像</td><td class="numeric">08-12</td><td>Redis 前置 Caffeine 缓存，命中率 83% → 96.2%，峰值带宽 ↓41%</td><td><span class="badge b-done">已全量</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>OpenSearch 迁移进度</h2>
+    <p class="subt">按「双写就绪 → 冷数据 → 灰度 → 全量」四步推进，当前处于第三步，全量切换计划 08-21。</p>
+    <div class="count-flow">
+      <div class="count-node"><span class="value">08-02</span><span class="label">双写链路就绪</span><span class="detail">索引模板对齐<br/>写入冲突率 0.003%</span></div>
+      <div class="count-node"><span class="value">08-05</span><span class="label">冷数据双写</span><span class="detail">180 天历史索引回填<br/>总量 2.3 TB</span></div>
+      <div class="count-node doing"><span class="value">20%</span><span class="label">读流量灰度</span><span class="detail">一致性 99.97% 连续 7 天<br/>P99 差异 &lt;8ms</span></div>
+      <div class="count-node final"><span class="value">08-21</span><span class="label">全量切换</span><span class="detail">计划窗口周五 02:00<br/>带回滚预案</span></div>
+    </div>
+    <div class="decision-note indigo"><strong>全量切换门槛：</strong>读一致性 ≥99.95% 连续保持 7 天（当前已满足 7/7）、查询 P99 差异 &lt;15ms（当前 8ms）、回滚演练通过（08-19 计划）。三项全部满足后才进入全量窗口。</div>
+  </section>
+
+  <section class="card">
+    <h2>风险与下周计划</h2>
+    <div class="decision-note" style="margin-top:0"><strong>⚠ 风险：</strong>消息队列集群 08-12 出现一次 rebalance，消费延迟峰值 42 秒，已触发自动扩容。根因是消费者组会话超时配置过短，下周补充死信队列看板与分级告警。</div>
+    <div class="outcome-grid">
+      <div class="outcome"><strong>① 搜索全量切换</strong><br/>08-21 窗口执行，08-19 完成回滚演练。</div>
+      <div class="outcome"><strong>② K8s 资源配额下调</strong><br/>订单服务 limits 下调 30%，预计月成本节省 ¥4,600。</div>
+      <div class="outcome"><strong>③ 缓存主动失效</strong><br/>画像缓存上线变更广播失效，替换当前 5 分钟 TTL。</div>
+    </div>
+  </section>
+
+  <p class="rpt-foot">SURGE Report Engine · 生成于 2026-08-14 18:02 · 访客演示数据</p>
+</div>
+
+<script>
+(function () {
+  var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
+  var TOOLTIP = {
+    trigger:'axis',
+    backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+    textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+    axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
+    extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
+  };
+  var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
+  var charts = [];
+
+  // ── QPS 趋势对比 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartQps'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip: TOOLTIP,
+      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      grid: GRID,
+      xAxis:{ type:'category', data:['08-08','08-09','08-10','08-11','08-12','08-13','08-14'],
+        axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },
+      yAxis:{ type:'value', splitLine:{ lineStyle:{ color:'#ececf0' } }, axisLabel:AXIS },
+      series:[
+        { name:'上周 QPS', type:'line', smooth:true, symbol:'circle', symbolSize:6,
+          data:[3120,3260,3340,3410,3290,2870,2540],
+          itemStyle:{ color:'#c8cdd4' }, lineStyle:{ width:2, color:'#c8cdd4' } },
+        { name:'本周 QPS', type:'line', smooth:true, symbol:'circle', symbolSize:7,
+          data:[4980,5210,5480,5810,5620,4980,4320],
+          itemStyle:{ color:'#5856d6', borderWidth:2, borderColor:'#fff' },
+          lineStyle:{ width:2.5, color:'#5856d6' },
+          areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'rgba(88,86,214,.16)' }, { offset:1, color:'rgba(88,86,214,0)' }]) } }
+      ]
+    });
+  })();
+
+  // ── P99 响应时间 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartP99'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip: TOOLTIP,
+      grid: GRID,
+      xAxis:{ type:'category', data:['08-08','08-09','08-10','08-11','08-12','08-13','08-14'],
+        axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },
+      yAxis:{ type:'value', splitLine:{ lineStyle:{ color:'#ececf0' } }, axisLabel:AXIS },
+      series:[{
+        name:'P99', type:'bar', barWidth:'52%',
+        data:[486,452,398,340,288,236,212],
+        itemStyle:{ borderRadius:[6,6,0,0],
+          color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#7a78e0' }, { offset:1, color:'#5856d6' }]) },
+        markLine:{ symbol:'none', silent:true,
+          lineStyle:{ type:'dashed', color:'#ff9f0a', width:1.5 },
+          label:{ formatter:'目标 250ms', color:'#9b4b00', fontSize:11, fontFamily:FONT, position:'insideEndTop' },
+          data:[{ yAxis:250 }] }
+      }]
+    });
+  })();
+
+  window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+})();
+</script>
+</body>
+</html>
