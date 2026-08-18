@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P15–CK2α 结合位点发现与验证进展</title>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --muted-2: #86868b;
+    --line: #e8e8ed;
+    --card: #ffffff;
+    --bg: #f5f5f7;
+    --soft: #f9f9fb;
+    --accent: #5856d6;
+    --accent-2: #ff9f0a;
+    --accent-3: #34c759;
+    --red: #ff3b30;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1280px; min-width: 1280px; margin: 0 auto; padding: 32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .rpt-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 42px;
+  }
+  .rpt-head h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+  }
+  .btn-light {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid #d2d2d7;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .18s ease, border-color .18s ease;
+  }
+  .btn-light:hover { background: #ededf2; }
+  .btn-light:focus { outline: none; border-color: #007aff; }
+  .btn-light svg { width: 15px; height: 15px; }
+
+  .card {
+    margin: 0 auto 28px;
+    padding: 60px 80px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: 0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02);
+  }
+  .card > :last-child { margin-bottom: 0 !important; }
+  .card h2 { margin: 0 0 22px; font-size: 19px; font-weight: 600; }
+  .card .subt { margin: -14px 0 22px; color: var(--muted); font-size: 13px; }
+  .subhead { margin: 28px 0 12px; font-size: 14px; font-weight: 650; }
+  .subhead:first-child { margin-top: 0; }
+  .subhead.mini { margin: 22px 0 10px; font-size: 13px; font-weight: 600; }
+  .stage-tag {
+    display: inline-block;
+    margin-right: 9px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: rgba(88,86,214,.10);
+    color: #403e9f;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    vertical-align: 1px;
+  }
+  .stage-note { margin: -4px 0 16px; color: var(--muted); font-size: 13px; }
+
+  /* 阶段一左右对卡：细边白底、分割线以高卡为基准对齐、底部说明独立留白 */
+  .duo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; align-items: stretch; }
+  .duo-card {
+    display: flex;
+    flex-direction: column;
+    padding: 26px 30px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.03);
+  }
+  .duo-card .duo-head { display: flex; align-items: center; margin-bottom: 18px; }
+  .duo-card .duo-title { display: inline-block; font-size: 15px; font-weight: 650; }
+  .duo-body { flex: 1; margin-bottom: 24px; }
+  .duo-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 8px 0;
+  }
+  .duo-row .k { flex: 0 0 64px; color: var(--muted); font-size: 12.5px; }
+  .duo-row .v { color: var(--ink); font-size: 13px; }
+  .duo-seq {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    letter-spacing: .02em;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  /* 分割线：内容区弹性撑满，线恒贴在说明区上方，左右卡以较高的左卡为基准对齐 */
+  .duo-divider { margin: 0 0 16px; border-top: 1px solid var(--line); }
+  .duo-reason {
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  .decision-note {
+    margin-top: 22px;
+    padding: 14px 18px;
+    border-left: 4px solid var(--accent-2);
+    border-radius: 0 10px 10px 0;
+    background: #fff9ef;
+    color: #5f470f;
+  }
+  .decision-note.indigo { border-left-color: var(--accent); background: rgba(88,86,214,.055); color: #403e9f; }
+
+  .stage-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px; }
+  .stage {
+    position: relative;
+    min-height: 190px;
+    padding: 20px;
+    border: 2px solid rgba(88,86,214,.32);
+    border-radius: 12px;
+    background: #fafafc;
+  }
+  .stage-col { display: flex; flex-direction: column; }
+  .stage-col:not(:last-child) .stage::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -17px;
+    transform: translate(50%, -50%);
+    color: rgba(88,86,214,.55);
+    font-size: 22px;
+  }
+  .stage-q {
+    margin: 18px 0 0;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+  }
+  .stage-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .stage-no { color: var(--accent); font-size: 12px; font-weight: 700; }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge.done { background: #e9fbe9; color: #166534; }
+  .badge.note { background: #eef0fb; color: #3730a3; }
+  .stage h3 { margin: 14px 0 4px; font-size: 15px; font-weight: 650; }
+  .stage p { margin: 0; color: #3a3a3c; font-size: 12px; }
+  .stage .output { margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--ink); }
+  .stage .output strong { color: var(--accent); }
+
+  .table-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+  th, td {
+    padding: 12px 14px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: break-word;
+  }
+  th:last-child, td:last-child { border-right: 0; }
+  th { border-bottom-color: #d9d9de; background: var(--soft); color: var(--muted); font-size: 12px; font-weight: 600; }
+  td { font-size: 13px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: #f7f7fa; }
+  th.numeric, td.numeric { text-align: right; }
+
+  .flow-label { margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 600; }
+  .count-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+  .count-flow + .flow-label { margin-top: 30px; }
+  .count-node {
+    position: relative;
+    min-height: 122px;
+    padding: 18px 14px;
+    border: 2px solid rgba(88,86,214,.28);
+    border-radius: 12px;
+    background: #fafafc;
+    text-align: center;
+  }
+  .count-node:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -15px;
+    transform: translate(50%, -50%);
+    color: rgba(88,86,214,.5);
+    font-size: 20px;
+  }
+  .count-node .value { display: block; color: var(--accent); font-size: 24px; font-weight: 700; line-height: 1.1; }
+  .count-node .label { display: block; margin-top: 7px; font-size: 13px; font-weight: 650; }
+  .count-node .detail { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+  .count-node.final { border-color: rgba(52,199,89,.42); background: #f3fbf5; }
+  .count-node.final .value { color: #21833c; }
+  .count-node.stop { border-color: rgba(255,59,48,.34); background: #fff7f6; }
+  .count-node.stop .value { color: #991b1b; }
+
+  .short-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 20px 0 0; }
+  .short-flow .count-node { min-height: 104px; padding: 15px 10px; }
+  .short-flow + .stage-note { margin-top: 16px; }
+
+  .pose-grid, .control-grid, .audit-grid, .md-grid { display: grid; gap: 12px; }
+  .pose-grid, .control-grid, .audit-grid { grid-template-columns: repeat(3, 1fr); }
+  .md-grid { grid-template-columns: repeat(4, 1fr); }
+  .fact {
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fafafc;
+  }
+  .fact .value { display: block; color: var(--accent); font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .fact .label { display: block; margin-top: 5px; font-size: 12px; font-weight: 650; }
+  .fact .detail { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
+  .outcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
+  .outcome {
+    padding: 16px 18px;
+    border-left: 4px solid var(--accent-3);
+    border-radius: 0 10px 10px 0;
+    background: #f3fbf5;
+    color: #245c33;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="rpt-head">
+    <h1>P15–CK2α 结合位点发现与验证进展</h1>
+    <a href="/home" class="btn-light">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      返回
+    </a>
+  </header>
+
+  <section class="card">
+    <h2>四阶段主线</h2>
+    <div class="stage-flow">
+      <div class="stage-col">
+        <div class="stage">
+          <div class="stage-top"><span class="stage-no">阶段一</span><span class="badge done">完成</span></div>
+          <h3>数据与体系准备</h3>
+          <p>固定P15化学身份、生产受体和Pc方法控制。</p>
+          <p class="output"><strong>输出：</strong>P15唯一化学记录与3Q04/3QA0双受体。</p>
+        </div>
+        <p class="stage-q">体系是否定义清楚？</p>
+      </div>
+      <div class="stage-col">
+        <div class="stage">
+          <div class="stage-top"><span class="stage-no">阶段二</span><span class="badge done">完成</span></div>
+          <h3>全表面盲对接</h3>
+          <p>不预设位置，用多seed和双受体寻找重复site。</p>
+          <p class="output"><strong>输出：</strong>160,000模型 → 121候选 → 40个交接候选。</p>
+        </div>
+        <p class="stage-q">site在哪里？</p>
+      </div>
+      <div class="stage-col">
+        <div class="stage">
+          <div class="stage-top"><span class="stage-no">阶段三</span><span class="badge done">完成</span></div>
+          <h3>局部柔性对接</h3>
+          <p>用独立起点和Rosetta随机流检验全原子收敛。</p>
+          <p class="output"><strong>输出：</strong>C036形成R001/R002，C027保留R145。</p>
+        </div>
+        <p class="stage-q">原子姿态是否可复现？</p>
+      </div>
+      <div class="stage-col">
+        <div class="stage">
+          <div class="stage-top"><span class="stage-no">阶段四</span><span class="badge done">完成</span></div>
+          <h3>结合位点验证</h3>
+          <p>结构审计排除伪影，多重复MD比较界面保持。</p>
+          <p class="output"><strong>输出：</strong>C036/C027列为优先1/2，放行阶段五。</p>
+        </div>
+        <p class="stage-q">哪些site值得进入序列优化？</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>阶段一｜先固定化学实体与受体边界</h2>
+    <p class="subt">所有后续计算共享同一套P15化学定义；双apo受体用于降低单一晶体构象偏差，Pc只承担方法控制。</p>
+    <div class="duo-grid">
+      <div class="duo-card">
+        <div class="duo-head"><span class="stage-tag">P15</span><span class="duo-title">裸环肽 · 化学定义</span></div>
+        <div class="duo-body">
+          <div class="duo-row"><span class="k">序列</span><span class="v"><span class="duo-seq">CWMSPRHLGTC</span> · 11个L-氨基酸</span></div>
+          <div class="duo-row"><span class="k">成环</span><span class="v">Cys1–Cys11 分子内二硫键</span></div>
+          <div class="duo-row"><span class="k">端基</span><span class="v">N端 NH3+ / C端 CONH2</span></div>
+          <div class="duo-row"><span class="k">His7</span><span class="v">HIE（ε位质子化）</span></div>
+          <div class="duo-row"><span class="k">条件</span><span class="v">pH 7.4 · 净电荷 +2</span></div>
+        </div>
+        <div class="duo-divider"></div>
+        <div class="duo-reason">保证盲对接、全原子精修和MD处理的是同一个化学实体。不含Tat递送段，把「是否直接结合」与「细胞穿透」分开。</div>
+      </div>
+      <div class="duo-card">
+        <div class="duo-head"><span class="stage-tag">受体</span><span class="duo-title">人 CK2α 催化亚基</span></div>
+        <div class="duo-body">
+          <div class="duo-row"><span class="k">主受体</span><span class="v">3Q04_A · 1.80 Å · apo</span></div>
+          <div class="duo-row"><span class="k"></span><span class="v">3QA0_A · 2.50 Å · apo</span></div>
+          <div class="duo-row"><span class="k">方法控制</span><span class="v">4IB5 · Pc matched control</span></div>
+          <div class="duo-row"><span class="k"></span><span class="v">3Q9X · Pc cross-receptor诊断</span></div>
+        </div>
+        <div class="duo-divider"></div>
+        <div class="duo-reason">双apo降低单一晶体构象偏差，观察site能否跨构象复现；Pc只验证方法能力，不向未知P15预设位置。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>阶段二｜16个盲搜任务将160,000个模型压缩为40个交接候选</h2>
+    <p class="subt">模型层负责扩大表面覆盖，site层按独立seed、跨受体共识和空间非冗余性控制阶段三预算。</p>
+    <p class="flow-label">模型层：从全轨迹到代表姿态</p>
+    <div class="count-flow">
+      <div class="count-node"><span class="value">160,000</span><span class="label">全轨迹模型</span><span class="detail">16任务 × 10,000模型<br>不预设表面位置</span></div>
+      <div class="count-node"><span class="value">115,417</span><span class="label">拓扑可行</span><span class="detail">保留可重建Cys1–Cys11<br>二硫环的模型</span></div>
+      <div class="count-node"><span class="value">81,572</span><span class="label">接触受体</span><span class="detail">去除未形成受体接触的<br>漂浮姿态</span></div>
+      <div class="count-node final"><span class="value">5,658</span><span class="label">代表pose</span><span class="detail">任务内去重与姿态压缩<br>供site聚类使用</span></div>
+    </div>
+    <p class="flow-label">site层：从受体内聚类到阶段三预算</p>
+    <div class="count-flow">
+      <div class="count-node"><span class="value">237</span><span class="label">受体内site</span><span class="detail">按受体接触模式聚类</span></div>
+      <div class="count-node"><span class="value">206</span><span class="label">多seed支持</span><span class="detail">至少2个独立CABS seed</span></div>
+      <div class="count-node"><span class="value">121</span><span class="label">跨受体candidate</span><span class="detail">匹配3Q04与3QA0<br>对应表面区域</span></div>
+      <div class="count-node final"><span class="value">40</span><span class="label">handoff预算</span><span class="detail">32个ensemble + 8个<br>构象特异候选</span></div>
+    </div>
+    <div class="decision-note"><strong>为什么不把121个候选全部精修：</strong>阶段二的目标是尽量不漏site，阶段三的全原子计算成本明显更高。其余81个候选并非已经被证明错误，而是没有进入本轮高成本验证预算。</div>
+  </section>
+
+  <section class="card">
+    <h2>阶段三｜22,016个全原子模型完成原子收敛筛查，C036形成R001/R002</h2>
+    <p class="subt">先用高预算复核早期候选，再改为逐级增加Rosetta预算；只有跨CABS起点和跨Rosetta随机流共同收敛的site才能晋级。</p>
+
+    <h3 class="subhead"><span class="stage-tag">第一版精修</span>早期高排名候选全部未收敛</h3>
+    <p class="stage-note">阶段二交接审计后冻结三个候选：盲主线前两位C014、C016，功能解释臂C027。「起点」是同一site在特定受体、特定CABS来源下的一个全原子pose；C014取7个、C016与C027各取8个。</p>
+    <div class="short-flow">
+      <div class="count-node"><span class="value">23</span><span class="label">全原子起点</span><span class="detail">C014 7 · C016 8 · C027 8<br>共92个独立任务</span></div>
+      <div class="count-node"><span class="value">11,776</span><span class="label">第一版decoy</span><span class="detail">每起点 × 4 Rosetta seed × 128<br>QC通过11,705 · 1,640簇</span></div>
+      <div class="count-node"><span class="value">+4,096</span><span class="label">C027追加来源确认</span><span class="detail">初看达标簇两起点同源<br>32任务 · QC通过4,055</span></div>
+      <div class="count-node stop"><span class="value">0</span><span class="label">受支持原子簇</span><span class="detail">当时合同下记为<br>原子收敛未观察</span></div>
+    </div>
+    <p class="stage-note">三者只记为「原子收敛未观察」，不在相同协议中反复消耗算力；这一结果不能证明site不结合。C027随后凭5重复MD的界面保持更新为第二独立site，进入阶段五。</p>
+    <div class="audit-grid">
+      <div class="fact"><span class="value">15,872</span><span class="label">decoy合计</span><span class="detail">第一版11,776 + 追加4,096</span></div>
+      <div class="fact"><span class="value">15,760</span><span class="label">QC通过</span><span class="detail">11,705 + 4,055</span></div>
+      <div class="fact"><span class="value">2,236</span><span class="label">原子簇合计</span><span class="detail">1,640 + 596，均无独立来源支持</span></div>
+    </div>
+
+    <h3 class="subhead"><span class="stage-tag">第二版漏斗</span>逐级收窄：40 → 12 → 10 → C036原子收敛</h3>
+    <div class="short-flow">
+      <div class="count-node"><span class="value">40</span><span class="label">可交接候选</span><span class="detail">阶段二冻结预算</span></div>
+      <div class="count-node"><span class="value">12</span><span class="label">姿态家族审计</span><span class="detail">4 Å跨source家族<br>优先非冗余候选</span></div>
+      <div class="count-node"><span class="value">10</span><span class="label">实际进入3A</span><span class="detail">C012/C043未通过<br>全原子交接QC</span></div>
+      <div class="count-node final"><span class="value">1</span><span class="label">连续通过</span><span class="detail">仅C036完成<br>3A/3B/3C</span></div>
+    </div>
+    <div class="decision-note indigo"><strong>晋级门槛：</strong>至少2个独立CABS起点，并由多个Rosetta seed支持同一个原子簇。单个异常低分模型不能让候选晋级。</div>
+
+    <h3 class="subhead"><span class="stage-tag">3A</span>单随机流筛查</h3>
+    <p class="stage-note">10个候选的36个起点各只跑1个Rosetta seed × 128 decoy，用低成本判断不同CABS来源是否有机会收敛到同一原子家族。</p>
+    <div class="audit-grid">
+      <div class="fact"><span class="value">4,608</span><span class="label">新增decoy</span><span class="detail">QC通过4,580</span></div>
+      <div class="fact"><span class="value">961</span><span class="label">原子簇</span><span class="detail">单随机流内聚类</span></div>
+      <div class="fact"><span class="value">1</span><span class="label">跨source命中</span><span class="detail">仅C036：R009，3个decoy、2个独立来源</span></div>
+    </div>
+
+    <h3 class="subhead"><span class="stage-tag">3B</span>第二随机流确认</h3>
+    <p class="stage-note">对C036的4个source起点追加第二条Rosetta随机流，确认3A命中不是单一随机流的偶然。</p>
+    <div class="audit-grid">
+      <div class="fact"><span class="value">+512</span><span class="label">新增decoy</span><span class="detail">合并1,024，QC通过1,006</span></div>
+      <div class="fact"><span class="value">R011</span><span class="label">确认命中</span><span class="detail">5个decoy，起始接触100%保持</span></div>
+      <div class="fact"><span class="value">2 × 2</span><span class="label">source × seed覆盖</span><span class="detail">命中4种任务组合中的3种，授权深度确认</span></div>
+    </div>
+
+    <h3 class="subhead"><span class="stage-tag">3C</span>四随机流深度确认</h3>
+    <p class="stage-note">扩展至4个Rosetta seed，新增1,024合并为2,048；聚类合同修正为半径邻域语义，阴性回放0命中。</p>
+    <div class="pose-grid">
+      <div class="fact"><span class="value">676</span><span class="label">R001 · 主要原子簇</span><span class="detail">2个独立CABS来源 + 全部4个Rosetta seed支持</span></div>
+      <div class="fact"><span class="value">122</span><span class="label">R002 · 第二原子簇</span><span class="detail">同样由2个CABS来源和4个Rosetta seed支持</span></div>
+      <div class="fact"><span class="value">3QA0 only</span><span class="label">受体支持范围</span><span class="detail">构象特异site；阶段四后随C036进入阶段五</span></div>
+    </div>
+
+    <h3 class="subhead">重点候选的选择依据与最终去向</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:9%">候选</th><th style="width:21%">为什么优先测试</th><th class="numeric" style="width:18%">主要投入</th><th style="width:35%">核心证据</th><th style="width:17%">决策</th></tr></thead>
+        <tbody>
+          <tr><td><strong>C014</strong></td><td>跨受体盲排序第1</td><td class="numeric">7起点<br>约3,584 decoy</td><td>未形成独立CABS来源共同支持的原子簇。</td><td><span class="badge note">历史比较姿态</span></td></tr>
+          <tr><td><strong>C016</strong></td><td>跨受体盲排序第2</td><td class="numeric">8起点<br>约4,096 decoy</td><td>增加Rosetta随机流后仍无法解决来源复现。</td><td><span class="badge note">历史比较姿态</span></td></tr>
+          <tr><td><strong>C027</strong></td><td>功能解释臂重点候选</td><td class="numeric">初始约4,096<br>追加4,096</td><td>阶段三未形成跨source原子簇；但5重复MD保持原site，接触召回0.765、原始接触保持0.975。</td><td><span class="badge note">优先2 · 放行</span></td></tr>
+          <tr><td><strong>C036</strong></td><td>新漏斗中的高优先ensemble候选</td><td class="numeric">累计2,048<br>decoy</td><td>唯一连续通过跨CABS来源、跨Rosetta seed复核的site。</td><td><span class="badge done">优先1 · 放行</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subhead">Pc控制证明局部精修可用，但不替P15规定位置</h3>
+    <div class="control-grid">
+      <div class="fact"><span class="value">0.505 Å</span><span class="label">4IB5/Pc matched redocking</span><span class="detail">匹配受体上恢复近天然姿态，局部精修链路通过</span></div>
+      <div class="fact"><span class="value">4.306 Å</span><span class="label">3Q9X/Pc · 固定受体</span><span class="detail">换受体构象后恢复能力明显下降</span></div>
+      <div class="fact"><span class="value">4.186 Å</span><span class="label">3Q9X/Pc · 局部柔性</span><span class="detail">仅改善0.120 Å，小幅柔性无法消除受体差异</span></div>
+    </div>
+    <div class="decision-note"><strong>C036并不是Pc位点：</strong>两者配体质心相距约22.12 Å，接触残基无交集。Pc用于验证方法能力，C036来自独立盲搜。</div>
+  </section>
+
+  <section class="card">
+    <h2>阶段四｜结合位点验证</h2>
+    <p class="subt">先用结构审计排除明显伪影，再用9体系多重复MD比较局部界面保持；最终按「保留值得实验验证的候选」放行C036与C027两个独立site。</p>
+
+    <h3 class="subhead"><span class="stage-tag">4A</span>结构背景审计：没有否定C036，但暴露ATP区域重合风险</h3>
+    <p class="stage-note">先排除晶体堆积和已知界面复现等明显伪影，再决定是否值得投入动力学验证。</p>
+    <div class="audit-grid">
+      <div class="fact"><span class="value">0%</span><span class="label">晶体接触占比</span><span class="detail">R001/R002未被晶体堆积直接解释</span></div>
+      <div class="fact"><span class="value">22.12 Å</span><span class="label">与Pc配体质心距离</span><span class="detail">接触残基无交集，不是Pc/CK2β界面再发现</span></div>
+      <div class="fact"><span class="value">49 / 52</span><span class="label">与ANP小于2 Å的原子对</span><span class="detail">R001/R002与ATP区域高度重合，需要继续验证</span></div>
+    </div>
+
+    <h3 class="subhead"><span class="stage-tag">4B</span>900 ns多重复MD：C036综合最好，C027独立通过</h3>
+    <p class="stage-note">9个体系各运行5条20 ns独立轨迹；C036与C027都在5个重复中保持原site。结果用于识别快速失稳和比较局部界面保持，不用于证明真实结合。</p>
+    <div class="md-grid">
+      <div class="fact"><span class="value">9</span><span class="label">模拟体系</span><span class="detail">候选、比较姿态、apo与游离肽</span></div>
+      <div class="fact"><span class="value">45</span><span class="label">独立轨迹</span><span class="detail">每个体系5次重复</span></div>
+      <div class="fact"><span class="value">20 ns</span><span class="label">每条轨迹</span><span class="detail">总采样量900 ns</span></div>
+      <div class="fact"><span class="value">30 / 30</span><span class="label">复合物保持原site</span><span class="detail">C036与C027均获局部持久性证据</span></div>
+    </div>
+    <h4 class="subhead mini">候选姿态的5重复中位数</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:17%">体系</th><th class="numeric" style="width:15%">肽RMSD ↓</th><th class="numeric" style="width:16%">接触召回 ↑</th><th class="numeric" style="width:15%">Jaccard ↑</th><th class="numeric" style="width:18%">埋藏SASA ↑</th><th style="width:19%">定位</th></tr></thead>
+        <tbody>
+          <tr><td><strong>C036 R001</strong></td><td class="numeric">0.356 nm</td><td class="numeric">0.767</td><td class="numeric">0.719</td><td class="numeric">15.631 nm²</td><td><span class="badge done">优先1 site</span></td></tr>
+          <tr><td><strong>C036 R002</strong></td><td class="numeric">0.479 nm</td><td class="numeric">0.515</td><td class="numeric">0.486</td><td class="numeric">12.675 nm²</td><td><span class="badge note">第二姿态</span></td></tr>
+          <tr><td><strong>C027 R145</strong></td><td class="numeric">0.787 nm</td><td class="numeric">0.765</td><td class="numeric">0.667</td><td class="numeric">7.586 nm²</td><td><span class="badge note">优先2 site</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="decision-note"><strong>为什么C036排第一、C027仍然通过：</strong>R001的RMSD、接触Jaccard、埋藏面积和质心位移在同配体P15体系中综合最好；C027界面更浅、重排更大，但跨5个独立重复保持原site且原始接触保持0.975，是可进入实验候选的独立site，而不是可排除的错误结构。</div>
+
+    <h3 class="subhead"><span class="stage-tag">放行</span>两个独立site分轨进入阶段五</h3>
+    <p class="stage-note">阶段四的决策目标是「保留值得实验验证的候选」，而不是证明唯一正确site；两个site分别建立WT基线和突变排名，不要求其中一个先被证明错误。</p>
+    <div class="outcome-grid">
+      <div class="outcome"><strong>ALPHA_C036 · 优先级1：</strong>R001/R002双模板，降低单一pose依赖；靠近ATP区域，指向ATP竞争机制假设。</div>
+      <div class="outcome"><strong>ALPHA_C027 · 优先级2：</strong>R145单模板；靠近Pc/CK2β界面，指向界面机制假设。</div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus 多肽性质预测工具包</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --line: #e8e8ed; --card: #ffffff; --bg: #f5f5f7;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .rpt-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:42px; }
+  .rpt-head h1 { margin:0; font-size:32px; font-weight:700; line-height:1.15; letter-spacing:-0.02em; color:var(--ink); }
+  .rpt-head .btn-light svg { width:15px; height:15px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:60px 80px; margin:0 auto 28px;
+    box-shadow:0 2px 8px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02); }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  /* 副标题与小标题成组：负外边距把组内间距收到 8px，组到正文 22px */
+  .card .subt { color:var(--muted); font-size:13px; margin:-14px 0 22px; }
+  .card > :last-child { margin-bottom:0 !important; }
+  .chart { width:100%; }
+  table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; line-height:1.6; table-layout:fixed; }
+  th,td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:#f9f9fb; border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-match { background:#e9fbe9; color:#166534; }
+  .b-miss { background:#fee2e2; color:#991b1b; }
+  .b-extra { background:#eef0fb; color:#3730a3; }
+  .b-weak { background:#fff4e5; color:#9b4b00; }
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  .arch-flow { display:flex; align-items:center; justify-content:center; gap:0; margin:10px 0; }
+  .arch-node { border:2px solid var(--accent); border-radius:12px; padding:14px 20px; text-align:center; background:#fafafc; min-width:120px; }
+  .arch-node .n { font-weight:650; font-size:14px; }
+  .arch-node .d { font-size:11px; color:var(--muted); margin-top:3px; }
+  .arch-arrow { font-size:22px; color:var(--accent); padding:0 8px; }
+  .arch-col { display:flex; flex-direction:column; gap:8px; }
+  .legend-row { display:flex; flex-wrap:wrap; gap:16px; justify-content:flex-end; margin:0 0 12px; }
+  .lg { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .lg i { display:inline-block; width:12px; height:12px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="rpt-head">
+    <div>
+      <h1>Nexus 多肽性质预测工具包</h1>
+    </div>
+    <a href="/home" class="btn-light">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      返回
+    </a>
+  </header>
+
+  <!-- ① 能力覆盖矩阵 -->
+  <section class="card">
+    <h2>能力覆盖矩阵</h2>
+    <div class="legend-row">
+      <span class="lg"><i style="background:#ff9f0a"></i>pepADMET</span>
+      <span class="lg"><i style="background:#5856d6"></i>默认 provider</span>
+      <span class="lg"><i style="background:#a5a0e8"></i>支持</span>
+      <span class="lg"><i style="background:#efeff3"></i>不支持</span>
+    </div>
+    <div class="chart" id="chartMatrix" style="height:600px"></div>
+    <p class="subt" style="margin-top:16px;line-height:2.1">
+      行 = pepADMET + Nexus 7 个 provider，列 = 性质维度（含 pepADMET 独有的 Bioavailability 和 Physicochemical）<br>
+      橙 = pepADMET，深蓝 = 默认 provider，中蓝 = 支持，浅灰 = 不支持 · pepADMET 覆盖 7 类，Nexus 覆盖 9 类，重叠 5 类
+    </p>
+  </section>
+
+  <!-- ② 对照总表 -->
+  <section class="card">
+    <h2>pepADMET 7 大类 vs Nexus 对照</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:12%">pepADMET 大类</th>
+          <th style="width:22%">pepADMET 子 endpoint（数据量）</th>
+          <th style="width:12%">Nexus feature</th>
+          <th style="width:16%">Nexus provider</th>
+          <th style="width:27%">差异说明</th>
+          <th style="width:11%">状态</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>LogD 7.4</strong></td>
+            <td>LogD 回归（257 条，GBT，R²=0.818）</td>
+            <td>logd</td>
+            <td>logd</td>
+            <td>Nexus 用 SVM+WLN+WeaveGNN 共识；pepADMET 用 GBT。均覆盖 pH 7.4 短肽 LogD</td>
+            <td><span class="badge b-match">匹配</span></td>
+          </tr>
+          <tr>
+            <td><strong>Bioavailability (F)</strong></td>
+            <td>生物利用度二分类（305 条，RF，AUC=0.90）</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Nexus 未覆盖</td>
+            <td><span class="badge b-miss">缺失</span></td>
+          </tr>
+          <tr>
+            <td><strong>Permeability</strong></td>
+            <td>Caco-2(L/C/A) + PAMPA + RRCK = 5 模型（7,765 条）</td>
+            <td>permeability</td>
+            <td>cpmp（默认）+ peptiverse</td>
+            <td>Nexus 有 PAMPA/Caco-2/RRCK/MDCK 4 种 assay（多了 MDCK，少了 Caco-2 的 L/C/A 三变体）</td>
+            <td><span class="badge b-match">匹配</span></td>
+          </tr>
+          <tr>
+            <td><strong>BBB Penetration</strong></td>
+            <td>穿透二分类（850 条，RF，AUC=0.889）</td>
+            <td>bbb</td>
+            <td>deepb3p（默认）+ brainpeppass</td>
+            <td>Nexus 有 2 个 provider（Transformer + XGBoost 级联）；pepADMET 用 RF+描述符</td>
+            <td><span class="badge b-match">匹配</span></td>
+          </tr>
+          <tr>
+            <td><strong>Half-life (T½)</strong></td>
+            <td>人血(天然/修饰) + 鼠血(天然/修饰) + 鼠肠 = 5 模型（970 条，R²=0.84–0.984）</td>
+            <td>half-life</td>
+            <td>peptiverse（默认）</td>
+            <td>Nexus 只有单一半衰期回归，无物种/器官区分；pepADMET 有 5 个物种-器官特定模型 + 迁移学习</td>
+            <td><span class="badge b-weak">粒度不足</span></td>
+          </tr>
+          <tr>
+            <td><strong>Toxicity</strong></td>
+            <td>有毒/无毒 + 6 类毒性类型 + 4 类神经毒性 + HC50 + 10 子类 = 14,660 条</td>
+            <td>toxicity</td>
+            <td>pepadmet（默认）+ peptiverse</td>
+            <td>Nexus 保留 pepadmet 4 子任务；pepADMET 额外有 10 个毒性子类（Cytolysis/GPCR/Cytotoxicity/Hemostasis/Hemolysis/AChR/Ca²⁺/K⁺/Na⁺ inhibitor）</td>
+            <td><span class="badge b-weak">部分匹配</span></td>
+          </tr>
+          <tr>
+            <td><strong>Physicochemical</strong></td>
+            <td>理化性质预测</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Nexus 未覆盖</td>
+            <td><span class="badge b-miss">缺失</span></td>
+          </tr>
+          <tr>
+            <td>—</td><td>—</td><td>solubility</td><td>peptiverse（默认）</td>
+            <td>Nexus 独有：P(可溶) 二分类</td>
+            <td><span class="badge b-extra">Nexus 独有</span></td>
+          </tr>
+          <tr>
+            <td>—</td><td>—</td><td>hemolysis</td><td>peptiverse（默认）</td>
+            <td>Nexus 独有：P(溶血) 二分类</td>
+            <td><span class="badge b-extra">Nexus 独有</span></td>
+          </tr>
+          <tr>
+            <td>—</td><td>—</td><td>non_fouling</td><td>peptiverse（默认）</td>
+            <td>Nexus 独有：P(抗污损) 二分类</td>
+            <td><span class="badge b-extra">Nexus 独有</span></td>
+          </tr>
+          <tr>
+            <td>—</td><td>—</td><td>gi_stability</td><td>ml_peptide（默认）</td>
+            <td>Nexus 独有：SGF + SIF 稳定性三分类</td>
+            <td><span class="badge b-extra">Nexus 独有</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ②b 功能释义 -->
+  <section class="card">
+    <h2>功能释义</h2>
+    <p class="subt">上表中各性质维度的含义与用途。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:16%">性质</th>
+          <th style="width:10%">ADMET 维度</th>
+          <th style="width:74%">含义与用途</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>LogD 7.4</strong></td>
+            <td>分布 (D)</td>
+            <td>pH 7.4 条件下的分布系数，衡量多肽在生理 pH 下的亲脂/亲水平衡。影响口服吸收、分布容积和膜通透性。</td>
+          </tr>
+          <tr>
+            <td><strong>Bioavailability (F)</strong></td>
+            <td>吸收 (A)</td>
+            <td>生物利用度，药物到达全身循环的比例。决定口服给药后能否达到有效血药浓度，是口服多肽药物开发的关键指标。</td>
+          </tr>
+          <tr>
+            <td><strong>Permeability</strong></td>
+            <td>吸收 (A)</td>
+            <td>跨生物膜通透能力。PAMPA（人工磷脂膜被动通透）、Caco-2（人结肠癌细胞单层，含主动转运）、RRCK（大鼠肾细胞）、MDCK（犬肾细胞）是四种常用体外模型，数值不可互换。</td>
+          </tr>
+          <tr>
+            <td><strong>BBB Penetration</strong></td>
+            <td>分布 (D)</td>
+            <td>血脑屏障穿透能力。判断多肽能否进入中枢神经系统（CNS）。CNS 靶点药物需要高穿透；外周作用药物需要低穿透以减少中枢副作用。</td>
+          </tr>
+          <tr>
+            <td><strong>Half-life (T½)</strong></td>
+            <td>代谢 (M)</td>
+            <td>血浆半衰期，最大浓度降低一半所需时间。反映多肽在体内的代谢和清除速率，决定给药频率。pepADMET 按物种（人/鼠）和器官（血液/肠道）分别建模。</td>
+          </tr>
+          <tr>
+            <td><strong>Toxicity</strong></td>
+            <td>毒性 (T)</td>
+            <td>多肽引起不良反应的能力，包括细胞毒性（损伤细胞功能）、血液毒性（溶血、影响血液功能）和免疫毒性（过敏/免疫异常）。pepADMET 采用逐步预测体系：先判有毒/无毒，再分毒性类型（6 类）和神经毒性类型（4 类），HC50 为半数溶血浓度回归值。</td>
+          </tr>
+          <tr>
+            <td><strong>Physicochemical</strong></td>
+            <td>理化性质</td>
+            <td>分子量、等电点、电荷密度、疏水性等基础理化参数。不直接预测 ADMET，但为其他性质评估提供输入特征和适用域判断依据。</td>
+          </tr>
+          <tr>
+            <td><strong>Solubility</strong></td>
+            <td>吸收 (A)</td>
+            <td>水溶液中的溶解性。影响制剂开发和体内吸收，难溶多肽可能因溶解度限制而无法达到有效浓度。</td>
+          </tr>
+          <tr>
+            <td><strong>Hemolysis</strong></td>
+            <td>毒性 (T)</td>
+            <td>溶血性，多肽是否破坏红细胞膜导致溶血。与 HC50（半数溶血浓度）互补：HC50 是定量回归值，hemolysis 是溶血/不溶血的二分类判定。</td>
+          </tr>
+          <tr>
+            <td><strong>Non-fouling</strong></td>
+            <td>生物相容性</td>
+            <td>抗污损性，多肽表面抵抗非特异性蛋白吸附的能力。影响多肽材料的生物相容性，在植入器械和抗生物膜应用中重要。</td>
+          </tr>
+          <tr>
+            <td><strong>GI stability</strong></td>
+            <td>代谢 (M)</td>
+            <td>胃肠道稳定性，多肽在模拟胃液（SGF）和模拟肠液（SIF）中的降解抵抗能力。评估口服多肽能否在胃肠道环境中存活到达吸收部位。三分类：stable / partly_stable / unstable。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ⑤ 架构流程 -->
+  <section class="card">
+    <h2>Nexus 架构设计</h2>
+    <p class="subt">核心目标：<strong>统一入口 + 持续批量处理</strong>。用户一次输入即可获得全部性质预测，批量场景下模型进程只加载一次、持续复用。7 个来源各异的模型对用户完全透明。</p>
+
+    <!-- 设计动机 -->
+    <div style="background:#fff9ef;border-left:4px solid var(--accent-2);border-radius:0 10px 10px 0;padding:14px 18px;margin:16px 0 28px">
+      <div style="font-weight:650;font-size:14px;margin-bottom:8px">设计动机</div>
+      <div style="font-size:13px;color:#5f470f;line-height:1.8">
+        7 个模型来自不同团队，Python 版本跨 3.8–3.12，依赖互不兼容（DGL 0.4.3 vs PyTorch 2.x vs sklearn 0.24），输入格式各异（序列 / SMILES / .mol），输出格式各不相同。如果直接使用，用户需要为每个模型单独配环境、学接口。Nexus 将这些差异全部封装在 bridge 层，对外只暴露统一的 <code>nexus</code> 命令。
+      </div>
+    </div>
+
+    <!-- 分层架构图 -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin:20px 0 0">
+
+      <!-- Layer 1: 输入 -->
+      <div style="display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:12px;width:max-content">
+        <div class="arch-node"><div class="n">sequence</div><div class="d">氨基酸序列</div></div>
+        <div class="arch-node"><div class="n">SMILES</div><div class="d">分子结构式</div></div>
+        <div class="arch-node"><div class="n">.mol</div><div class="d">MDL 结构文件</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0">↓ 用户只需提供一种输入</div>
+
+      <!-- Layer 2: 统一入口 -->
+      <div class="arch-node" style="min-width:280px;text-align:center">
+        <div class="n" style="font-size:16px">nexus CLI · 统一入口</div>
+        <div class="d">单条预测 · 批量处理 · 综合 profile</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0">↓ 一次输入 → 全部 9 个性质</div>
+
+      <!-- Layer 3: Core 三栏 -->
+      <div style="display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;width:max-content">
+        <div class="arch-node" style="border-color:var(--accent)"><div class="n">Manifest 路由</div><div class="d">provider.toml 声明能力<br>按 feature 自动选 provider<br>显式指定时不自动 fallback</div></div>
+        <div class="arch-node" style="border-color:var(--accent)"><div class="n">Readiness 校验</div><div class="d">环境契约检查<br>SHA256 工件校验<br>不 ready 直接报错</div></div>
+        <div class="arch-node" style="border-color:var(--accent)"><div class="n">输入校验</div><div class="d">子进程前拦截<br>provider 特定要求<br>统一错误类型</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0">↓ 路由到对应 provider 的独立环境</div>
+
+      <!-- Layer 4: Worker Pool -->
+      <div class="arch-node" style="min-width:340px;text-align:center;border-style:dashed;border-color:var(--accent)">
+        <div class="n" style="color:var(--accent)">Worker Pool · 长生命周期复用</div>
+        <div class="d">模型只加载一次 · batch / profile 持续复用<br>bridge_host.py 统一驱动 · JSON line 协议 · 600s 超时</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0">↓ 每个 provider 独立 venv</div>
+
+      <!-- Layer 5: 7 Providers -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:880px">
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">pepadmet</div><div class="d">Py 3.8 · GNN · GPL-3.0</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">peptiverse</div><div class="d">Py 3.12 · CNN+ESM</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">cpmp</div><div class="d">Py 3.10 · Transformer</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">deepb3p</div><div class="d">Py 3.12 · Transformer</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">brainpeppass</div><div class="d">Py 3.10 · XGBoost</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">logd</div><div class="d">Py 3.9 · SVM+WLN+GNN</div></div>
+        <div class="arch-node" style="padding:10px 12px"><div class="n" style="font-size:13px">ml_peptide</div><div class="d">Py 3.8 · KNN+XGB</div></div>
+        <div style="display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:12px;padding:10px 12px">
+          <div style="font-size:12px;color:var(--muted);text-align:center">第三方源码<br>零修改</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:4px 0">↓ 统一格式输出</div>
+
+      <!-- Layer 6: 输出 -->
+      <div class="arch-node" style="min-width:300px;text-align:center;border-color:var(--accent-3)">
+        <div class="n" style="color:#166534">统一 JSON Envelope</div>
+        <div class="d">schema_version + request_id + feature + provider + result</div>
+      </div>
+    </div>
+
+
+  </section>
+
+</div>
+
+<script>
+// ========== ① 覆盖矩阵热力图 ==========
+(function(){
+  var ch = echarts.init(document.getElementById('chartMatrix'));
+  // 列 = 性质维度（含 pepADMET 独有的 Bioavailability 和 Physicochemical）
+  var features = [
+    'LogD 7.4',
+    'Bioavailability',
+    'Permeability',
+    'BBB',
+    'Half-life',
+    'Toxicity',
+    'Physicochemical',
+    'Solubility',
+    'Hemolysis',
+    'Non-fouling',
+    'GI stability'
+  ];
+  // 行 = pepADMET 平台 + Nexus 7 个 provider
+  var providers = [
+    'pepADMET',
+    'pepadmet',
+    'peptiverse',
+    'cpmp',
+    'deepb3p',
+    'brainpeppass',
+    'logd',
+    'ml_peptide'
+  ];
+  // 值: 3=pepADMET平台支持, 2=Nexus默认provider, 1=Nexus支持, 0=不支持
+  var data = [
+    // pepADMET 平台: 支持 LogD/Bioavailability/Permeability/BBB/Half-life/Toxicity/Physicochemical (7类)
+    [0,0,3], [1,0,3], [2,0,3], [3,0,3], [4,0,3], [5,0,3], [6,0,3], [7,0,0], [8,0,0], [9,0,0], [10,0,0],
+    // pepadmet: toxicity 默认
+    [0,1,0], [1,1,0], [2,1,0], [3,1,0], [4,1,0], [5,1,2], [6,1,0], [7,1,0], [8,1,0], [9,1,0], [10,1,0],
+    // peptiverse: toxicity=支持, permeability=支持, half-life=默认, solubility=默认, hemolysis=默认, non-fouling=默认
+    [0,2,0], [1,2,0], [2,2,1], [3,2,0], [4,2,2], [5,2,1], [6,2,0], [7,2,2], [8,2,2], [9,2,2], [10,2,0],
+    // cpmp: permeability 默认
+    [0,3,0], [1,3,0], [2,3,2], [3,3,0], [4,3,0], [5,3,0], [6,3,0], [7,3,0], [8,3,0], [9,3,0], [10,3,0],
+    // deepb3p: bbb 默认
+    [0,4,0], [1,4,0], [2,4,0], [3,4,2], [4,4,0], [5,4,0], [6,4,0], [7,4,0], [8,4,0], [9,4,0], [10,4,0],
+    // brainpeppass: bbb 支持
+    [0,5,0], [1,5,0], [2,5,0], [3,5,1], [4,5,0], [5,5,0], [6,5,0], [7,5,0], [8,5,0], [9,5,0], [10,5,0],
+    // logd: logd 默认
+    [0,6,2], [1,6,0], [2,6,0], [3,6,0], [4,6,0], [5,6,0], [6,6,0], [7,6,0], [8,6,0], [9,6,0], [10,6,0],
+    // ml_peptide: gi_stability 默认
+    [0,7,0], [1,7,0], [2,7,0], [3,7,0], [4,7,0], [5,7,0], [6,7,0], [7,7,0], [8,7,0], [9,7,0], [10,7,2]
+  ];
+  // 测量最宽行标签，反推绘图区左边距：最宽标签左缘正好落在内容区左边界（与标题左缘对齐）
+  var mctx=document.createElement('canvas').getContext('2d');
+  mctx.font='12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var labelW=0;
+  providers.forEach(function(p){ labelW=Math.max(labelW,mctx.measureText(p).width); });
+  var GRID_LEFT=Math.ceil(labelW)+8;
+
+  var COLORS=['#efeff3','#a5a0e8','#5856d6','#ff9f0a'];
+  ch.setOption({
+    animation:false,
+    tooltip:{
+      formatter:function(p){
+        var v=p.data[2];
+        var t = v===3?'pepADMET 支持':(v===2?'默认 provider':(v===1?'支持':'不支持'));
+        return '<b>'+providers[p.data[1]]+'</b> × <b>'+features[p.data[0]]+'</b><br/>'
+          +'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'
+          +COLORS[v]+';margin-right:6px"></span>'+t;
+      }
+    },
+    grid:{left:GRID_LEFT,right:0,top:16,bottom:64},
+    xAxis:{type:'category',data:features,
+      axisLabel:{fontSize:11,rotate:25,color:'#6e6e73'},
+      axisLine:{show:false},axisTick:{show:false},splitArea:{show:false}},
+    yAxis:{type:'category',data:providers,
+      axisLabel:{fontSize:12,color:'#6e6e73'},
+      axisLine:{show:false},axisTick:{show:false},splitArea:{show:false}},
+    visualMap:{
+      show:false,
+      min:0,max:3,
+      inRange:{color:COLORS}
+    },
+    series:[{
+      type:'heatmap', data:data,
+      label:{ show:false },
+      itemStyle:{
+        borderColor:'#ffffff', borderWidth:3, borderRadius:4
+      },
+      emphasis:{itemStyle:{shadowBlur:12,shadowColor:'rgba(0,0,0,0.25)'}}
+    }]
+  });
+  window.addEventListener('resize',function(){ch.resize()});
+})();
+</script>
+</body>
+</html>

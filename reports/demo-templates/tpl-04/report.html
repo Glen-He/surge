@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V2.3.0 上线首周稳定性报告</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
+    --card: #ffffff; --bg: #f5f5f7; --soft: #f9f9fb;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card > :last-child { margin-bottom:0 !important; }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-done { background:#e9fbe9; color:#166534; }
+  .b-note { background:#eef0fb; color:#3730a3; }
+  .b-warn { background:#fff4e5; color:#9b4b00; }
+  .b-miss { background:#fee2e2; color:#991b1b; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .fact { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .fact .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.2; }
+  .fact.good .value { color:#21833c; }
+  .fact .label { display:block; margin-top:5px; font-size:12px; font-weight:650; }
+  .fact .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
+  .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
+
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:13px; line-height:1.6; }
+  th, td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:var(--soft); border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  th.numeric, td.numeric { text-align:right; }
+
+  .decision-note { margin-top:22px; padding:14px 18px; border-left:4px solid var(--accent-2); border-radius:0 10px 10px 0; background:#fff9ef; color:#5f470f; }
+
+  .outcome-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px; }
+  .outcome { padding:16px 18px; border-left:4px solid var(--accent-3); border-radius:0 10px 10px 0; background:#f3fbf5; color:#245c33; }
+
+  .rpt-foot { margin-top:-14px; color:var(--muted-2); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <h2>首周稳定性概览</h2>
+    <p class="subt">V2.3.0 全量后连续 7 天无 P0/P1 事故；核心链路可用率与延迟均满足 SLA，一次通过发布评审设定的全部观测门禁。</p>
+    <div class="kpi-grid">
+      <div class="fact good"><span class="value">99.982%</span><span class="label">核心接口可用率</span><span class="detail">SLA 目标 99.95% · 超出 0.032pp</span></div>
+      <div class="fact good"><span class="value">0</span><span class="label">P0 / P1 事故</span><span class="detail">观测期内未触发任何事故响应</span></div>
+      <div class="fact"><span class="value">3</span><span class="label">P2 缺陷</span><span class="detail">2 个修复中 · 1 个待随 8/19 发布</span></div>
+      <div class="fact good"><span class="value">23 min</span><span class="label">平均 MTTR</span><span class="detail">含告警确认、定位与修复</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>可用率与延迟表现</h2>
+    <p class="subt">上线首日（07-31）缓存冷启动导致可用率小幅走低，预热完成后全天稳定在 99.96% 以上。</p>
+    <div class="chart-grid">
+      <div class="panel">
+        <p class="p-title">核心接口可用率（7 日）</p>
+        <p class="p-sub">虚线为 99.95% SLA 线 · 按天聚合</p>
+        <div id="chartSla" style="width:100%;height:300px"></div>
+      </div>
+      <div class="panel">
+        <p class="p-title">核心接口 P99 延迟对比</p>
+        <p class="p-sub">首周均值 · 虚线为 300ms SLO</p>
+        <div id="chartLatency" style="width:100%;height:300px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>SLA 达标矩阵</h2>
+    <p class="subt">六大核心服务全部达标；风控服务延迟余量最小（298ms vs 300ms SLO），已列为优化项。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:16%">服务</th><th style="width:24%">SLO</th><th class="numeric" style="width:24%">首周实测</th>
+          <th style="width:12%">结论</th><th style="width:24%">备注</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><strong>订单服务</strong></td><td>可用率 ≥99.95% · P99 ≤300ms</td><td class="numeric">99.987% · 212ms</td><td><span class="badge b-done">达标</span></td><td>批量写入优化收益延续</td></tr>
+          <tr><td><strong>支付服务</strong></td><td>可用率 ≥99.99% · P99 ≤400ms</td><td class="numeric">99.993% · 244ms</td><td><span class="badge b-done">达标</span></td><td>成功率 99.97%</td></tr>
+          <tr><td><strong>搜索服务</strong></td><td>可用率 ≥99.90% · P99 ≤500ms</td><td class="numeric">99.972% · 186ms</td><td><span class="badge b-done">达标</span></td><td>缓存命中率 94.1%</td></tr>
+          <tr><td><strong>用户服务</strong></td><td>可用率 ≥99.95% · P99 ≤300ms</td><td class="numeric">99.989% · 132ms</td><td><span class="badge b-done">达标</span></td><td>登录成功率 99.95%</td></tr>
+          <tr><td><strong>风控服务</strong></td><td>可用率 ≥99.90% · P99 ≤300ms</td><td class="numeric">99.951% · 298ms</td><td><span class="badge b-done">达标</span></td><td>延迟余量小，扩容已排期</td></tr>
+          <tr><td><strong>消息推送</strong></td><td>到达率 ≥99.0%</td><td class="numeric">到达率 99.62%</td><td><span class="badge b-done">达标</span></td><td>日均推送 1,240 万条</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>P2 缺陷跟踪</h2>
+    <p class="subt">首周共收录 3 个 P2 缺陷，无共同根因，均不影响主链路；预计 8/19 前全部关闭。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:12%">编号</th><th style="width:34%">现象</th><th style="width:16%">影响面</th>
+          <th style="width:12%">负责人</th><th style="width:26%">状态</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="num">BUG-2417</td><td>订单导出偶发少最后 1 行汇总数据</td><td>运营侧导出，日均 12 次</td><td>赵一帆</td><td><span class="badge b-warn">修复中</span>&nbsp; 分页游标边界问题，08-12 提测</td></tr>
+          <tr><td class="num">BUG-2421</td><td>搜索筛选项在 Safari 17 下错位</td><td>前端展示，无功能影响</td><td>周晓</td><td><span class="badge b-warn">修复中</span>&nbsp; CSS 兼容补丁已评审</td></tr>
+          <tr><td class="num">BUG-2425</td><td>优惠券过期提醒偶发提前 1 小时</td><td>定时任务时区边界</td><td>孙清</td><td><span class="badge b-note">待发布</span>&nbsp; 已修复，随 08-19 版本发布</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="decision-note"><strong>⚠ 观测建议：</strong>风控服务 P99 298ms 距离 SLO 仅 2ms 余量，大促流量下存在击穿风险。已申请 8 月中旬完成 2 个节点扩容，并在 8 月底完成规则引擎热点路径优化。</div>
+  </section>
+
+  <section class="card">
+    <h2>结论</h2>
+    <div class="outcome-grid">
+      <div class="outcome"><strong>发布判定：通过</strong><br/>全部观测门禁满足，V2.3.0 转入常规运营期。</div>
+      <div class="outcome"><strong>优化排期：2 项</strong><br/>风控扩容（8 月中）与规则热点优化（8 月底）。</div>
+      <div class="outcome"><strong>缺陷收敛：3 → 0</strong><br/>3 个 P2 缺陷预计 08-19 前全部关闭。</div>
+    </div>
+  </section>
+
+  <p class="rpt-foot">SURGE Report Engine · 生成于 2026-08-07 17:45 · 访客演示数据</p>
+</div>
+
+<script>
+(function () {
+  var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
+  var TOOLTIP = {
+    trigger:'axis',
+    backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+    textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+    axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
+    extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
+  };
+  var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
+  var charts = [];
+
+  // ── 可用率趋势 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartSla'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip:{ ...TOOLTIP, valueFormatter:function(v){ return v + '%'; } },
+      grid: GRID,
+      xAxis:{ type:'category', data:['07-31','08-01','08-02','08-03','08-04','08-05','08-06'], boundaryGap:false,
+        axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },
+      yAxis:{ type:'value', min:99.90, max:100, splitLine:{ lineStyle:{ color:'#ececf0' } },
+        axisLabel:{ fontSize:11, color:'#6e6e73', fontFamily:FONT, formatter:function(v){ return v.toFixed(2) + '%'; } } },
+      series:[{
+        name:'核心接口可用率', type:'line', smooth:true, symbol:'circle', symbolSize:7,
+        data:[99.958, 99.971, 99.965, 99.982, 99.989, 99.991, 99.982],
+        itemStyle:{ color:'#34c759', borderWidth:2, borderColor:'#fff' },
+        lineStyle:{ width:2.5, color:'#34c759' },
+        areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+          { offset:0, color:'rgba(52,199,89,.16)' }, { offset:1, color:'rgba(52,199,89,0)' }]) },
+        markLine:{ symbol:'none', silent:true,
+          lineStyle:{ type:'dashed', color:'#ff9f0a', width:1.5 },
+          label:{ formatter:'SLA 99.95%', color:'#9b4b00', fontSize:11, fontFamily:FONT, position:'insideStartBottom' },
+          data:[{ yAxis:99.95 }] }
+      }]
+    });
+  })();
+
+  // ── 接口 P99 对比 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartLatency'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip: TOOLTIP,
+      grid: GRID,
+      xAxis:{ type:'category', data:['用户服务','搜索服务','订单服务','支付服务','风控服务'],
+        axisLine:{show:false}, axisTick:{show:false},
+        axisLabel:{ fontSize:11.5, color:'#6e6e73', fontFamily:FONT } },
+      yAxis:{ type:'value', splitLine:{ lineStyle:{ color:'#ececf0' } }, axisLabel:AXIS },
+      series:[{
+        name:'P99 延迟', type:'bar', barWidth:'50%',
+        data:[
+          { value:132, itemStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#8f8de8' }, { offset:1, color:'#6f6ddd' }]) } },
+          { value:186, itemStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#8f8de8' }, { offset:1, color:'#5856d6' }]) } },
+          { value:212, itemStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#8f8de8' }, { offset:1, color:'#5856d6' }]) } },
+          { value:244, itemStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#8f8de8' }, { offset:1, color:'#5856d6' }]) } },
+          { value:298, itemStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'#ffc44d' }, { offset:1, color:'#ff9f0a' }]) } }
+        ],
+        itemStyle:{ borderRadius:[6,6,0,0] },
+        label:{ show:true, position:'top', color:'#6e6e73', fontSize:11, fontFamily:FONT, formatter:'{c} ms' },
+        markLine:{ symbol:'none', silent:true,
+          lineStyle:{ type:'dashed', color:'#ff3b30', width:1.5 },
+          label:{ formatter:'SLO 300ms', color:'#991b1b', fontSize:11, fontFamily:FONT, position:'insideEndTop' },
+          data:[{ yAxis:300 }] }
+      }]
+    });
+  })();
+
+  window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V2.4.0 版本发布前迭代复盘</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
+    --card: #ffffff; --bg: #f5f5f7; --soft: #f9f9fb;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card > :last-child { margin-bottom:0 !important; }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-done { background:#e9fbe9; color:#166534; }
+  .b-note { background:#eef0fb; color:#3730a3; }
+  .b-warn { background:#fff4e5; color:#9b4b00; }
+  .b-miss { background:#fee2e2; color:#991b1b; }
+  .b-muted { background:#f2f2f7; color:#6e6e73; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .fact { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .fact .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.2; }
+  .fact.good .value { color:#21833c; }
+  .fact .label { display:block; margin-top:5px; font-size:12px; font-weight:650; }
+  .fact .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
+  .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
+
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:13px; line-height:1.6; }
+  th, td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:var(--soft); border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  th.numeric, td.numeric { text-align:right; }
+
+  .check-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .check { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .check .ck { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-top:1px;
+    border-radius:999px; font-size:13px; font-weight:700; }
+  .ck.ok { background:#d9f6de; color:#1e7a34; }
+  .ck.todo { background:#eef0fb; color:#403e9f; }
+  .check .t { font-size:13px; font-weight:650; }
+  .check .d { margin-top:2px; color:var(--muted); font-size:12px; }
+
+  .decision-note { margin-top:22px; padding:14px 18px; border-left:4px solid var(--accent-2); border-radius:0 10px 10px 0; background:#fff9ef; color:#5f470f; }
+  .decision-note.indigo { border-left-color:var(--accent); background:rgba(88,86,214,.055); color:#403e9f; }
+
+  .outcome-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px; }
+  .outcome { padding:16px 18px; border-left:4px solid var(--accent-3); border-radius:0 10px 10px 0; background:#f3fbf5; color:#245c33; }
+
+  .rpt-foot { margin-top:-14px; color:var(--muted-2); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <h2>迭代概览</h2>
+    <p class="subt">Sprint-37 承载 V2.4.0 全部特性开发，两周迭代；剩余 5 项需求中 3 项已进入联调收尾。</p>
+    <div class="kpi-grid">
+      <div class="fact"><span class="value">42</span><span class="label">需求总数</span><span class="detail">186 故事点 · 6 个特性域</span></div>
+      <div class="fact good"><span class="value">88%</span><span class="label">整体完成度</span><span class="detail">已交付 37 项 · 164 故事点</span></div>
+      <div class="fact"><span class="value">5</span><span class="label">遗留项</span><span class="detail">3 项联调中 · 2 项建议带入 V2.4.1</span></div>
+      <div class="fact"><span class="value">08-18</span><span class="label">代码冻结</span><span class="detail">预计晚间 22:00 · 发布窗口 08-19</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>燃尽与需求状态</h2>
+    <p class="subt">实际燃尽曲线第二周末段斜率抬升，源于支付域联调返工；不影响冻结窗口，但余量已收窄至 1.5 天。</p>
+    <div class="chart-grid">
+      <div class="panel">
+        <p class="p-title">Sprint-37 燃尽图</p>
+        <p class="p-sub">剩余故事点 · 工作日粒度</p>
+        <div id="chartBurn" style="width:100%;height:300px"></div>
+      </div>
+      <div class="panel">
+        <p class="p-title">需求状态分布</p>
+        <p class="p-sub">42 项 · 按当前状态统计</p>
+        <div id="chartStatus" style="width:100%;height:300px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>关键交付与遗留清单</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:30%">需求</th><th style="width:13%">特性域</th><th style="width:12%">负责人</th>
+          <th class="numeric" style="width:12%">故事点</th><th style="width:33%">备注</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><strong>订单批量写入模型</strong></td><td>交易</td><td>陈默</td><td class="numeric">13</td><td><span class="badge b-done">已交付</span>&nbsp; 08-11 全量，P99 ↓56%</td></tr>
+          <tr><td><strong>搜索 OpenSearch 双写</strong></td><td>搜索</td><td>陈默</td><td class="numeric">21</td><td><span class="badge b-done">已交付</span>&nbsp; 灰度 20%，全量随 08-21 窗口</td></tr>
+          <tr><td><strong>支付渠道动态路由</strong></td><td>支付</td><td>林悦</td><td class="numeric">34</td><td><span class="badge b-warn">联调中</span>&nbsp; 渠道方沙箱环境不稳定，08-16 前收口</td></tr>
+          <tr><td><strong>用户画像一级缓存</strong></td><td>增长</td><td>赵一帆</td><td class="numeric">8</td><td><span class="badge b-done">已交付</span>&nbsp; 命中率 96.2%</td></tr>
+          <tr><td><strong>风控规则热更新</strong></td><td>风控</td><td>孙清</td><td class="numeric">16</td><td><span class="badge b-warn">联调中</span>&nbsp; 规则回归用例补齐中</td></tr>
+          <tr><td><strong>运营后台权限改造</strong></td><td>平台</td><td>周晓</td><td class="numeric">18</td><td><span class="badge b-miss">建议延期</span>&nbsp; 依赖新权限中心上线，建议带入 V2.4.1</td></tr>
+          <tr><td><strong>消息推送分级下发</strong></td><td>增长</td><td>赵一帆</td><td class="numeric">11</td><td><span class="badge b-miss">建议延期</span>&nbsp; 产品侧文案策略未定稿</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>发布前 Checklist</h2>
+    <p class="subt">冻结前共 8 项门禁，已完成 6 项；剩余 2 项均有明确完成时间，不构成冻结风险。</p>
+    <div class="check-grid">
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">回归用例全量执行</div><div class="d">1,240 条 · 通过率 99.4%（1,233/1,240），7 条失败均已回归</div></div></div>
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">性能压测</div><div class="d">1.5× 峰值流量下 P99 212ms，通过</div></div></div>
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">安全扫描</div><div class="d">依赖与镜像扫描 0 高危 · 2 中危已修复</div></div></div>
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">数据库变更脚本评审</div><div class="d">3 份 DDL 均为在线变更，已评审通过</div></div></div>
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">回滚预案</div><div class="d">预生产环境演练通过，回滚耗时 4 分 12 秒</div></div></div>
+      <div class="check"><span class="ck ok">✓</span><div><div class="t">监控与告警配置</div><div class="d">新增 12 项大盘指标 · 6 条分级告警规则</div></div></div>
+      <div class="check"><span class="ck todo">…</span><div><div class="t">代码冻结</div><div class="d">计划 08-18 22:00 · 冻结后仅允许修复阻断性问题</div></div></div>
+      <div class="check"><span class="ck todo">…</span><div><div class="t">灰度发布计划</div><div class="d">08-19 起 5% → 20% → 50% → 100%，每档观察 24h</div></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>风险与决策建议</h2>
+    <div class="decision-note" style="margin-top:0"><strong>⚠ 需要决策：</strong>「运营后台权限改造」依赖新权限中心（V2.5 才具备）、「消息推送分级下发」产品文案未定稿。两者若强行挤入本版，将压缩联调与回归窗口，建议 08-15 站会确认带入 V2.4.1。</div>
+    <div class="outcome-grid">
+      <div class="outcome"><strong>建议一：范围收敛</strong><br/>2 项延期需求在 08-15 前完成重新排期，冻结窗口保持 08-18 不变。</div>
+      <div class="outcome"><strong>建议二：联调加压</strong><br/>支付域与风控域剩余联调项在本周末集中收口，08-16 前全部转入回归。</div>
+    </div>
+  </section>
+
+  <p class="rpt-foot">SURGE Report Engine · 生成于 2026-08-14 17:40 · 访客演示数据</p>
+</div>
+
+<script>
+(function () {
+  var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
+  var TOOLTIP = {
+    trigger:'axis',
+    backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+    textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+    axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
+    extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
+  };
+  var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
+  var charts = [];
+
+  // ── 燃尽图 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartBurn'));
+    charts.push(ch);
+    var days = ['7/27','7/28','7/29','7/30','7/31','8/3','8/4','8/5','8/6','8/7','8/10','8/11','8/12','8/13','8/14'];
+    var ideal = [186,173,160,147,134,121,108,95,82,69,56,43,30,17,4];
+    var actual = [186,181,176,168,157,152,141,132,124,110,95,74,52,34,23];
+    ch.setOption({
+      animation:false,
+      tooltip: TOOLTIP,
+      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      grid: GRID,
+      xAxis:{ type:'category', data:days, boundaryGap:false,
+        axisLine:{show:false}, axisTick:{show:false},
+        axisLabel:{ fontSize:10.5, color:'#6e6e73', fontFamily:FONT, interval:1 } },
+      yAxis:{ type:'value', splitLine:{ lineStyle:{ color:'#ececf0' } }, axisLabel:AXIS },
+      series:[
+        { name:'理想燃尽', type:'line', smooth:false, symbol:'none',
+          data:ideal, itemStyle:{ color:'#c8cdd4' }, lineStyle:{ width:1.5, color:'#c8cdd4', type:'dashed' } },
+        { name:'实际剩余', type:'line', smooth:true, symbol:'circle', symbolSize:6,
+          data:actual,
+          itemStyle:{ color:'#5856d6', borderWidth:2, borderColor:'#fff' },
+          lineStyle:{ width:2.5, color:'#5856d6' },
+          areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'rgba(88,86,214,.14)' }, { offset:1, color:'rgba(88,86,214,0)' }]) } }
+      ]
+    });
+  })();
+
+  // ── 需求状态环形图 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartStatus'));
+    charts.push(ch);
+    ch.setOption({
+      animation:false,
+      tooltip:{ trigger:'item',
+        backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+        textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+        extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;',
+        formatter:'{b}：{c} 项（{d}%）' },
+      legend:{ bottom:0, left:'center', itemWidth:12, itemHeight:8, icon:'roundRect',
+        textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      title:{ text:'88%', subtext:'整体完成度', left:'center', top:'34%',
+        textStyle:{ color:'#1d1d1f', fontSize:26, fontWeight:700, fontFamily:FONT },
+        subtextStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      series:[{
+        type:'pie', radius:['58%','78%'], center:['50%','44%'],
+        avoidLabelOverlap:true, label:{ show:false }, labelLine:{ show:false },
+        itemStyle:{ borderColor:'#fff', borderWidth:3, borderRadius:5 },
+        emphasis:{ scaleSize:4 },
+        data:[
+          { value:37, name:'已交付', itemStyle:{ color:'#34c759' } },
+          { value:3,  name:'联调中', itemStyle:{ color:'#5856d6' } },
+          { value:2,  name:'建议延期', itemStyle:{ color:'#ff9f0a' } }
+        ]
+      }]
+    });
+  })();
+
+  window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+})();
+</script>
+</body>
+</html>

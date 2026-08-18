@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8.13 搜索服务超时故障 P1 分析报告</title>
+<script src="../../lib/echarts.min.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
+    --card: #ffffff; --bg: #f5f5f7; --soft: #f9f9fb;
+    --accent: #5856d6; --accent-2: #ff9f0a; --accent-3: #34c759; --red: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card > :last-child { margin-bottom:0 !important; }
+  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
+  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+  .subhead { margin:28px 0 12px; font-size:14px; font-weight:650; }
+  .subhead:first-child { margin-top:0; }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-done { background:#e9fbe9; color:#166534; }
+  .b-note { background:#eef0fb; color:#3730a3; }
+  .b-warn { background:#fff4e5; color:#9b4b00; }
+  .b-miss { background:#fee2e2; color:#991b1b; }
+  .b-muted { background:#f2f2f7; color:#6e6e73; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .fact { padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .fact .value { display:block; color:var(--accent); font-size:24px; font-weight:700; line-height:1.2; }
+  .fact.bad .value { color:#b91c1c; }
+  .fact.good .value { color:#21833c; }
+  .fact .label { display:block; margin-top:5px; font-size:12px; font-weight:650; }
+  .fact .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+
+  .tl-flow { display:grid; grid-template-columns:repeat(5,1fr); gap:22px; }
+  .tl-node { position:relative; min-height:132px; padding:16px 12px; border:2px solid rgba(88,86,214,.28); border-radius:12px; background:var(--soft); text-align:center; }
+  .tl-node:not(:last-child)::after { content:"→"; position:absolute; top:50%; right:-12px; transform:translate(50%,-50%); color:rgba(88,86,214,.5); font-size:18px; }
+  .tl-node .value { display:block; color:var(--accent); font-size:20px; font-weight:700; line-height:1.1; }
+  .tl-node .label { display:block; margin-top:6px; font-size:12.5px; font-weight:650; }
+  .tl-node .detail { display:block; margin-top:4px; color:var(--muted); font-size:11px; line-height:1.4; }
+  .tl-node.alert { border-color:rgba(255,59,48,.36); background:#fff7f6; }
+  .tl-node.alert .value { color:#b91c1c; }
+  .tl-node.act { border-style:dashed; }
+  .tl-node.final { border-color:rgba(52,199,89,.42); background:#f3fbf5; }
+  .tl-node.final .value { color:#21833c; }
+
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
+  .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
+
+  .table-wrap { overflow:hidden; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:13px; line-height:1.6; }
+  th, td { padding:12px 14px; text-align:left; vertical-align:top; border-right:1px solid var(--line); border-bottom:1px solid var(--line); overflow-wrap:break-word; }
+  th:last-child, td:last-child { border-right:0; }
+  th { color:var(--muted); font-weight:600; font-size:12px; background:var(--soft); border-bottom:1px solid #d9d9de; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom:0; }
+  tbody tr:hover td { background:#f7f7fa; }
+  th.numeric, td.numeric { text-align:right; }
+
+  .cause-flow { display:grid; grid-template-columns:repeat(4,1fr); gap:30px; }
+  .count-node { position:relative; min-height:122px; padding:18px 14px; border:2px solid rgba(88,86,214,.28); border-radius:12px; background:var(--soft); text-align:center; }
+  .count-node:not(:last-child)::after { content:"→"; position:absolute; top:50%; right:-15px; transform:translate(50%,-50%); color:rgba(88,86,214,.5); font-size:20px; }
+  .count-node .value { display:block; color:var(--accent); font-size:22px; font-weight:700; line-height:1.15; }
+  .count-node .label { display:block; margin-top:7px; font-size:13px; font-weight:650; }
+  .count-node .detail { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.4; }
+  .count-node.stop { border-color:rgba(255,59,48,.36); background:#fff7f6; }
+  .count-node.stop .value { color:#991b1b; }
+
+  .decision-note { margin-top:22px; padding:14px 18px; border-left:4px solid var(--accent-2); border-radius:0 10px 10px 0; background:#fff9ef; color:#5f470f; }
+  .decision-note.red { border-left-color:var(--red); background:#fff7f6; color:#991b1b; }
+  .decision-note.indigo { border-left-color:var(--accent); background:rgba(88,86,214,.055); color:#403e9f; }
+
+  .rpt-foot { margin-top:-14px; color:var(--muted-2); font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <h2>事故概览</h2>
+    <p class="subt">搜索集群主节点 Full GC 风暴导致查询线程大面积停顿，触发网关超时与降级；影响时段全站搜索成功率跌至 71.4%。</p>
+    <div class="kpi-grid">
+      <div class="fact bad"><span class="value">P1</span><span class="label">故障级别</span><span class="detail">核心链路部分不可用</span></div>
+      <div class="fact bad"><span class="value">26 min</span><span class="label">持续时长</span><span class="detail">14:02 ~ 14:28</span></div>
+      <div class="fact bad"><span class="value">4.18 万</span><span class="label">影响用户数</span><span class="detail">失败查询 31.6 万次</span></div>
+      <div class="fact good"><span class="value">41 min</span><span class="label">MTTR</span><span class="detail">告警到恢复 · 含回滚验证</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>故障时间线</h2>
+    <p class="subt">从告警触发到服务恢复共 26 分钟；关键转折点是 14:11 的流量切换，将影响面从全站收敛到灰度队列。</p>
+    <div class="tl-flow">
+      <div class="tl-node alert"><span class="value">14:02</span><span class="label">告警触发</span><span class="detail">搜索 P99 突增至 8s+<br/>成功率跌破 90%</span></div>
+      <div class="tl-node alert"><span class="value">14:05</span><span class="label">定位 Full GC</span><span class="detail">主节点连续 Full GC<br/>单次停顿 26s</span></div>
+      <div class="tl-node act"><span class="value">14:11</span><span class="label">流量切换</span><span class="detail">搜索流量切至备用集群<br/>成功率回升至 96%</span></div>
+      <div class="tl-node act"><span class="value">14:23</span><span class="label">插件回滚</span><span class="detail">分词插件回滚至 v2.3.0<br/>主节点 GC 恢复正常</span></div>
+      <div class="tl-node final"><span class="value">14:28</span><span class="label">服务恢复</span><span class="detail">流量回切主集群<br/>指标全部回到基线</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>故障期间关键指标</h2>
+    <p class="subt">GC 停顿与错误率强相关：Full GC 每次停顿期间，5xx 比例同步冲高；切流后错误率立即回落。</p>
+    <div class="chart-grid">
+      <div class="panel">
+        <p class="p-title">5xx 错误率 × Full GC 停顿</p>
+        <p class="p-sub">08-13 13:40 ~ 14:40 · 每 5 分钟</p>
+        <div id="chartErr" style="width:100%;height:300px"></div>
+      </div>
+      <div class="panel">
+        <p class="p-title">主节点老年代堆使用率</p>
+        <p class="p-sub">08-13 12:00 ~ 14:30 · 每 10 分钟 · 虚线为 85% 告警阈值</p>
+        <div id="chartHeap" style="width:100%;height:300px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>根因分析</h2>
+    <p class="subt">直接原因是分词插件 v2.3.1 的词表缓存无上限增长；促成因素是变更未走性能基线门禁，夜间低峰期上线后缓慢劣化，次日午后流量爬升时引爆。</p>
+    <div class="cause-flow">
+      <div class="count-node"><span class="value">08-12 22:00</span><span class="label">插件 v2.3.1 上线</span><span class="detail">未经过压基线门禁<br/>低峰期无异常</span></div>
+      <div class="count-node"><span class="value">无上限</span><span class="label">词表缓存膨胀</span><span class="detail">Native 词表驻留堆内<br/>14h 增长约 11 GB</span></div>
+      <div class="count-node"><span class="value">99%</span><span class="label">老年代打满</span><span class="detail">13:40 越过 85% 阈值<br/>触发连续 Full GC</span></div>
+      <div class="count-node stop"><span class="value">26 s</span><span class="label">单次 GC 停顿</span><span class="detail">查询线程大面积停顿<br/>超时雪崩</span></div>
+    </div>
+    <div class="decision-note red"><strong>根因陈述：</strong>分词插件 v2.3.1 新增的自定义词表缓存未设置容量上限，且未使用堆外存储，导致老年代持续膨胀。<br/><strong>为何未提前发现：</strong>插件在 08-12 22:00 低峰上线，内存增长缓慢，次日 13:40 才越过 85% 告警线；当时老年代容量告警只配置了「单点突破」而非「持续爬升趋势」，未在夜间触发。</div>
+  </section>
+
+  <section class="card">
+    <h2>行动项</h2>
+    <p class="subt">共 5 项：2 项已完成，2 项进行中，1 项待启动；全部行动项纳入故障复盘跟踪清单，每周站会同步。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:36%">行动项</th><th style="width:12%">类型</th><th style="width:12%">负责人</th>
+          <th class="numeric" style="width:12%">截止时间</th><th style="width:28%">说明</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><strong>分词插件回滚至 v2.3.0</strong></td><td><span class="badge b-muted">短期</span></td><td>陈默</td><td class="numeric">08-13</td><td><span class="badge b-done">已完成</span>&nbsp; 当日完成并验证</td></tr>
+          <tr><td><strong>老年代容量趋势告警</strong></td><td><span class="badge b-muted">短期</span></td><td>陈默</td><td class="numeric">08-15</td><td><span class="badge b-done">已完成</span>&nbsp; &gt;80% 持续 5min 即告警</td></tr>
+          <tr><td><strong>词表缓存上限 + 堆外存储改造</strong></td><td><span class="badge b-note">中期</span></td><td>赵一帆</td><td class="numeric">08-19</td><td><span class="badge b-warn">进行中</span>&nbsp; LRU 上限 2 GB，迁移 DirectByteBuffer</td></tr>
+          <tr><td><strong>分词插件发布纳入性能基线门禁</strong></td><td><span class="badge b-note">中期</span></td><td>孙清</td><td class="numeric">08-26</td><td><span class="badge b-warn">进行中</span>&nbsp; 上线前 2h 压测对比堆增长曲线</td></tr>
+          <tr><td><strong>搜索双集群容灾演练常态化</strong></td><td><span class="badge b-miss">长期</span></td><td>周晓</td><td class="numeric">09-30</td><td><span class="badge b-miss">待启动</span>&nbsp; 季度级演练，纳入 SRE 例行日程</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="decision-note indigo"><strong>经验沉淀：</strong>本次 14:11 的备用集群切换将全站影响压缩到 9 分钟大面积超时，验证了「双集群 + 一键切流」的价值；后续所有核心链路服务上线前必须具备等价的容灾切换能力。</div>
+  </section>
+
+  <p class="rpt-foot">SURGE Report Engine · 生成于 2026-08-14 19:26 · 访客演示数据</p>
+</div>
+
+<script>
+(function () {
+  var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
+  var TOOLTIP = {
+    trigger:'axis',
+    backgroundColor:'#fff', borderColor:'#e8e8ed', borderWidth:1, padding:[10,14],
+    textStyle:{ color:'#1d1d1f', fontSize:12, fontFamily:FONT },
+    axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
+    extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
+  };
+  var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
+  var charts = [];
+
+  // ── 5xx × GC 停顿（双轴） ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartErr'));
+    charts.push(ch);
+    var times = ['13:40','13:45','13:50','13:55','14:00','14:05','14:10','14:15','14:20','14:25','14:30','14:35','14:40'];
+    ch.setOption({
+      animation:false,
+      tooltip:{ ...TOOLTIP },
+      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      grid: GRID,
+      xAxis:{ type:'category', data:times, boundaryGap:true,
+        axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },
+      yAxis:[
+        { type:'value', name:'GC 停顿 s', nameTextStyle:{ color:'#9b4b00', fontSize:11, fontFamily:FONT },
+          splitLine:{ lineStyle:{ color:'#ececf0' } }, axisLabel:AXIS },
+        { type:'value', name:'5xx %', nameTextStyle:{ color:'#991b1b', fontSize:11, fontFamily:FONT },
+          splitLine:{ show:false }, axisLabel:AXIS }
+      ],
+      series:[
+        { name:'Full GC 停顿（s）', type:'bar', barWidth:'46%',
+          data:[0,0,0,1.2,8.4,26.1,24.8,9.6,2.1,0.4,0,0,0],
+          itemStyle:{ borderRadius:[5,5,0,0],
+            color:new echarts.graphic.LinearGradient(0,0,0,1,[
+              { offset:0, color:'#ffc44d' }, { offset:1, color:'#ff9f0a' }]) } },
+        { name:'5xx 错误率 %', type:'line', smooth:true, symbol:'circle', symbolSize:6, yAxisIndex:1,
+          data:[0.02,0.02,0.03,0.4,3.2,18.6,28.6,27.9,21.4,7.2,2.9,0.4,0.05],
+          itemStyle:{ color:'#ff3b30', borderWidth:2, borderColor:'#fff' },
+          lineStyle:{ width:2.5, color:'#ff3b30' },
+          areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+            { offset:0, color:'rgba(255,59,48,.14)' }, { offset:1, color:'rgba(255,59,48,0)' }]) } }
+      ]
+    });
+  })();
+
+  // ── 老年代堆使用率 ──
+  (function(){
+    var ch = echarts.init(document.getElementById('chartHeap'));
+    charts.push(ch);
+    var times = ['12:00','12:10','12:20','12:30','12:40','12:50','13:00','13:10','13:20','13:30','13:40','13:50','14:00','14:10','14:20','14:30'];
+    ch.setOption({
+      animation:false,
+      tooltip: TOOLTIP,
+      grid: GRID,
+      xAxis:{ type:'category', data:times, boundaryGap:false,
+        axisLine:{show:false}, axisTick:{show:false},
+        axisLabel:{ fontSize:10.5, color:'#6e6e73', fontFamily:FONT, interval:1 } },
+      yAxis:{ type:'value', min:40, max:100, splitLine:{ lineStyle:{ color:'#ececf0' } },
+        axisLabel:{ fontSize:11, color:'#6e6e73', fontFamily:FONT, formatter:'{value}%' } },
+      series:[{
+        name:'老年代使用率', type:'line', smooth:true, symbol:'circle', symbolSize:5,
+        data:[52,54,55,57,58,60,62,64,67,71,86,91,94,99,97,72],
+        itemStyle:{ color:'#5856d6', borderWidth:2, borderColor:'#fff' },
+        lineStyle:{ width:2.5, color:'#5856d6' },
+        areaStyle:{ color:new echarts.graphic.LinearGradient(0,0,0,1,[
+          { offset:0, color:'rgba(88,86,214,.14)' }, { offset:1, color:'rgba(88,86,214,0)' }]) },
+        markLine:{ symbol:'none', silent:true,
+          lineStyle:{ type:'dashed', color:'#ff9f0a', width:1.5 },
+          label:{ formatter:'告警阈值 85%', color:'#9b4b00', fontSize:11, fontFamily:FONT, position:'insideEndTop' },
+          data:[{ yAxis:85 }] },
+        markPoint:{
+          symbolSize:46, itemStyle:{ color:'#ff3b30' }, label:{ color:'#fff', fontSize:10, fontFamily:FONT },
+          data:[{ coord:['14:10', 99], name:'GC 风暴', value:'GC\n风暴' }]
+        }
+      }]
+    });
+  })();
+
+  window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+})();
+</script>
+</body>
+</html>

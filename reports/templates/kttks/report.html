@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>KTTKS_2 膜内扩散系数分析报告</title>
+<script src="../../lib/echarts.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f;          /* 苹果正文深色 */
+    --muted: #6e6e73;        /* 苹果次要文字 */
+    --line: #e8e8ed;         /* 苹果分隔线 */
+    --card: #ffffff;
+    --bg: #f5f5f7;           /* 苹果浅灰背景 */
+    --accent: #5856d6;       /* 统一主色：苹果靛蓝（克制、高级） */
+    --accent-2: #ff9f0a;     /* 点缀色：苹果琥珀橙（少量使用） */
+    --accent-soft: rgba(88, 86, 214, 0.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1280px; min-width: 1280px; margin: 0 auto; padding: 32px 36px 64px; }
+
+  /* 页头（与 nexus 模板统一：菜单栏式，标题 + 返回按钮，无分隔线） */
+  .rpt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 42px; }
+  .rpt-head h1 { margin: 0; font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); }
+  .rpt-head .btn-light svg { width: 15px; height: 15px; }
+
+  /* 报告摘要与状态概览 */
+  .summary-card p, .detail-card p { margin: 8px 0; }
+  .summary-list { margin: 0; padding-left: 0; list-style: none; color: #3a3a3c; }
+  .summary-list li { margin: 9px 0; position: relative; }
+  .summary-list li::before { content: ""; position: absolute; left: -14px; top: 0.6em;
+    width: 5px; height: 5px; border-radius: 50%; background: #86868b; }
+  .summary-list strong { color: var(--ink); }
+  .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+  .metric { border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; background: #fafafc; }
+  .metric .value { display: block; font-size: 25px; line-height: 1.2; font-weight: 700; color: var(--accent); }
+  .metric .label { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); }
+  .status-note { margin-top: 18px; border-radius: 0 10px 10px 0; background: #fff9ef; padding: 14px 18px;
+    border-left: 4px solid var(--accent-2); color: #5f470f; }
+
+  /* 卡片：与 nexus 模板统一（页边距上下 60、左右 80，卡间距 28） */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 60px 80px; margin: 0 auto 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card h2 { margin: 0 0 22px; font-size: 19px; font-weight: 600; color: var(--ink); }
+  /* 副标题与小标题成组：负外边距把组内间距收到 8px，组到正文 22px */
+  .card .subt { color: var(--muted); font-size: 13px; margin: -14px 0 22px; }
+  .card > :last-child { margin-bottom: 0 !important; }
+  .chart { width: 100%; }
+
+  /* 分析卡片（每个板块下方的文字卡片） */
+  .analysis-card .analysis-body { color: var(--muted); font-size: 13.5px; line-height: 1.75; }
+  .analysis-card .analysis-body p { margin: 8px 0; }
+  .analysis-card .analysis-body strong { color: var(--ink); }
+  .analysis-card .analysis-placeholder { color: #b3b3b8; font-size: 13px; }
+
+  /* 公式：数学书排版（衬线斜体变量 + 堆叠积分上下限 + 真分式线），无外框、逐行竖排 */
+  .equation { margin: 18px 0; text-align: center; color: #292930;
+    font: 17px/1.6 "Times New Roman", "STIX Two Text", Georgia, serif; }
+  .equation .sep { margin: 0 16px; color: #6e6e73; }
+  .equation i { font-style: italic; margin: 0 1px; }
+  .equation sub, .equation sup { font-size: 0.6em; }
+  .equation .intwrap { display: inline-flex; align-items: center; vertical-align: -0.4em; margin: 0 4px 0 6px; }
+  .equation .int { font-size: 2em; line-height: 0.9; }
+  .equation .limits { display: inline-flex; flex-direction: column; justify-content: space-between;
+    height: 2.2em; font-size: 0.6em; line-height: 1; margin-left: 2px; }
+  .equation .frac { display: inline-block; vertical-align: -0.8em; text-align: center; margin: 0 5px; }
+  .equation .frac .num { display: block; padding: 0 7px 3px; border-bottom: 1.2px solid #292930; }
+  .equation .frac .den { display: block; padding: 3px 7px 0; }
+  .window-reading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+  .window-reading > div { border-left: 3px solid #c8c7e8; background: #fafafc; padding: 12px 14px; border-radius: 0 10px 10px 0; }
+  .window-reading strong { display: block; margin-bottom: 3px; }
+
+  /* 数值表：与 nexus 统一的精致网格（圆角外框、发丝内线、浅灰表头、宽松行高），数值列右对齐 */
+  table.summary { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; line-height: 1.6; table-layout: fixed; }
+  table.summary th, table.summary td { padding: 12px 14px; vertical-align: top;
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow-wrap: break-word; }
+  table.summary th:last-child, table.summary td:last-child { border-right: 0; }
+  table.summary th { color: var(--muted); font-weight: 600; font-size: 12px; background: #f9f9fb;
+    border-bottom: 1px solid #d9d9de; text-align: left; }
+  table.summary th:nth-child(3), table.summary th:nth-child(4), table.summary th:nth-child(5),
+  table.summary th:nth-child(6), table.summary th:nth-child(8) { text-align: right; }
+  table.summary td { text-align: right; white-space: nowrap;
+    font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+  table.summary td:nth-child(1), table.summary td:nth-child(2), table.summary td:nth-child(7) { text-align: left; }
+  table.summary td:nth-child(2) { white-space: normal; }
+  table.summary tbody tr:last-child td { border-bottom: 0; }
+  table.summary tbody tr:hover td { background: #f7f7fa; }
+  .verdict-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .v-plateau { background: #e9e8fb; color: #403e9f; }
+  .v-weak { background: #fff4e5; color: #9b4b00; }
+  .v-noplateau { background: #efeff3; color: #55555c; }
+  .table-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+  .table-note { margin: 11px 0 0; color: var(--muted); font-size: 12.5px; }
+  .detail-card h3 { margin: 19px 0 7px; font-size: 15px; font-weight: 650; }
+  .detail-card ul { margin: 7px 0; padding-left: 20px; }
+  .detail-card li { margin: 6px 0; }
+  .scope { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 17px; color: var(--muted); }
+
+  /* 方法页：三个大卡片（目的/操作/输出）+ 卡间箭头 + 底部三栏说明，科研汇报式 */
+  .method-flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.15fr);
+    align-items: stretch; }
+  .mcol { min-width: 0; display: flex; flex-direction: column; }
+  .mcol-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; margin-bottom: 12px; min-height: 42px; }
+  .mcol-head .no { flex: none; width: 20px; height: 20px; border-radius: 999px; background: var(--ink); color: #fff;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .mcol-body { flex: 1; display: flex; flex-direction: column; gap: 12px;
+    background: #fafafc; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .mcol-key .mcol-body { background: rgba(88, 86, 214, 0.035); border-color: rgba(88, 86, 214, 0.20); }
+  .mparams { text-align: center; font-size: 12.5px; color: #3a3a3c; }
+  .mparams strong { color: var(--ink); }
+  .mparams .sep { margin: 0 10px; color: var(--muted); }
+  .mout { text-align: center; font-size: 12.5px; line-height: 1.6; color: #3a3a3c; }
+  .mout strong { color: var(--ink); }
+  .mout .ar { color: var(--accent); font-weight: 600; margin-right: 4px; }
+  .mnote { margin-top: 4px; text-align: center; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+  .mphys { margin-top: 6px; text-align: center; font-size: 11.5px; color: var(--muted); }
+  .mphys strong { color: var(--ink); font-weight: 600; }
+  .tl-note { margin-top: 6px; margin-left: 75%; width: 25%; text-align: center; font-size: 10px; line-height: 1.5; color: #403e9f; }
+  /* ③ 信号 → ACF → D 处理图 */
+  .sig-row { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; }
+  .sig { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .sig svg { width: 100%; height: 44px; display: block; }
+  .sig .fx { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 11px; line-height: 1.6; color: #3a3a3c; text-align: center; }
+  .sig .fx b { color: var(--ink); }
+  .sig .cap { font-size: 10.5px; color: var(--muted); text-align: center; line-height: 1.5; }
+  .sig .cap b { display: block; color: var(--ink); font-weight: 600; font-size: 11px; }
+  .sig .fx { gap: 3px; }
+  .sig .fx .ft { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+  .sig .fx .feq { height: 30px; width: auto; display: block; }
+  .sig .fx .far { font-size: 13px; line-height: 1.1; color: rgba(88, 86, 214, 0.55); }
+  .sig .fx .fz { font-family: 'Times New Roman', 'STIX Two Text', Georgia, serif; font-size: 15px; color: var(--ink); }
+  .sig-ar { display: flex; align-items: center; padding: 0 6px; color: rgba(88, 86, 214, 0.55); font-size: 14px; }
+  .flow-link { display: flex; align-items: center; justify-content: center; padding: 0 10px;
+    color: var(--accent); font-size: 20px; }
+  .meq { margin: 14px 0 0; display: flex; justify-content: center; }
+  .meq svg { height: 84px; max-width: 100%; }
+  /* 底部三栏说明 */
+  .method-takeaways { margin-top: 26px; background: #f5f5f7; border-radius: 12px; padding: 14px 20px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 28px; }
+  .method-takeaways > div { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+  .method-takeaways strong { display: block; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+  /* ① 示意：肽起始于上侧水相内部，水直接水合膜表面，bound peptide 位于上侧 water–membrane interface */
+  .sk1 { display: flex; flex-direction: column; margin: 8px 0 2px; padding: 0 6px; }
+  .sk1 .water { background: #edf6fa; color: #607681; border-radius: 6px 6px 0 0; padding: 8px 10px 12px;
+    display: flex; flex-direction: column; gap: 7px; }
+  .sk1 .wlab { text-align: center; font-size: 10.5px; color: #607681; }
+  .sk1 .peps { display: flex; justify-content: space-between; padding: 0 8px; }
+  .sk1 .peps span { width: 40px; text-align: center; font-size: 11.5px; font-weight: 600; color: #4644b5;
+    background: #e9e8fb; border-radius: 999px; padding: 3px 0; }
+  .sk1 .arrs { display: flex; justify-content: space-between; padding: 0 8px; margin-top: -2px; }
+  .sk1 .arrs span { width: 40px; text-align: center; font-size: 14px; color: var(--muted); }
+  .sk1 .line { border-top: 1px dashed #b9b8d9; position: relative; margin-top: 2px; }
+  .sk1 .line span { position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+    background: #edf6fa; padding: 0 6px; font-size: 10px; color: #607681; white-space: nowrap; }
+  .sk1 .brow { display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #edf6fa; padding: 6px 0 3px; margin-bottom: -4px; }
+  .sk1 .brow .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(88, 86, 214, 0.15); }
+  .sk1 .brow span { font-size: 10.5px; font-weight: 600; color: #4644b5; }
+  .sk1 .mem { border-top: 2px solid #aaa5d8; border-bottom: 2px solid #aaa5d8; background: #eeeaf7;
+    text-align: center; font-size: 10.5px; font-weight: 500; color: #605d78; padding: 9px 0; }
+  .sk1 .water.w2 { border-radius: 0 0 6px 6px; padding: 5px 0; display: block; text-align: center;
+    font-size: 10.5px; color: #607681; }
+  /* ② 示意：upper surface → bilayer center 的 half-bilayer view，与①同一套 water + SC bilayer 视觉语言 */
+  .sk2 { display: flex; flex-direction: column; padding: 4px 6px; margin: 8px 0 2px; }
+  .sk2 .wzone { width: 100%; background: #edf6fa; border-radius: 6px 6px 0 0;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 6px; }
+  .sk2 .mzone { width: 100%; position: relative; background: #eeeaf7; border-top: 2px solid #aaa5d8;
+    border-radius: 0 0 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 8px 0 8px; }
+  .sk2 .mlab { position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 10.5px; line-height: 1.35; color: #605d78; font-weight: 500; text-align: left; }
+  .sk2 .cline { width: calc(100% - 16px); border-top: 1.5px dashed #88849e; margin-top: 2px; }
+  .sk2 .clab { font-size: 10.5px; color: #686579; margin-top: -1px; }
+  .sk2 .wlab { font-size: 10.5px; color: #607681; }
+  .sk2 .slab { font-size: 10px; color: #686579; }
+  .sk2 .varr { font-size: 11px; line-height: 1; color: var(--accent); }
+  .sk2 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: .75; }
+  .sk2 .brow { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: -5px; }
+  .sk2 .brow .dot { width: 10px; height: 10px; opacity: 1; box-shadow: 0 0 0 4px rgba(88, 86, 214, 0.15); }
+  .sk2 .brow span { font-size: 10.5px; font-weight: 600; color: #4644b5; }
+  /* ③ 时间轴 + 纵向计算链 */
+  .tl-title { text-align: center; font-size: 11px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .tl { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+  .tl .seg { flex: 3; background: #ececf0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #777777; }
+  .tl .use { flex: 1; background: rgba(88, 86, 214, 0.26); border-left: 2px solid rgba(88, 86, 214, 0.45);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 650; color: #403e9f; }
+  .tl-lab { position: relative; height: 14px; margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+  .tl-lab span { position: absolute; }
+  .tl-lab span:first-child { left: 0; }
+  .tl-lab span:nth-child(2) { left: 75%; transform: translateX(-50%); }
+  .tl-lab span:last-child { right: 0; }
+
+  /* 子图标题 overlay（HTML 层覆盖，绝对定位 + transform 居中） */
+  .panel-grid { position: relative; }
+  .panel-grid .chart { position: relative; }
+  .pt {
+    position: absolute; transform: translate(-50%, -50%);
+    font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 5;
+  }
+  /* 中间间隙的竖排纵轴标签（用于最后一行右列无子图的情况） */
+  .py {
+    position: absolute; transform: translate(-50%, -50%) rotate(-90deg);
+    font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--muted); white-space: nowrap; pointer-events: none; z-index: 5;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="rpt-head">
+    <div>
+      <h1>KTTKS_2 膜内扩散系数分析报告</h1>
+    </div>
+    <a href="/home" class="btn-light">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      返回
+    </a>
+  </header>
+
+  <!-- ⓪ 方法页：三个大卡片（目的/操作/输出）+ 卡间箭头 + 底部三栏说明 -->
+  <section class="card">
+    <h2>论文中位置依赖扩散系数 D(z) 的计算流程</h2>
+    <p class="subt">100 ns 无约束 MD → 从自然膜结合态生成不同 z 构型 → 各 z 位置约束 MD，并由约束力自相关计算 D(z)</p>
+    <div class="method-flow">
+      <div class="mcol">
+        <div class="mcol-head"><span class="no">1</span>100 ns 无约束 MD：获得膜结合态</div>
+        <div class="mcol-body">
+          <div class="sk1">
+            <div class="water">
+              <div class="wlab">TIP3P 水</div>
+              <div class="peps"><span>P1</span><span>P2</span><span>P3</span><span>P4</span></div>
+              <div class="arrs"><span>↘</span><span>↓</span><span>↓</span><span>↙</span></div>
+              <div class="line"><span>自由扩散 / 吸附</span></div>
+            </div>
+            <div class="brow"><div class="dot"></div><span>结合态多肽</span></div>
+            <div class="mem">SC 脂质双层膜</div>
+            <div class="water w2">TIP3P 水</div>
+          </div>
+          <div class="mparams"><strong>4 条相同多肽 · TIP3P 水 · 310 K · 1 bar · 100 ns</strong></div>
+          <div class="mnote">能量最小化 + 短时约束平衡 → 100 ns 无约束 MD</div>
+          <div class="mout"><span class="ar">→</span>从最终构型中选择一条处于膜结合态（bound state）的多肽</div>
+        </div>
+      </div>
+      <div class="flow-link">→</div>
+      <div class="mcol">
+        <div class="mcol-head"><span class="no">2</span>沿膜法向拉取：生成不同 z 深度构型</div>
+        <div class="mcol-body">
+          <div class="sk2">
+            <div class="wzone">
+              <div class="wlab">TIP3P 体相水</div>
+              <div class="dot"></div>
+              <div class="varr">↑</div>
+              <div class="dot"></div>
+              <div class="wlab">向膜外拉取</div>
+              <div class="brow"><div class="dot"></div><span>结合态多肽 · 起点</span></div>
+            </div>
+            <div class="mzone">
+              <div class="mlab">SC 脂质<br>双层膜</div>
+              <div class="slab">上侧膜表面</div>
+              <div class="dot"></div>
+              <div class="varr">↓</div>
+              <div class="dot"></div>
+              <div class="varr">↓</div>
+              <div class="dot"></div>
+              <div class="cline"></div>
+              <div class="clab">双层膜中心 · z = 0</div>
+            </div>
+          </div>
+          <div class="mout"><strong>从 100 ns 得到的膜结合态出发，沿 z 方向双向拉取</strong></div>
+          <div class="mout"><span class="ar">→</span>得到多个不同 z 位置的初始构型</div>
+          <div class="mnote">拉取仅用于生成 z 窗口，不直接用于计算 D(z)</div>
+          <div class="mnote">必要时移除被拖入膜内的脂质或邻近多肽，避免改变目标多肽的局部环境。</div>
+        </div>
+      </div>
+      <div class="flow-link">→</div>
+      <div class="mcol mcol-key">
+        <div class="mcol-head"><span class="no">3</span>各 z 位置约束 MD：计算 D(z)</div>
+        <div class="mcol-body">
+          <div class="mparams"><strong>k = 2000 kJ·mol⁻¹·nm⁻²</strong><span class="sep">|</span><strong>每个 z 位置 40 ns</strong></div>
+          <div>
+            <div class="tl-title">40 ns 约束 MD</div>
+            <div class="tl"><div class="seg">前 30 ns</div><div class="use">最后 10 ns</div></div>
+            <div class="tl-lab"><span>0 ns</span><span>30 ns</span><span>40 ns</span></div>
+            <div class="tl-note">约束力每 0.1 ps<br>用于 D(z) 计算</div>
+          </div>
+          <div class="sig-row">
+            <div class="sig">
+              <svg viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true">
+                <line x1="0" y1="22" x2="120" y2="22" stroke="#d9d9de" stroke-width="1" stroke-dasharray="3 3"></line>
+                <path d="M2 22 L8 10 L14 31 L20 7 L26 34 L32 13 L38 29 L44 6 L50 33 L56 15 L62 27 L68 12 L74 30 L80 18 L86 25 L92 20 L98 23 L104 21 L110 22 L118 22" fill="none" stroke="#5856d6" stroke-width="1.4"></path>
+              </svg>
+              <div class="cap">约束力 F(z,t)<b>ΔF = F − ⟨F⟩</b></div>
+            </div>
+            <div class="sig-ar">→</div>
+            <div class="sig">
+              <svg viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true">
+                <line x1="0" y1="34" x2="120" y2="34" stroke="#d9d9de" stroke-width="1" stroke-dasharray="3 3"></line>
+                <path d="M4 6 C 18 10, 26 24, 40 30 S 70 35, 86 33 S 108 34, 118 34" fill="none" stroke="#0d9488" stroke-width="1.4"></path>
+              </svg>
+              <div class="cap">力自相关函数<b>C<sub>F</sub>(t) = ⟨ΔF(t)ΔF(0)⟩</b></div>
+            </div>
+            <div class="sig-ar">→</div>
+            <div class="sig">
+              <div class="fx">
+                <span class="ft">累积积分</span>
+                <svg class="feq" viewBox="0 0 100 42" role="img" aria-label="I(τ) = ∫₀^τ C_F(t) dt">
+                  <g font-family="'Times New Roman', 'STIX Two Text', Georgia, serif" fill="#292930">
+                    <text x="2" y="24" font-size="14"><tspan font-style="italic">I</tspan>(<tspan font-style="italic">τ</tspan>) =</text>
+                    <text x="38" y="27" font-size="18">∫</text>
+                    <text x="47" y="11" font-size="9.5"><tspan font-style="italic">τ</tspan></text>
+                    <text x="46" y="38" font-size="9.5">0</text>
+                    <text x="55" y="24" font-size="14">C</text>
+                    <text x="64.5" y="28" font-size="9.5"><tspan font-style="italic">F</tspan></text>
+                    <text x="70" y="24" font-size="14">(<tspan font-style="italic">t</tspan>)</text>
+                    <text x="84" y="24" font-size="14">d<tspan font-style="italic">t</tspan></text>
+                  </g>
+                </svg>
+                <span class="far">↓</span>
+                <b class="fz"><i>D</i>(<i>z</i>)</b>
+              </div>
+              <div class="cap">ACF → 累积积分 → D(z)</div>
+            </div>
+          </div>
+          <div class="meq">
+            <svg viewBox="0 0 208 96" role="img" aria-label="D(z) = (RT)² / ∫₀^∞ ⟨ΔF(z,t)ΔF(z,0)⟩ dt">
+              <g font-family="'Times New Roman', 'STIX Two Text', Georgia, serif" fill="#292930">
+                <text x="2" y="55" font-size="17"><tspan font-style="italic">D</tspan>(<tspan font-style="italic">z</tspan>) =</text>
+                <line x1="58" y1="49" x2="202" y2="49" stroke="#292930" stroke-width="1.3"></line>
+                <text x="130" y="34" font-size="16" text-anchor="middle">(<tspan font-style="italic">RT</tspan>)<tspan font-size="11" dy="-6">2</tspan></text>
+                <text x="62" y="80" font-size="26">∫</text>
+                <text x="76" y="60" font-size="10.5">∞</text>
+                <text x="75" y="89" font-size="10.5">0</text>
+                <text x="86" y="75" font-size="15" textLength="116" lengthAdjust="spacingAndGlyphs">⟨Δ<tspan font-style="italic">F</tspan>(<tspan font-style="italic">z</tspan>,<tspan font-style="italic">t</tspan>)Δ<tspan font-style="italic">F</tspan>(<tspan font-style="italic">z</tspan>,0)⟩ d<tspan font-style="italic">t</tspan></text>
+              </g>
+            </svg>
+          </div>
+          <div class="mphys">物理含义：力自相关积分越大 → <strong>有效局部摩擦越强</strong> → <strong>D(z) 越小</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="method-takeaways">
+      <div><strong>起点来自自然吸附</strong>100 ns 无约束 MD → 从最终构型选择结合态多肽</div>
+      <div><strong>拉取只负责生成 z 窗口</strong>沿膜法向双向拉取，不直接用于计算 D(z)</div>
+      <div><strong>D 来自最后 10 ns 的力涨落</strong>每 0.1 ps 记录约束力 → 力自相关 → D(z)</div>
+    </div>
+  </section>
+
+  <section class="card summary-card">
+    <h2>执行摘要</h2>
+    <ul class="summary-list">
+      <li><strong>模拟数据全部通过科学 QC。</strong>七个窗口的 40 ns production 均完整结束，最终纳入分析的轨迹为 7/7 GO；本报告讨论的“不稳定”专指扩散系数估计对积分终点敏感，并不代表 MD 运行失败。</li>
+      <li><strong>七个作者口径的 D<sub>1000</sub> 均已计算完成。</strong>z=0.31–2.81 nm 的六点位于 1.34×10⁻⁷–4.90×10⁻⁷ cm²/s；z=4.00 nm 的作者口径结果为 2.85×10⁻⁵ cm²/s，明显高于其余窗口。</li>
+      <li><strong>不同窗口的数值精度并不相同。</strong>z0.31 的 running integral 形成清晰平台，z2.81 仅呈弱平台；其余五个窗口在 500–1000 ps 内仍明显变化，因此 D<sub>1000</sub> 是统一方法口径下的主估计值，而不是全部已经收敛的精确常数。</li>
+      <li><strong>z4.00 的高值必须谨慎解释。</strong>该窗口的相关积分接近零，D 又与积分成反比，因此 cutoff 和仅 0.2 ps 的抽样相位变化都会被显著放大；高数值可以保留为作者兼容输出，但不能据此断言真实扩散速度比膜内窗口高两个数量级。</li>
+    </ul>
+    <div class="metric-grid">
+      <div class="metric"><span class="value">7/7</span><span class="label">production MD 科学 QC：GO</span></div>
+      <div class="metric"><span class="value">1</span><span class="label">清晰平台窗口：z0.31</span></div>
+      <div class="metric"><span class="value">1</span><span class="label">弱平台窗口：z2.81</span></div>
+      <div class="metric"><span class="value">5</span><span class="label">无清晰平台窗口</span></div>
+    </div>
+    <div class="status-note"><strong>总体判定：</strong>当前单 profile 结果可以展示和比较，但绝对数值的可信度应按窗口区分；“D 大”描述运动阻力较小，不等于“数据质量更好”。</div>
+  </section>
+
+  <!-- ① D(z) profile：单图，两条线 -->
+  <section class="card sec-profile">
+    <h2>KTTKS_2 单 profile 扩散系数 D<sub>A</sub>(z)</h2>
+    <div class="chart" id="chartProfile" style="height:520px"></div>
+  </section>
+
+  <section class="card analysis-card">
+    <h2>D(z) 给出物理结果，不能单独证明估计已经稳定</h2>
+    <div class="analysis-body">
+      <p>在 restrained simulation 中，KTTKS_2 被固定在指定膜深度，体系记录膜、水和脂质施加在肽上的约束力波动。作者脚本先计算去均值后的力自相关函数 C<sub>F</sub>(t)，再将其积分为累计摩擦 I，最后按下式换算 D：</p>
+      <div class="equation">
+        <i>D</i>(<i>τ</i>) =
+        <span class="frac"><span class="num">10<sup>−14</sup>(<i>RT</i>)<sup>2</sup></span><span class="den"><i>I</i>(<i>τ</i>)</span></span>
+        <span class="sep">；</span>
+        <i>I</i>(<i>τ</i>) =
+        <span class="intwrap"><span class="int">∫</span><span class="limits"><sup><i>τ</i></sup><sub>0</sub></span></span>
+        <i>C</i><sub>F</sub>(<i>t</i>)&thinsp;d<i>t</i>
+      </div>
+      <p>因此，<strong>D 小表示累计摩擦大、运动更受阻；D 大表示累计摩擦小、运动相对容易</strong>。但 D 是积分的倒数：当 I 已经很小、仍在变化时，D 会对计算细节非常敏感。所以 D 的高低是物理结果，估计是否稳定必须结合后面的 running integral 与 cutoff sensitivity 判断。</p>
+      <p>图中靛蓝线是作者兼容 extraction 的正式 D<sub>1000</sub>，琥珀线是把抽样起点校正 0.2 ps 后的独立验证。纵轴为对数尺度。z0.31–z2.81 六点跨越约 3.7 倍，仍处于同一 10⁻⁷ cm²/s 数量级；z4.00 比前六点中最高值约高 58 倍、比前六点中位数约高 135 倍。</p>
+      <p>前六窗两种 extraction 的 D<sub>1000</sub> 差异均不超过 2.23%，说明 0.2 ps 的抽样相位对这些窗口影响较小。z4.00 的相位差达到 20.70%，与其近零积分和无平台状态一致。因而曲线的主要结论不是“z4.00 已被精确证明扩散最快”，而是<strong>作者公式在该窗口产生了一个极高、同时高度敏感的点估计</strong>。</p>
+    </div>
+  </section>
+
+  <!-- ② 约束力 ACF：4×2 子图 -->
+  <section class="card sec-acf">
+    <h2>KTTKS_2 约束力自相关函数</h2>
+    <p class="subt">作者兼容的 30-40 ns extraction, 1 ps/sample; lag 0-997 ps</p>
+    <div class="panel-grid">
+      <div class="chart" id="chartAcf" style="height:1500px"></div>
+      <div class="pt" style="left:24%; top:2%">z0.31</div>
+      <div class="pt" style="left:76.5%; top:2%">z0.56</div>
+      <div class="pt" style="left:24%; top:27.25%">z0.99</div>
+      <div class="pt" style="left:76.5%; top:27.25%">z2.01</div>
+      <div class="pt" style="left:24%; top:52.5%">z2.29</div>
+      <div class="pt" style="left:76.5%; top:52.5%">z2.81</div>
+      <div class="pt" style="left:24%; top:77.75%">z4.00</div>
+      <div class="py" style="left:48%; top:10.9%">力自相关 /(kJ mol⁻¹ nm⁻¹)²</div>
+      <div class="py" style="left:48%; top:36.15%">力自相关 /(kJ mol⁻¹ nm⁻¹)²</div>
+      <div class="py" style="left:48%; top:61.4%">力自相关 /(kJ mol⁻¹ nm⁻¹)²</div>
+      <div class="py" style="left:48%; top:86.65%">力自相关 /(kJ mol⁻¹ nm⁻¹)²</div>
+    </div>
+  </section>
+
+  <section class="card analysis-card">
+    <h2>ACF 展示“力的记忆”，但最终判断要看其累计面积</h2>
+    <div class="analysis-body">
+      <p>ACF 比较当前的力波动与延迟 t 之后的力波动。C<sub>F</sub>(t)&gt;0 表示两时刻的波动倾向同向，C<sub>F</sub>(t)&lt;0 表示倾向反向回弹，接近零表示线性记忆已经很弱。七个窗口在短 lag 都从较强正相关快速衰减，说明约束力不是每个 1 ps 样本都完全独立，而是具有有限时间的连续记忆。</p>
+      <p><strong>“ACF 看起来靠近零”还不等于 D 已经稳定。</strong>原因是 D 取决于从 lag=0 开始的全部曲线面积；尾部单个起伏虽小，但如果较长时间偏正或偏负，累加后仍会持续推高或压低 I。不同窗口的尾部起伏方向和累积结果不同，正是后续 D 随 cutoff 上升或下降的来源。</p>
+      <div class="window-reading">
+        <div><strong>z0.31</strong>尾部正负贡献在 500–1000 ps 内基本抵消，累计面积趋稳。</div>
+        <div><strong>z0.56 / z2.01 / z2.29</strong>尾部累计净贡献为正，积分继续增大，D 随 cutoff 降低。</div>
+        <div><strong>z0.99</strong>尾部累计净贡献为负，积分继续减小，D 随 cutoff 升高。</div>
+        <div><strong>z4.00</strong>长 lag 的累计抵消把总面积压到接近零，使倒数换算极不稳定。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ running integral：4×2 子图 -->
+  <section class="card sec-integral">
+    <h2>KTTKS_2 力自相关 running integral</h2>
+    <p class="subt">阴影对应 cutoff 参数 500-1000 的估计区间（实际 lag 497-997 ps）</p>
+    <div class="panel-grid">
+      <div class="chart" id="chartIntegral" style="height:1500px"></div>
+      <div class="pt" style="left:24%; top:2%">z0.31</div>
+      <div class="pt" style="left:76.5%; top:2%">z0.56</div>
+      <div class="pt" style="left:24%; top:27.25%">z0.99</div>
+      <div class="pt" style="left:76.5%; top:27.25%">z2.01</div>
+      <div class="pt" style="left:24%; top:52.5%">z2.29</div>
+      <div class="pt" style="left:76.5%; top:52.5%">z2.81</div>
+      <div class="pt" style="left:24%; top:77.75%">z4.00</div>
+      <div class="py" style="left:48%; top:10.9%">Running integral /(kJ mol⁻¹ nm⁻¹)² s</div>
+      <div class="py" style="left:48%; top:36.15%">Running integral /(kJ mol⁻¹ nm⁻¹)² s</div>
+      <div class="py" style="left:48%; top:61.4%">Running integral /(kJ mol⁻¹ nm⁻¹)² s</div>
+      <div class="py" style="left:48%; top:86.65%">Running integral /(kJ mol⁻¹ nm⁻¹)² s</div>
+    </div>
+  </section>
+
+  <section class="card analysis-card">
+    <h2>Running integral 是本报告判断稳健性的核心证据</h2>
+    <div class="analysis-body">
+      <p>Running integral 是 ACF 从 0 到当前 lag 的累计面积，也是 D 公式中的分母。如果 ACF 的有效记忆已经结束，继续向后积分只会加入接近零的量，曲线就会形成平台；此时在合理范围内改变积分终点，得到的摩擦和 D 都基本不变。</p>
+      <p>图中阴影对应统一的 500–1000 cutoff 审计范围（在作者代码中实际最大 lag 为参数减 3 ps）。<strong>平台不是要求曲线等于零，而是要求曲线在一段足够长的区间内不再持续单向变化。</strong>平台高度可以很大或很小；只要高度稳定，D 的分母就不依赖人为选择的积分终点。</p>
+      <p>z0.31 的 I 从 1.56×10⁻⁷ 变为 1.48×10⁻⁷，仅小幅调整后趋平，对应 D 只变化 +5.48%，是唯一清晰平台。z2.81 的 I 从 2.02×10⁻⁷ 增至 2.47×10⁻⁷，后段斜率减弱但尚未完全稳定，因此判为弱平台。</p>
+      <p>z0.56、z2.01、z2.29 的 I 在阴影区持续上升，说明继续积分仍在累加同号净面积；z0.99 则持续下降，说明负的尾部贡献仍在抵消早期正面积。这四窗都没有出现足够清晰的平台。</p>
+      <p>z4.00 的 I 从 9.66×10⁻⁹ 降至 2.33×10⁻⁹，下降约 76%，最终值比前六窗 I 的中位数低约 146 倍。由于 D∝1/I，这个很小且仍在下降的分母把 D 放大到 10⁻⁵ cm²/s，同时也放大了 cutoff 与抽样相位带来的任何细微变化。</p>
+    </div>
+  </section>
+
+  <!-- ④ cutoff 敏感性：4×2 子图 -->
+  <section class="card sec-cutoff">
+    <h2>KTTKS_2 cutoff 敏感性</h2>
+    <p class="subt">固定使用作者兼容 extraction; D₁₀₀₀ 始终是主估计值</p>
+    <div class="panel-grid">
+      <div class="chart" id="chartCutoff" style="height:1500px"></div>
+      <div class="pt" style="left:24%; top:2%">z0.31 — 平台清晰</div>
+      <div class="pt" style="left:76.5%; top:2%">z0.56 — 无清晰平台</div>
+      <div class="pt" style="left:24%; top:27.25%">z0.99 — 无清晰平台</div>
+      <div class="pt" style="left:76.5%; top:27.25%">z2.01 — 无清晰平台</div>
+      <div class="pt" style="left:24%; top:52.5%">z2.29 — 无清晰平台</div>
+      <div class="pt" style="left:76.5%; top:52.5%">z2.81 — 弱平台</div>
+      <div class="pt" style="left:24%; top:77.75%">z4.00 — 无清晰平台</div>
+      <div class="py" style="left:48%; top:10.9%">D (cm²/s)</div>
+      <div class="py" style="left:48%; top:36.15%">D (cm²/s)</div>
+      <div class="py" style="left:48%; top:61.4%">D (cm²/s)</div>
+      <div class="py" style="left:48%; top:86.65%">D (cm²/s)</div>
+    </div>
+  </section>
+
+  <section class="card analysis-card">
+    <h2>Cutoff sensitivity 把“平台是否足够平”转换成可量化结果</h2>
+    <div class="analysis-body">
+      <p>Cutoff 是 ACF 积分停止的位置。对每个窗口统一计算 500、600、700、800、900 和 1000 ps 六个终点；如果累计摩擦已经形成平台，六个 D 应当接近水平。这里的“平”只评价同一个窗口在不同 cutoff 下是否稳定，不要求 D 随膜深度 z 呈平滑或单调变化。</p>
+      <p>z0.31 从 D<sub>500</sub> 到 D<sub>1000</sub> 仅变化 +5.48%，平台最清晰。z2.81 变化 −18.34%，曲线后半段相对收窄，因此归为弱平台。z0.56、z0.99、z2.01、z2.29 的端点变化为 32.64%–54.06%，且方向与各自 running integral 的上升或下降完全相反，符合 D∝1/I。</p>
+      <p>z4.00 从 6.88×10⁻⁶ 增至 2.85×10⁻⁵ cm²/s，端点变化 +314.40%，中间还出现明显回落与再上升。这不是稳定平台周围的小幅噪声，而是积分分母接近零时倒数换算产生的强烈放大。</p>
+      <p><strong>D<sub>1000</sub> 仍固定作为所有窗口的主列</strong>，因为这保持了作者脚本和统一分析协议；平台判定则单独描述这个主估计值的稳健程度。没有为任何窗口挑选更“好看”的 cutoff，也没有因 D 不平滑而改用其他时间段。</p>
+    </div>
+  </section>
+
+  <section class="card detail-card">
+    <h2>七个窗口的数值与证据等级</h2>
+    <div class="table-wrap">
+      <table class="summary">
+        <thead>
+          <tr>
+            <th style="width:8%">窗口</th>
+            <th style="width:18%">数据来源</th>
+            <th style="width:13%">D<sub>500</sub> (cm²/s)</th>
+            <th style="width:13%">D<sub>1000</sub> (cm²/s)</th>
+            <th style="width:13%">D<sub>500</sub>→D<sub>1000</sub></th>
+            <th style="width:13%">相位校正差异</th>
+            <th style="width:13%">积分判定</th>
+            <th style="width:9%">MD QC</th>
+          </tr>
+        </thead>
+        <tbody id="summaryRows"></tbody>
+      </table>
+    </div>
+    <p class="table-note">D<sub>1000</sub> 为统一作者兼容主估计值；百分比正负表示相对 D<sub>500</sub> 或作者兼容结果的变化方向，不代表 GO/NO-GO。z2.81 与 z4.00 使用删除其他三条 KTTKS 后、重新完成 500 ps reconstruction pre-equilibration 与 40 ns production 的 single-K2 修复结果。</p>
+  </section>
+
+  <section class="card detail-card">
+    <h2>综合结论</h2>
+    <h3>1. 轨迹层结论</h3>
+    <p>七个正式来源均已通过 production 科学 QC，因此全部可以进入既定的力自相关分析。此处不存在“七个 MD 大部分失败”的结论；平台不足发生在有限 10 ns 力序列对长时间相关积分的估计层。</p>
+    <h3>2. 扩散系数层结论</h3>
+    <p>z0.31 的 D<sub>1000</sub>=4.50×10⁻⁷ cm²/s 具有本批数据中最清晰的 cutoff 稳健性。z2.81 的 D<sub>1000</sub>=2.69×10⁻⁷ cm²/s 具有弱平台支持。z0.56、z0.99、z2.01 和 z2.29 的作者口径数值均可复现，但其 500–1000 ps running integral 尚未形成清晰平台，绝对值应视为 cutoff-sensitive 点估计。</p>
+    <h3>3. z4.00 的解释边界</h3>
+    <p>z4.00 的 D<sub>1000</sub>=2.85×10⁻⁵ cm²/s 是作者公式的真实输出，不是程序报错；但该值依赖一个接近零且仍在变化的积分分母。314.40% 的 cutoff 变化和 20.70% 的 extraction-phase 差异共同表明，其数量级不具备与 z0.31 相同的稳健性。</p>
+    <h3>4. 报告范围</h3>
+    <p>本报告给出的是 <strong>KTTKS_2 single-profile D<sub>A</sub>(z)</strong>。论文最终 KTTKS 曲线由两个独立 X–Y binding environment 的 profile 平均得到；当前没有第二条独立 profile，因此本结果不能命名为论文完整 Fig.5 的最终复现。</p>
+  </section>
+
+  <section class="card detail-card">
+    <h2>数据口径与计算方法</h2>
+    <ul>
+      <li><strong>模拟输入：</strong>7 个固定 z 窗口，每窗 40 ns restrained production；所有最终来源均为 QC GO。</li>
+      <li><strong>分析时间窗：</strong>固定使用 30–40 ns，不因结果形状更换时间段。</li>
+      <li><strong>作者兼容 extraction：</strong>受 XVG 物理行号相位影响，得到 10,000 点，时间为 30000.2–39999.2 ps，间隔 1 ps。</li>
+      <li><strong>相位校正验证：</strong>从数值数据首点开始抽样，得到 10,001 点，时间为 30000.0–40000.0 ps；仅用于敏感性校验，不替换主结果。</li>
+      <li><strong>主估计：</strong>原作者 `Compute_diffusivity.py`，temperature=310 K，cutoff argument=1000。由于作者循环实现，实际计算 998 个 lag，即 0–997 ps。</li>
+      <li><strong>统一敏感性审计：</strong>所有窗口同时计算 cutoff=500、600、700、800、900、1000，不逐窗选择终点。</li>
+    </ul>
+  </section>
+
+</div>
+
+<script>
+const DATA = window.DATA;
+const W = DATA.windows;            // ['z0.31', ..., 'z4.00']
+const C = DATA.cutoffs;            // [500, 600, 700, 800, 900, 1000]
+const BLUE = '#5856d6';            // ACF 主色：靛蓝（与站点主色同源）
+const INTEG = '#0d9488';           // running integral 主色：松石绿（低饱和、高级感）
+const CUT = '#ff9f0a';             // cutoff 主色：琥珀橙（苹果系统色）
+const SHADOW = 'rgba(29, 29, 31, 0.06)';  // 中性灰阴影
+const AXIS = '#86868b';            // 苹果次级文字灰（轴标签/轴线）
+
+const verdictZh = v => v === 'plateau' ? '平台清晰' : (v === 'weak plateau' ? '弱平台' : '无清晰平台');
+const verdictClass = v => v === 'plateau' ? 'v-plateau' : (v === 'weak plateau' ? 'v-weak' : 'v-noplateau');
+const sourceVariantZh = v => v === 'original_go' ? '原始 GO production' : 'single-K2 修复 GO';
+
+// 表格与图形读取同一个 DATA 对象，避免报告数值与图形数据分叉。
+(function renderSummaryTable() {
+  const tbody = document.getElementById('summaryRows');
+  const signedPct = value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  tbody.innerHTML = DATA.summary.map(s => {
+    const cutoffChange = 100 * (s.D[1000] - s.D[500]) / s.D[500];
+    return `<tr>
+      <td>${s.window}</td>
+      <td>${sourceVariantZh(s.source_variant)}</td>
+      <td>${s.D[500].toExponential(2)}</td>
+      <td><strong>${s.author_D1000.toExponential(2)}</strong></td>
+      <td>${signedPct(cutoffChange)}</td>
+      <td>${signedPct(s.diff_pct)}</td>
+      <td><span class="verdict-badge ${verdictClass(s.verdict)}">${verdictZh(s.verdict)}</span></td>
+      <td>GO</td>
+    </tr>`;
+  }).join('');
+})();
+
+const tooltipBox = {
+  trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.96)',
+  borderColor: '#e8e8ed', textStyle: { color: '#1c2430', fontSize: 12 },
+  axisPointer: { type: 'cross', label: { backgroundColor: '#556' }, snap: true }, confine: true
+};
+
+// ========== ① D(z) profile ==========
+(function chartProfile() {
+  const ch = echarts.init(document.getElementById('chartProfile'));
+  const log10 = Math.log10;
+  const PROF_BLUE = '#5856d6';    // 靛蓝（作者兼容口径）
+  const PROF_GREEN = '#ff9f0a';   // 琥珀橙（相位校正验证）
+  ch.setOption({
+    animation: false,
+    color: [PROF_BLUE, PROF_GREEN],
+    tooltip: Object.assign({}, tooltipBox, {
+      formatter: p => {
+        const z = p[0].value[0];
+        let html = `<b>z = ${z.toFixed(2)} nm</b><br/>`;
+        p.forEach(item => {
+          const d = Math.pow(10, item.value[1]).toExponential(3);
+          html += `${item.marker} ${item.seriesName}: <b>${d}</b> cm²/s<br/>`;
+        });
+        return html;
+      }
+    }),
+    legend: { top: 14, right: 0, itemWidth: 26, itemHeight: 3, itemGap: 22, textStyle: { fontSize: 13 } },
+    grid: { left: 94, right: 14, top: 60, bottom: 52 },
+    xAxis: {
+      type: 'value', name: '目标 z (nm)', nameLocation: 'middle', nameGap: 38, nameTextStyle: { fontSize: 13, color: AXIS },
+      min: 0, max: 4.5, interval: 0.5,
+      axisLabel: { formatter: v => v.toFixed(2) },
+      axisLine: { lineStyle: { color: AXIS } }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'D₁₀₀₀ (cm²/s)',
+      nameLocation: 'middle', nameRotate: 90, nameGap: 72, nameTextStyle: { fontSize: 13, color: AXIS },
+      min: -7.5, max: -4, interval: 0.5,
+      axisLabel: { formatter: v => Math.pow(10, v).toExponential(1).replace('+', '') },
+      splitLine: { lineStyle: { type: 'dashed', color: '#ececf1' } },
+      axisLine: { lineStyle: { color: AXIS } }
+    },
+    series: [
+      {
+        name: '作者兼容抽样相位', type: 'line',
+        data: DATA.summary.map(s => [s.z_nm, log10(s.author_D1000), log10(s.corrected_D1000)]),
+        color: PROF_BLUE,
+        symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2 },
+        encode: { x: 0, y: 1 }
+      },
+      {
+        name: '相位校正验证', type: 'line',
+        data: DATA.summary.map(s => [s.z_nm, log10(s.corrected_D1000)]),
+        color: PROF_GREEN,
+        symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2 },
+        encode: { x: 0, y: 1 }
+      }
+    ]
+  });
+  window.addEventListener('resize', () => ch.resize());
+})();
+
+// ========== ② ACF ==========
+(function chartAcf() {
+  const ch = echarts.init(document.getElementById('chartAcf'));
+  const n = 7, cols = 2, rows = 4;
+  const grids = [], xAxes = [], yAxes = [], series = [];
+  // 页边距对齐：左列最宽刻度标签左缘贴内容左缘，右列绘图区右缘贴内容右缘；
+  // 行高/行距按“末行底缘贴近画布底”收紧，避免卡片底部多出空白
+  const mctx = document.createElement('canvas').getContext('2d');
+  mctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+  const GRID_LEFT = Math.ceil(mctx.measureText('-1000').width) + 12;
+  const topPct = [0.5, 25.75, 51, 76.25], heightPct = 20.75;
+
+  for (let i = 0; i < n; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    grids.push(col === 0
+      ? { left: GRID_LEFT, right: '54.5%', top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false }
+      : { left: '54%', right: 14, top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false });
+    // x 轴：每个子图都显示横轴标签（底部）
+    xAxes.push({
+      type: 'value', min: 0, max: 1000,
+      name: 'Lag (ps)',
+      nameLocation: 'middle', nameGap: 26, nameTextStyle: { fontSize: 11, color: AXIS },
+      axisLabel: { fontSize: 9, formatter: v => v },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { show: false },
+      gridIndex: i
+    });
+    // y 轴：统一 -1k~6k 每 1k 一格；纵轴标签统一用 HTML overlay（py）显示，ECharts name 不显示
+    yAxes.push({
+      type: 'value',
+      name: '',
+      nameLocation: 'middle', nameRotate: 90,
+      nameGap: 41,
+      nameTextStyle: { fontSize: 11, color: AXIS },
+      min: -1000, max: 6000, interval: 1000,
+      axisLabel: { fontSize: 9, formatter: v => v >= 1000 ? (v/1000)+'k' : v },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { lineStyle: { type: 'dashed', color: '#f0f0f4' } },
+      gridIndex: i
+    });
+
+    const w = W[i], d = DATA.acf[w];
+    series.push({
+      name: w, type: 'line',
+      data: d.lag.map((lag, j) => [lag, d.acf[j]]),
+      showSymbol: false,
+      lineStyle: { width: 1.3, color: BLUE },
+      itemStyle: { color: BLUE },
+      xAxisIndex: i, yAxisIndex: i,
+      markArea: {
+        silent: true,
+        itemStyle: { color: SHADOW },
+        label: { show: false },
+        data: [[{ xAxis: 500 }, { xAxis: 1000 }]]
+      }
+    });
+  }
+
+  ch.setOption({
+    animation: false,
+    tooltip: Object.assign({}, tooltipBox, {
+      formatter: p => `<b>${p[0].seriesName}</b><br/>lag = ${p[0].value[0]} ps<br/>ACF = <b>${p[0].value[1].toExponential(3)}</b>`
+    }),
+    grid: grids, xAxis: xAxes, yAxis: yAxes, series
+  });
+  window.addEventListener('resize', () => ch.resize());
+})();
+
+// ========== ③ running integral ==========
+(function chartIntegral() {
+  const ch = echarts.init(document.getElementById('chartIntegral'));
+  const n = 7, cols = 2, rows = 4;
+  const grids = [], xAxes = [], yAxes = [], series = [];
+  // 页边距对齐：预扫左列各子图刻度，取最宽标签把左缘推到内容左缘；右列右缘贴内容右缘
+  const mctx = document.createElement('canvas').getContext('2d');
+  mctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+  let leftW = 0;
+  for (let k = 0; k < n; k += 2) {
+    const imax = Math.ceil(Math.max.apply(null, DATA.acf[W[k]].integral) * 1.06 / 1e-8) * 1e-8;
+    for (let t = 0; t <= 7; t++) {
+      leftW = Math.max(leftW, mctx.measureText((imax * t / 7).toExponential(1).replace('+', '')).width);
+    }
+  }
+  const GRID_LEFT = Math.ceil(leftW) + 12;
+  const topPct = [0.5, 25.75, 51, 76.25], heightPct = 20.75;
+
+  for (let i = 0; i < n; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    grids.push(col === 0
+      ? { left: GRID_LEFT, right: '54.5%', top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false }
+      : { left: '54%', right: 14, top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false });
+    xAxes.push({
+      type: 'value', min: 0, max: 1000,
+      name: 'Lag (ps)',
+      nameLocation: 'middle', nameGap: 26, nameTextStyle: { fontSize: 11, color: AXIS },
+      axisLabel: { fontSize: 9 },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { show: false },
+      gridIndex: i
+    });
+    const w = W[i], d = DATA.acf[w];
+    // 每个子图按数据范围计算 min/max/interval，强制精确 7 格
+    const imin = 0;
+    const imaxRaw = Math.max.apply(null, d.integral);
+    const imax = Math.ceil(imaxRaw * 1.06 / 1e-8) * 1e-8;  // 顶部留 6% 空间，向上取整到 1e-8
+    const iint = (imax - imin) / 7;
+    yAxes.push({
+      type: 'value',
+      name: '',
+      nameLocation: 'middle', nameRotate: 90,
+      nameGap: 41,
+      nameTextStyle: { fontSize: 11, color: AXIS },
+      min: imin, max: imax, interval: iint,  // 精确 7 格
+      axisLabel: { fontSize: 9, formatter: v => v.toExponential(1).replace('+', '') },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { lineStyle: { type: 'dashed', color: '#f0f0f4' } },
+      gridIndex: i
+    });
+
+    series.push({
+      name: w, type: 'line',
+      data: d.lag.map((lag, j) => [lag, d.integral[j]]),
+      showSymbol: false,
+      lineStyle: { width: 1.3, color: INTEG },
+      itemStyle: { color: INTEG },
+      xAxisIndex: i, yAxisIndex: i,
+      markArea: {
+        silent: true,
+        itemStyle: { color: SHADOW },
+        label: { show: false },
+        data: [[{ xAxis: 497 }, { xAxis: 997 }]]
+      }
+    });
+  }
+  ch.setOption({
+    animation: false,
+    tooltip: Object.assign({}, tooltipBox, {
+      formatter: p => `<b>${p[0].seriesName}</b><br/>lag = ${p[0].value[0]} ps<br/>∫ACF = <b>${p[0].value[1].toExponential(3)}</b>`
+    }),
+    grid: grids, xAxis: xAxes, yAxis: yAxes, series
+  });
+  window.addEventListener('resize', () => ch.resize());
+})();
+
+// ========== ④ cutoff 敏感性 ==========
+(function chartCutoff() {
+  const ch = echarts.init(document.getElementById('chartCutoff'));
+  const n = 7, cols = 2, rows = 4;
+  const grids = [], xAxes = [], yAxes = [], series = [];
+  // 页边距对齐：预扫左列各子图刻度，取最宽标签把左缘推到内容左缘；右列右缘贴内容右缘
+  const mctx = document.createElement('canvas').getContext('2d');
+  mctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+  let leftW = 0;
+  for (let k = 0; k < n; k += 2) {
+    const ds = C.map(c => DATA.summary[k].D[c]);
+    const ymin = Math.floor(Math.min.apply(null, ds) * 0.97 / 1e-9) * 1e-9;
+    const ymax = Math.ceil(Math.max.apply(null, ds) * 1.03 / 1e-9) * 1e-9;
+    for (let t = 0; t <= 7; t++) {
+      leftW = Math.max(leftW, mctx.measureText((ymin + (ymax - ymin) * t / 7).toExponential(1)).width);
+    }
+  }
+  const GRID_LEFT = Math.ceil(leftW) + 12;
+  const topPct = [0.5, 25.75, 51, 76.25], heightPct = 20.75;
+
+  for (let i = 0; i < n; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    grids.push(col === 0
+      ? { left: GRID_LEFT, right: '54.5%', top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false }
+      : { left: '54%', right: 14, top: `${topPct[row]}%`, height: `${heightPct}%`, containLabel: false });
+    const s = DATA.summary[i];
+    const titleText = `${s.window} — ${verdictZh(s.verdict)}`;
+    xAxes.push({
+      type: 'category', data: C.map(String),
+      name: 'cutoff 参数 (ps; 实际最大 lag = 参数 - 3 ps)',
+      nameLocation: 'middle', nameGap: 28, nameTextStyle: { fontSize: 11, color: AXIS },
+      axisLabel: { fontSize: 9 },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { show: false },
+      gridIndex: i
+    });
+    // 每个子图按 D 值范围计算 min/max/interval，强制精确 7 格（底部/顶部各留空间让波动可见）
+    const ds = C.map(c => s.D[c]);
+    const dminRaw = Math.min.apply(null, ds);
+    const dmaxRaw = Math.max.apply(null, ds);
+    const ymin = Math.floor(dminRaw * 0.97 / 1e-9) * 1e-9;   // 底部留 ~3% 空间
+    const ymax = Math.ceil(dmaxRaw * 1.03 / 1e-9) * 1e-9;    // 顶部留 ~3% 空间
+    const yint = (ymax - ymin) / 7;
+    yAxes.push({
+      type: 'value',
+      name: '',
+      nameLocation: 'middle', nameRotate: 90,
+      nameGap: 41,
+      nameTextStyle: { fontSize: 11, color: AXIS },
+      min: ymin, max: ymax, interval: yint,  // 精确 7 格
+      axisLabel: { fontSize: 9, formatter: v => v.toExponential(1) },
+      axisLine: { show: true, lineStyle: { color: AXIS } },
+      axisTick: { show: true },
+      splitLine: { lineStyle: { type: 'dashed', color: '#f0f0f4' } },
+      gridIndex: i
+    });
+
+    const points = C.map(c => s.D[c]);
+    series.push({
+      name: titleText, type: 'line',
+      data: points,
+      symbol: 'circle', symbolSize: 6,
+      lineStyle: { width: 1.6, color: CUT },
+      itemStyle: { color: CUT },
+      xAxisIndex: i, yAxisIndex: i
+    });
+  }
+  ch.setOption({
+    animation: false,
+    tooltip: Object.assign({}, tooltipBox, {
+      formatter: p => `<b>${p[0].seriesName}</b><br/>cutoff = ${p[0].axisValue} ps<br/>D = <b>${p[0].value.toExponential(3)}</b> cm²/s`
+    }),
+    grid: grids, xAxis: xAxes, yAxis: yAxes, series
+  });
+  window.addEventListener('resize', () => ch.resize());
+})();
+</script>
+</body>
+</html>

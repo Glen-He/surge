@@ -1,0 +1,75 @@
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { renderOtpEmail } from "@/lib/email-templates";
+import { guestOtpResponse } from "@/lib/guest-sandbox";
+import {
+  checkOtpRateLimit,
+  generateAndStoreOtp,
+  logSecurity,
+  recordOtpSent,
+  sendOtpMail,
+} from "@/lib/account";
+
+export const dynamic = "force-dynamic";
+
+// 发送"修改密码"用的邮箱验证码（当前绑定邮箱）
+export async function POST() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return Response.json({ error: "未登录" }, { status: 401 });
+  }
+  const email = session.user.email;
+
+  try {
+    const rl = await checkOtpRateLimit({ email });
+    if (!rl.ok) {
+      return Response.json(
+        {
+          error:
+            rl.reason === "daily_limit"
+              ? "今日验证码发送次数已达上限，请明天再试"
+              : `请 ${rl.retryAfter} 秒后再试`,
+          code:
+            rl.reason === "daily_limit" ? "OTP_DAILY_LIMIT" : "OTP_COOLDOWN",
+          retryAfter: rl.retryAfter,
+        },
+        { status: 429 },
+      );
+    }
+
+    const code = await generateAndStoreOtp({
+      email,
+      purpose: "password_change",
+    });
+    const tpl = renderOtpEmail("password_change", { code });
+    await sendOtpMail({
+      to: email,
+      subject: tpl.subject,
+      text: tpl.text,
+      html: tpl.html,
+    });
+    await recordOtpSent(email, "OTP_SENT_PASSWORD");
+    await logSecurity({
+      userId: session.user.id,
+      action: "OTP_SENT_PASSWORD",
+    });
+
+    return Response.json({
+      success: true,
+      retryAfter: rl.retryAfter,
+      remainingToday: rl.remainingToday,
+      ...guestOtpResponse(email, code),
+    });
+  } catch (err) {
+    console.error("[send-otp/password] full error:", err);
+    console.error(
+      "[send-otp/password] error details:",
+      JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2),
+    );
+    const message = err instanceof Error ? err.message : "未知错误";
+    return Response.json(
+      { error: `发送失败：${message}`, debug: String(err) },
+      { status: 500 },
+    );
+  }
+}
