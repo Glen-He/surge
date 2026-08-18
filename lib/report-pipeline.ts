@@ -148,6 +148,28 @@ export function rewriteReportHtml(
     "",
   );
 
+  // 注入高度上报脚本 + 滚动条隐藏样式：
+  // - 外层页面（系统头 + iframe）整体滚动，iframe 需要自适应报告真实内容高度；
+  //   报告文档在沙箱内把自己的 scrollHeight postMessage 给父页（ReportFrame 接收）
+  // - 顺带隐藏 iframe 文档自身的滚动条（外层全局滚动条已隐藏，保持一致）
+  // - 滚动条隐藏样式必须注入 <head> 首位：Safari 首绘早于文档尾解析，
+  //   若放在 </body> 前，首帧会按「有滚动条槽」布局、样式生效后槽释放，
+  //   居中内容会向右滑约 7px（打开报告瞬间卡片从左向右移动一下的根因）
+  const injectStyle =
+    '<style>html{scrollbar-width:none}html::-webkit-scrollbar{display:none}</style>';
+  const injectScript =
+    '<script>(function(){function send(){var d=document.documentElement,b=document.body;var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);if(!h)return;try{if(window.parent!==window)window.parent.postMessage({__surgeReportHeight:h},"*")}catch(e){}}send();window.addEventListener("load",send);window.addEventListener("resize",send);if(window.ResizeObserver&&document.documentElement){try{new ResizeObserver(send).observe(document.documentElement)}catch(e){}}setTimeout(send,300);setTimeout(send,1500)})();</script>';
+  if (/<head[^>]*>/i.test(html)) {
+    html = html.replace(/<head[^>]*>/i, (m) => m + injectStyle);
+  } else {
+    html = injectStyle + html;
+  }
+  if (/<\/body>/i.test(html)) {
+    html = html.replace(/<\/body>/i, `${injectScript}</body>`);
+  } else {
+    html += injectScript;
+  }
+
   return html;
 }
 

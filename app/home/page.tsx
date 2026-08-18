@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getReportCards } from "@/lib/report-cards";
 import { ReportBoard } from "@/components/report-board";
+import { GuestSessionWatcher } from "@/components/guest-toasts";
+import { expireGuestIfNeeded, getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 import { purgeExpiredDeletions } from "@/lib/account-deletion";
 import Link from "next/link";
 
@@ -15,10 +17,35 @@ export default async function HomePage() {
     headers: await headers(),
   });
 
-  // 未登录：重定向到登录页
+  // 未登录：重定向到登录页。
+  // Safari「登录两次」排查用诊断：区分「请求根本没带 cookie」（客户端
+  // cookie jar 时序问题，见 auth-page-client 的 awaitSessionReady）与
+  // 「带了 cookie 但服务端判无效」（服务端问题：secret 轮换/代理改写等）。
+  // 只记录 cookie 名，绝不打印值。
   if (!session) {
+    const hs = await headers();
+    const cookieHeader = hs.get("cookie") ?? "";
+    const names = cookieHeader
+      .split(";")
+      .map((c) => c.split("=")[0].trim())
+      .filter(Boolean);
+    console.warn(
+      `[home] bounce to / : session null, cookie header ${
+        names.length > 0 ? `PRESENT [${names.join(",")}]` : "ABSENT"
+      }`,
+    );
     redirect("/");
   }
+
+  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
+  if (await expireGuestIfNeeded(session)) {
+    redirect("/?guestExpired=1");
+  }
+
+  // 访客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）
+  const guestExpiry = isGuestEmail(session.user.email)
+    ? await getGuestExpiry(session.user.id)
+    : null;
 
   // 从数据库读当前用户的报告
   const reports = await getReportCards(session.user.id);
@@ -65,6 +92,9 @@ export default async function HomePage() {
 
         <ReportBoard reports={reports} />
       </div>
+      {guestExpiry && (
+        <GuestSessionWatcher expiresAt={guestExpiry.toISOString()} />
+      )}
     </main>
   );
 }

@@ -51,6 +51,14 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30,
   },
 
+  // 反代（OpenResty/nginx）后面的真实客户端 IP 解析：
+  // 限流按客户端 IP 分桶，否则所有请求共用一个桶（启动警告也会消除）
+  advanced: {
+    ipAddress: {
+      ipAddressHeaders: ["x-forwarded-for"],
+    },
+  },
+
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AuthPageClient } from "@/components/auth-page-client";
 import { auth } from "@/lib/auth";
+import { expireGuestIfNeeded } from "@/lib/guest-sandbox";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,10 @@ export default async function AuthPage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+  // 访客会话已过 60 分钟：销毁沙箱，落到登录页并展示「访客体验已结束」提示
+  if (session && (await expireGuestIfNeeded(session))) {
+    redirect("/?guestExpired=1");
+  }
   if (session) {
     redirect("/home");
   }

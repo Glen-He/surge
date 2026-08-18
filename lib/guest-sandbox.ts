@@ -5,7 +5,7 @@ import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
 
 export const GUEST_EMAIL_DOMAIN = "demo.surge";
-export const GUEST_TTL_MINUTES = 30;
+export const GUEST_TTL_MINUTES = 60;
 
 const DEMO_TEMPLATES_DIR = path.join(process.cwd(), "reports", "demo-templates");
 const USERS_DIR = path.join(process.cwd(), "reports", "users");
@@ -188,7 +188,7 @@ export async function dirSizeBytes(dir: string): Promise<number> {
   }
 }
 
-// ── 工具：判断访客会话是否已过期（30 分钟无续期即销毁）──
+// ── 工具：判断访客会话是否已过期（创建起 60 分钟，不续期）──
 
 export async function isGuestExpired(userId: string): Promise<boolean> {
   await ensureOtpMigration();
@@ -198,4 +198,31 @@ export async function isGuestExpired(userId: string): Promise<boolean> {
   );
   if (!r.rows.length) return true; // 没有沙箱记录视为过期
   return r.rows[0].e.getTime() < Date.now();
+}
+
+/** 读取访客沙箱的到期时间（非访客 / 无记录返回 null） */
+export async function getGuestExpiry(
+  userId: string,
+): Promise<Date | null> {
+  await ensureOtpMigration();
+  const r = await db.query<{ e: Date }>(
+    `SELECT expires_at AS e FROM guest_sessions WHERE user_id = $1 LIMIT 1`,
+    [userId],
+  );
+  return r.rows.length ? new Date(r.rows[0].e.getTime()) : null;
+}
+
+/**
+ * 访客会话到期强制退出：会话属于访客且已过 60 分钟 → 当场销毁沙箱并返回 true，
+ * 调用方 redirect('/?guestExpired=1')（登录页会展示「访客体验已结束」提示卡）。
+ * 挂在主要页面的会话检查处（/ /home /report /account /shares）；
+ * API 层不做逐个拦截（访客场景低频，页面级拦截已覆盖正常浏览路径）。
+ */
+export async function expireGuestIfNeeded(
+  session: { user: { id: string; email: string } } | null | undefined,
+): Promise<boolean> {
+  if (!session || !isGuestEmail(session.user.email)) return false;
+  if (!(await isGuestExpired(session.user.id))) return false;
+  await destroyGuestUser(session.user.id);
+  return true;
 }

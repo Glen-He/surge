@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 
 type Mode = "signin" | "signup";
@@ -32,7 +30,40 @@ function toChineseError(error: { code?: string; message?: string } | undefined):
   if (error.code && AUTH_ERROR_MESSAGES[error.code]) {
     return AUTH_ERROR_MESSAGES[error.code];
   }
-  return error.message ?? "操作失败，请稍后重试";
+  // 英文消息（better-auth 未知错误）不直接展示，统一中文兜底
+  const msg = error.message ?? "";
+  if (msg && /[\u4e00-\u9fff]/.test(msg)) return msg;
+  return "操作失败，请稍后重试";
+}
+
+/**
+ * Safari/WebKit 专用防御：fetch 响应里的 Set-Cookie 在 WebKit 中可能
+ * 晚于紧随其后的整页导航提交到 cookie jar——导航请求读不到会话 cookie，
+ * /home 服务端判未登录 307 弹回（线上日志：登录 200 → GET /home 307 →
+ * GET / 200，且秒级后第二次登录即成功 = cookie 最终已落盘，纯时序问题）。
+ * Chrome/Blink 无此问题（cookie 同步提交）。
+ *
+ * 登录成功后先轮询 get-session 直到服务端能读到会话（说明 jar 已生效），
+ * 再执行跳转。Chrome 下第一次轮询即命中，只多一个 ~10ms 请求；
+ * WebKit 卡住时最多等 3s，超时仍跳转（退化为旧行为，不会更糟）。
+ */
+async function awaitSessionReady(timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      // 原生 fetch 直连服务端（不经 better-auth 客户端的 cookie 缓存）
+      const r = await fetch("/api/auth/get-session", { cache: "no-store" });
+      if (r.ok) {
+        const j = (await r.json().catch(() => null)) as
+          | { session?: unknown }
+          | null;
+        if (j && j.session) return;
+      }
+    } catch {
+      /* 网络抖动等，继续重试 */
+    }
+    await new Promise((res) => setTimeout(res, 150));
+  }
 }
 
 const ICON_MAIL = (
@@ -50,7 +81,6 @@ const ICON_LOCK = (
 );
 
 export function AuthPageClient() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -150,8 +180,10 @@ export function AuthPageClient() {
         setError("设置密码失败，请重试");
         return;
       }
-      router.push("/home");
-      router.refresh();
+      // 整页跳转（非客户端路由）。先等会话可读再跳（Safari WebKit 的
+      // cookie 落盘可能晚于导航请求，见 awaitSessionReady 注释）
+      await awaitSessionReady();
+      window.location.assign("/home");
     } finally {
       setLoading(false);
     }
@@ -175,8 +207,9 @@ export function AuthPageClient() {
         setError(toChineseError(error));
         return;
       }
-      router.push("/home");
-      router.refresh();
+      // 整页跳转，理由同上（Safari cookie 落盘竞态，先等会话可读）
+      await awaitSessionReady();
+      window.location.assign("/home");
     } finally {
       setLoading(false);
     }
@@ -190,15 +223,25 @@ export function AuthPageClient() {
       const res = await fetch("/api/auth/guest-login", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "访客登录失败，请稍后重试");
+        // 服务端已统一中文；若仍有英文漏网（如代理层异常），前端兜底替换
+        const raw = typeof data?.error === "string" ? data.error : "";
+        setError(
+          raw && /[\u4e00-\u9fff]/.test(raw) ? raw : "访客登录失败，请稍后重试",
+        );
         return;
       }
-      toast.success("访客登录成功", {
-        description: `会话有效期 ${data.ttlMinutes ?? 30} 分钟，体验所有功能`,
-        duration: 3000,
-      });
-      router.push("/home");
-      router.refresh();
+      // 落标记：整页跳到 /home 后由布局里的 GuestToasts 展示
+      // 「访客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
+      try {
+        sessionStorage.setItem(
+          "surge:guest-login-toast",
+          String(data.ttlMinutes ?? 60),
+        );
+      } catch {
+        /* 无痕模式等场景静默忽略 */
+      }
+      await awaitSessionReady();
+      window.location.assign("/home");
     } finally {
       setGuestLoading(false);
     }
@@ -502,7 +545,7 @@ export function AuthPageClient() {
                       : "登录"}
                 </button>
 
-                {/* 游客登录：一键进入，自带 5 张示例卡片，30 分钟沙箱 */}
+                {/* 游客登录：一键进入，自带 5 张示例卡片，60 分钟沙箱 */}
                 <button
                   type="button"
                   onClick={() => void handleGuestLogin()}

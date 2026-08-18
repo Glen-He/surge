@@ -21,7 +21,7 @@ function baseUrl(hs: Headers): string {
 
 /**
  * 点击"游客登录"后调用。
- * 流程：清理过期沙箱 → 通过 better-auth anonymous 插件签发一次性账号和会话 → 灌 5 张示例卡片 → 记录 30 分钟过期 → 返回 Set-Cookie 给前端。
+ * 流程：清理过期沙箱 → 通过 better-auth anonymous 插件签发一次性账号和会话 → 灌 5 张示例卡片 → 记录 60 分钟过期 → 返回 Set-Cookie 给前端。
  */
 export async function POST(_req: Request) {
   await ensureOtpMigration();
@@ -40,7 +40,7 @@ export async function POST(_req: Request) {
     );
   }
 
-  // 1) 懒清理：先把所有过期超过 30 分钟的访客沙箱删掉（防止磁盘和 DB 垃圾堆积）
+  // 1) 懒清理：先把所有已过期的访客沙箱删掉（防止磁盘和 DB 垃圾堆积）
   try { await purgeStaleGuests(); } catch (e) { console.warn("[guest-login] purge", e); }
 
   // 2) 通过 better-auth anonymous 插件内部端点创建一次性访客 + 签发 session
@@ -50,7 +50,10 @@ export async function POST(_req: Request) {
     "accept": "application/json",
   });
   for (const [k, v] of incomingHeaders.entries()) {
-    if (k.toLowerCase() === "cookie" || k.toLowerCase().startsWith("x-forwarded") || k.toLowerCase() === "host") {
+    // origin/referer 必须转发：better-auth 的 CSRF 校验在请求带 cookie 时
+    // 强制要求 Origin（任意残留 cookie 都会触发，首次无 cookie 时才侥幸跳过，
+    // 即"游客登录第二次报 Missing or null Origin"的根因）
+    if (/^(cookie|host|x-forwarded|origin|referer)$/i.test(k)) {
       hs.set(k, v);
     }
   }
@@ -64,10 +67,23 @@ export async function POST(_req: Request) {
   const body = await anonRes.text();
 
   if (!anonRes.ok) {
+    // better-auth 返回英文 message/code，统一翻译成中文（未识别的一律中文兜底，不透传英文）
     let msg = "访客登录失败，请稍后重试";
     try {
       const j = JSON.parse(body);
-      if (j?.message) msg = String(j.message);
+      const code: string = typeof j?.code === "string" ? j.code : "";
+      const raw: string = typeof j?.message === "string" ? j.message : "";
+      if (code === "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY") {
+        msg = "已处于登录状态，请先退出后再体验游客模式";
+      } else if (/missing or null origin/i.test(raw)) {
+        msg = "会话校验失败，请刷新页面后重试";
+      } else if (
+        /too many requests|rate ?limit/i.test(raw) ||
+        code.includes("RATE_LIMIT") ||
+        code.includes("TOO_MANY")
+      ) {
+        msg = "操作过于频繁，请稍后再试";
+      }
     } catch { /* ignore */ }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
@@ -82,7 +98,7 @@ export async function POST(_req: Request) {
     );
   }
 
-  // 3) 写入 30 分钟过期元信息 + 灌 5 张示例报告卡片
+  // 3) 写入 60 分钟过期元信息 + 灌 5 张示例报告卡片
   try {
     await createGuestSessionRecord(userId, GUEST_TTL_MINUTES);
     await seedDemoReports(userId);
