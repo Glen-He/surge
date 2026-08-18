@@ -36,19 +36,6 @@ const ICON_BACK = (
   </svg>
 );
 
-const ICON_COPY = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-    <rect x="9" y="9" width="13" height="13" rx="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
-const ICON_CHECK = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
-
 /** 小节标题：序号圆片 + 标题 */
 function SectionTitle({ no, children }: { no: number; children: React.ReactNode }) {
   return (
@@ -75,8 +62,8 @@ function Callout({ tone, children }: { tone: "blue" | "amber"; children: React.R
 }
 
 /**
- * Prompt 复制按钮：固定宽度（92px）居中，「复制 / 已复制」两态切换时
- * 按钮尺寸零变化（图标同尺寸，仅文字与配色切换）
+ * Prompt 复制按钮：固定宽度（56px）居中，「复制 / 已复制」两态切换时
+ * 按钮尺寸零变化（仅文字与配色切换）
  */
 function CopyButton() {
   const [copied, setCopied] = useState(false);
@@ -106,11 +93,10 @@ function CopyButton() {
     <button
       type="button"
       onClick={copy}
-      className={`inline-flex h-[32px] w-[92px] items-center justify-center gap-[5px] rounded-full text-[12.5px] font-semibold text-white transition-colors duration-200 ${
+      className={`inline-flex h-[32px] w-[56px] items-center justify-center rounded-full text-[12.5px] font-semibold text-white transition-colors duration-200 ${
         copied ? "bg-[#34c759]" : "bg-[#007aff] hover:bg-[#0071e3]"
       }`}
     >
-      {copied ? ICON_CHECK : ICON_COPY}
       {copied ? "已复制" : "复制"}
     </button>
   );
@@ -170,7 +156,7 @@ function GuideContent() {
               汇报页制作指南
             </h1>
             <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
-              用 AI 生成汇报页，打包上传即可展示和分享。
+              用 AI 生成汇报页，上传即可展示和分享。
             </p>
           </div>
           <Link href={backHref} className="btn-light shrink-0">
@@ -185,9 +171,9 @@ function GuideContent() {
           <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-[1fr_28px_1fr_28px_1fr] md:gap-0">
             <FlowNode t="① 发模板给 AI" d="复制下方模板发给任意 AI：聊天 AI 可在结尾接上你的素材；办公 AI 直接发即可" />
             <div className="hidden items-center justify-center text-[18px] text-[rgba(0,122,255,0.55)] select-none md:flex">→</div>
-            <FlowNode t="② AI 生成文件夹" d="AI 产出一个汇报文件夹：report.html 主文件 + 可选的 data.js、图片等辅助文件" />
+            <FlowNode t="② AI 生成汇报页" d="AI 产出一个汇报文件夹：report.html 主文件 + 可选的 data.js、图片等辅助文件；简单汇报页往往只有一个 HTML" />
             <div className="hidden items-center justify-center text-[18px] text-[rgba(0,122,255,0.55)] select-none md:flex">→</div>
-            <FlowNode t="③ 打包上传" d="文件夹里全部文件压成 zip，在首页点「＋」新建项目，上传并填写信息" />
+            <FlowNode t="③ 上传" d="单个 HTML 文件直接上传；带辅助文件则压成 zip。在首页点「＋」新建项目，上传并填写信息" />
           </div>
         </section>
 
@@ -217,26 +203,34 @@ function GuideContent() {
           </Callout>
         </section>
 
-        {/* 3 文件夹与压缩包 */}
+        {/* 3 文件结构与上传 */}
         <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
-          <SectionTitle no={3}>文件夹与压缩包</SectionTitle>
-          <p className="-mt-3 mb-6 text-[13px] text-[#6e6e73]">
-            AI 生成的是一个文件夹；上传时选中文件夹里的全部文件压缩成一个 zip
-            （选中文件压缩，不要把文件夹本身压进去，保证 report.html
-            在压缩包根目录）。上限：压缩包 5MB、解压后 10MB、50 个文件、目录 5 层。
+          <SectionTitle no={3}>文件结构与上传</SectionTitle>
+          <p className="-mt-3 mb-6 text-[13px] leading-[1.7] text-[#6e6e73]">
+            AI 生成的是一个文件夹，主文件是 report.html，可能还带 data.js、图片等辅助文件。上传支持两种方式，按产物选择即可：
+            <br />
+            <strong className="font-[650] text-[#1d1d1f]">只有一个 HTML 文件</strong>
+            ——最常见的情况，不用打包，直接上传这个文件；
+            <br />
+            <strong className="font-[650] text-[#1d1d1f]">带辅助文件</strong>
+            ——选中文件夹里的全部文件压缩成一个 zip
+            （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录）。
           </p>
           <div className="rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
             <pre className="m-0 overflow-x-auto font-mono text-[12.5px] leading-[2] whitespace-pre text-[#1d1d1f]">
 {`汇报文件夹
 ├── `}
 <span className="font-semibold text-[#b91c1c]">report.html</span>
-{`    ← 必须有，名字不能改，必须在压缩包根目录，这是汇报页的入口
+{`    ← 必须有，名字不能改；打 zip 时必须放在根目录，这是汇报页的入口
 ├── data.js        ← 可选：数据文件，HTML 里用相对路径引用
 ├── style.css      ← 可选：外链样式表，包内图片字体同样可用
 ├── chart.js       ← 可选：其他脚本 / 图片 / 字体等辅助文件
 └── …              ← 可选：包内文件用相对路径随意引用，都会正常加载`}
             </pre>
           </div>
+          <Callout tone="blue">
+            上限：上传文件 5MB（HTML 或 zip）、解压后 10MB、50 个文件、目录 5 层。
+          </Callout>
           <Callout tone="amber">
             <strong className="font-[650]">唯一的限制：不要引用文件夹外部或网络上的资源</strong>
             （CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
@@ -281,11 +275,11 @@ function GuideContent() {
             />
             <FaqTile
               q="生成效果不满意？"
-              a="直接在对话里继续提要求让 AI 改（「卡片间距大一点」「换一种图表」），改到满意再打包上传最终版。"
+              a="直接在对话里继续提要求让 AI 改（「卡片间距大一点」「换一种图表」），改到满意再上传最终版；在项目编辑页可以随时更换文件。"
             />
             <FaqTile
               q="上传后页面空白？"
-              a="优先检查 report.html 是否在压缩包根目录、文件名是否正确，再检查辅助文件的相对路径引用是否有效。"
+              a="zip 上传优先检查 report.html 是否在压缩包根目录、文件名是否正确；再检查辅助文件的相对路径引用是否有效。"
             />
           </div>
         </section>

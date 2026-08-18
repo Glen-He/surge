@@ -131,11 +131,20 @@ export function ProjectForm({
   const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // 上传文件类型：zip 压缩包（含 report.html 及辅助文件）或单个 HTML 文件
+  function fileKind(f: File): "zip" | "html" | null {
+    if (/\.zip$/i.test(f.name) || f.type === "application/zip") return "zip";
+    if (/\.(html?|xhtml)$/i.test(f.name) || f.type === "text/html") {
+      return "html";
+    }
+    return null;
+  }
+
   function acceptFile(f: File | null | undefined) {
     if (!f) return;
-    if (!/\.zip$/i.test(f.name) && f.type !== "application/zip") {
+    if (!fileKind(f)) {
       setFile(null);
-      setErrors((p) => ({ ...p, file: "请选择 ZIP 压缩包" }));
+      setErrors((p) => ({ ...p, file: "请选择 ZIP 压缩包或 HTML 文件" }));
       return;
     }
     setFile(f);
@@ -158,7 +167,7 @@ export function ProjectForm({
     next.tag ??= fieldLimitError("tag", tag);
     next.keywords ??= fieldLimitError("keywords", keywords);
     next.description ??= fieldLimitError("description", description);
-    if (requireFile && !file) next.file = "请上传 ZIP 压缩包";
+    if (requireFile && !file) next.file = "请上传报告文件（ZIP 或 HTML）";
     setErrors(next);
     if (next.title || next.date || next.tag || next.keywords || next.description || next.file)
       return;
@@ -343,15 +352,15 @@ export function ProjectForm({
                 title="报告文件"
                 desc={
                   requireFile
-                    ? "上传项目对应的报告压缩包"
-                    : "保留原报告，或更换新的压缩包"
+                    ? "上传报告压缩包（ZIP）或单个 HTML 文件"
+                    : "保留原报告，或更换新的 ZIP / HTML 文件"
                 }
               />
 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".zip,application/zip"
+                accept=".zip,.html,.htm,application/zip,text/html"
                 className="sr-only"
                 onChange={(e) => acceptFile(e.target.files?.[0])}
               />
@@ -381,18 +390,20 @@ export function ProjectForm({
                     className={`upload-zone ${drag ? "upload-zone-drag" : ""}`}
                   >
                     <span className="text-[#86868b]">{ICON_FILE}</span>
-                    <span className="upload-title">选择 ZIP 文件</span>
-                    <span className="upload-hint">或将文件拖拽到此处 · 需包含 report.html</span>
+                    <span className="upload-title">选择 ZIP 或 HTML 文件</span>
+                    <span className="upload-hint">
+                      拖拽到此处 · ZIP 需含 report.html；单个 HTML 可直接上传
+                    </span>
                   </div>
                 ) : (
                   <div className="file-state">
                     <div className="file-state-row">
-                      <span className="file-badge">ZIP</span>
-                      <div className="min-w-0">
-                        <p className="file-name">当前报告已上传</p>
-                        <p className="file-size">不更换则保留原报告文件</p>
-                      </div>
+                    <span className="file-badge">FILE</span>
+                    <div className="min-w-0">
+                      <p className="file-name">当前报告已上传</p>
+                      <p className="file-size">不更换则保留原报告文件</p>
                     </div>
+                  </div>
                     <div className="file-swap">
                       <button
                         type="button"
@@ -411,13 +422,18 @@ export function ProjectForm({
               ) : (
                 <div className="file-state">
                   <div className="file-state-row">
-                    <span className="file-badge">ZIP</span>
+                    <span className="file-badge">
+                      {fileKind(file) === "html" ? "HTML" : "ZIP"}
+                    </span>
                     <div className="min-w-0">
                       <p className="file-name">{file.name}</p>
                       <p className="file-size">{formatSize(file.size)} MB</p>
                     </div>
                   </div>
-                  <p className="file-check">✓ 已选择 · report.html 将在上传时校验</p>
+                  <p className="file-check">
+                    ✓ 已选择 · 上传时将自动校验
+                    {fileKind(file) === "html" ? "" : "（ZIP 需含 report.html）"}
+                  </p>
                   <div className="file-swap">
                     {!requireFile && (
                       <button
