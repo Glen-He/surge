@@ -51,13 +51,16 @@ export async function POST(req: Request) {
     return Response.json({ error: `简介最长 ${LIMITS.description} 字` }, { status: 400 });
   }
   if (!file || typeof file === "string") {
-    return Response.json({ error: "请上传 zip 压缩包" }, { status: 400 });
+    return Response.json({ error: "请上传 ZIP 压缩包或 HTML 文件" }, { status: 400 });
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
   if (buf.byteLength > MAX_ZIP_BYTES) {
-    return Response.json({ error: "压缩包超过 5MB 上限" }, { status: 400 });
+    return Response.json({ error: "文件超过 5MB 上限" }, { status: 400 });
   }
+  // 单 HTML 上传：文件名/类型识别（与前端 fileKind 同规则）
+  const isHtmlFile =
+    /\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html";
 
   // 访客限传：沙箱内最多保留 1 个自己上传的项目（示例报告是 demo_ 前缀不计入）
   if (isGuestEmail(session.user.email)) {
@@ -101,11 +104,20 @@ export async function POST(req: Request) {
   await fs.rm(tmp, { recursive: true, force: true });
   await fs.mkdir(tmp, { recursive: true });
 
-  // 解压：50 文件 / 5 层目录 / 累计 10MB 硬顶（header 预检 + 实际写入复核）
+  // 解压（zip）或直接落盘（单 HTML）：50 文件 / 5 层目录 / 累计 10MB 硬顶
+  // 全部校验通过后再转正为正式项目目录；任何失败都立即删除临时目录不留残骸
   let projectBytes = 0;
   try {
-    const result = await unzipStream(buf, tmp);
-    projectBytes = result.totalBytes;
+    if (isHtmlFile) {
+      // 单文件上传：HTML 本身就是入口，直接写入 report.html
+      await fs.writeFile(path.join(tmp, "report.html"), buf);
+      projectBytes = buf.byteLength;
+    } else {
+      const result = await unzipStream(buf, tmp);
+      projectBytes = result.totalBytes;
+      // 入口文件校验
+      await fs.access(path.join(tmp, "report.html"));
+    }
 
     // 解压后精确配额复查：存量 + 本项目 ≤ 用户总容量
     if (used + projectBytes > MAX_USER_TOTAL_BYTES) {
@@ -113,16 +125,13 @@ export async function POST(req: Request) {
         `个人存储上限 200MB（已用 ${Math.round(used / 1024 / 1024)}MB），请先删除一些报告再上传`,
       );
     }
-
-    // 入口文件校验
-    await fs.access(path.join(tmp, "report.html"));
   } catch (err) {
     await fs.rm(tmp, { recursive: true, force: true });
     if (err instanceof UnzipLimitError) {
       return Response.json({ error: err.message }, { status: 400 });
     }
     return Response.json(
-      { error: "压缩包无效或缺少 report.html（入口文件）" },
+      { error: "文件无效或缺少 report.html（入口文件）" },
       { status: 400 },
     );
   }

@@ -69,8 +69,11 @@ export async function PATCH(
 
     const buf = Buffer.from(await file.arrayBuffer());
     if (buf.byteLength > MAX_ZIP_BYTES) {
-      return Response.json({ error: "压缩包超过 5MB 上限" }, { status: 400 });
+      return Response.json({ error: "文件超过 5MB 上限" }, { status: 400 });
     }
+    // 单 HTML 上传：文件名/类型识别（与前端 fileKind 同规则）
+    const isHtmlFile =
+      /\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html";
 
     // 全站总量检查：≥10GB 暂停上传；≥8GB 后台预警
     const siteTotal = await dirSizeBytes(USERS_DIR);
@@ -96,20 +99,33 @@ export async function PATCH(
     await fs.mkdir(tmp, { recursive: true });
 
     try {
-      const result = await unzipStream(buf, tmp);
-      if (usedBefore - oldSize + result.totalBytes > MAX_USER_TOTAL_BYTES) {
-        throw new UnzipLimitError(
-          `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
-        );
+      if (isHtmlFile) {
+        // 单文件上传：HTML 本身就是入口，直接写入 report.html
+        await fs.writeFile(path.join(tmp, "report.html"), buf);
+        if (usedBefore - oldSize + buf.byteLength > MAX_USER_TOTAL_BYTES) {
+          throw new UnzipLimitError(
+            `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
+          );
+        }
+      } else {
+        const result = await unzipStream(buf, tmp);
+        if (
+          usedBefore - oldSize + result.totalBytes >
+          MAX_USER_TOTAL_BYTES
+        ) {
+          throw new UnzipLimitError(
+            `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
+          );
+        }
+        await fs.access(path.join(tmp, "report.html"));
       }
-      await fs.access(path.join(tmp, "report.html"));
     } catch (err) {
       await fs.rm(tmp, { recursive: true, force: true });
       if (err instanceof UnzipLimitError) {
         return Response.json({ error: err.message }, { status: 403 });
       }
       return Response.json(
-        { error: "压缩包无效或缺少 report.html（入口文件）" },
+        { error: "文件无效或缺少 report.html（入口文件）" },
         { status: 400 },
       );
     }
