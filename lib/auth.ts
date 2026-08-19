@@ -25,9 +25,21 @@ const transporter = nodemailer.createTransport({
 });
 
 export const auth = betterAuth({
+  // 官方建议：生产环境显式配置 baseURL（读 BETTER_AUTH_URL），
+  // 不依赖请求头推断，避免反代场景下 origin/cookie 属性误判
+  baseURL: process.env.BETTER_AUTH_URL,
+
   database: new Pool({
     connectionString: process.env.DATABASE_URL!,
   }),
+
+  // 匿名访客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
+  // 磁盘目录），同 IP 10 分钟最多 5 次（沿用原 guest-login 路由的额度）
+  rateLimit: {
+    customRules: {
+      "/sign-in/anonymous": { max: 5, window: 600 },
+    },
+  },
 
   emailAndPassword: {
     enabled: true,

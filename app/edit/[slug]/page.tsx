@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { EditReportForm } from "@/components/edit-report-form";
-import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/session";
 import { getReportBySlug } from "@/lib/reports-db";
 
 export const dynamic = "force-dynamic";
@@ -13,13 +12,8 @@ export default async function EditReportPage({
 }) {
   const { slug } = await params;
 
-  // 鉴权：未登录跳登录页
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session) {
-    redirect("/");
-  }
+  // 鉴权：未登录 → 登录页
+  const session = await requireSession();
 
   // 归属校验：只能编辑自己的项目
   const report = await getReportBySlug(session.user.id, slug);

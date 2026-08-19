@@ -1,12 +1,11 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { getReportBySlug } from "@/lib/reports-db";
+import { requireSession } from "@/lib/session";
 import { ReportShareButton } from "@/components/report-share-button";
 import { ReportFrame } from "@/components/report-frame";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
-import { expireGuestIfNeeded, getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
+import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 
 export const dynamic = "force-dynamic";
 
@@ -20,18 +19,8 @@ export default async function ReportPage({
 }) {
   const { slug } = await params;
 
-  // 鉴权：未登录跳登录页
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session) {
-    redirect("/");
-  }
-
-  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
-  if (await expireGuestIfNeeded(session)) {
-    redirect("/?guestExpired=1");
-  }
+  // 鉴权：未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  const session = await requireSession();
 
   // 归属校验：从数据库确认该报告属于当前用户
   const report = await getReportBySlug(session.user.id, slug);

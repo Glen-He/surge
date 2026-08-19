@@ -1,10 +1,8 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { getReportCards } from "@/lib/report-cards";
 import { ReportBoard } from "@/components/report-board";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
-import { expireGuestIfNeeded, getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
+import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
+import { requireSession } from "@/lib/session";
 import { purgeExpiredDeletions } from "@/lib/account-deletion";
 import Link from "next/link";
 
@@ -13,34 +11,8 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   await purgeExpiredDeletions();
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  // 未登录：重定向到登录页。
-  // Safari「登录两次」排查用诊断：区分「请求根本没带 cookie」（客户端
-  // cookie jar 时序问题，见 auth-page-client 的 awaitSessionReady）与
-  // 「带了 cookie 但服务端判无效」（服务端问题：secret 轮换/代理改写等）。
-  // 只记录 cookie 名，绝不打印值。
-  if (!session) {
-    const hs = await headers();
-    const cookieHeader = hs.get("cookie") ?? "";
-    const names = cookieHeader
-      .split(";")
-      .map((c) => c.split("=")[0].trim())
-      .filter(Boolean);
-    console.warn(
-      `[home] bounce to / : session null, cookie header ${
-        names.length > 0 ? `PRESENT [${names.join(",")}]` : "ABSENT"
-      }`,
-    );
-    redirect("/");
-  }
-
-  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
-  if (await expireGuestIfNeeded(session)) {
-    redirect("/?guestExpired=1");
-  }
+  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页（弹回诊断日志见 lib/session）
+  const session = await requireSession();
 
   // 访客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）
   const guestExpiry = isGuestEmail(session.user.email)
@@ -52,6 +24,16 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+      {/* 登录已成功落地：立即清掉 Safari 续跳标记（见 lib/auth-flow 的
+          RELAUNCH_KEY）。该标记只应在「点登录 → 首次进入 /home」之间存活，
+          此前成功后不清理，60s 内登出回到登录页会被误判为 Safari 弹回，
+          按钮黑锁 8s 并误报「会话同步较慢」。被 307 弹回时本页不渲染，
+          不影响真正的自动续跳。内联 script 在 HTML 解析时同步执行。 */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: "try{sessionStorage.removeItem('surge:auth-relaunch')}catch(e){}",
+        }}
+      />
       <div className="account-shell">
         {/* 页头 + 右侧按钮组（与用户中心同一视觉轴） */}
         <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
