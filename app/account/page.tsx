@@ -1,14 +1,8 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { AccountForm } from "./account-form";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
-import {
-  expireGuestIfNeeded,
-  getGuestExpiry,
-  isGuestEmail,
-} from "@/lib/guest-sandbox";
+import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
+import { requireSession } from "@/lib/session";
 import {
   getDeletionRequestedAt,
   purgeExpiredDeletions,
@@ -20,17 +14,8 @@ export default async function AccountPage() {
   // 先清理冷却期已过的账号，再读会话（过期账号直接回到登录）
   await purgeExpiredDeletions();
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session) {
-    redirect("/");
-  }
-
-  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
-  if (await expireGuestIfNeeded(session)) {
-    redirect("/?guestExpired=1");
-  }
+  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  const session = await requireSession();
 
   const deletionRequestedAt = await getDeletionRequestedAt(session.user.id);
 

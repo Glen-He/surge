@@ -121,13 +121,17 @@ export function GuestToasts() {
   const [showExpired, setShowExpired] = useState(false);
 
   useEffect(() => {
-    // 欢迎卡：游客登录成功整页跳转前落的标记，落到 /home 后展示
+    // 欢迎卡：游客登录成功整页跳转前落的标记，落到 /home 后展示。
+    // 只在 /home 路径下展示：Safari cookie 时序下跳转可能被 307 弹回登录页，
+    // 此时静默丢弃标记，避免「提示登录成功人却还在登录页」的误导。
     try {
       const raw = sessionStorage.getItem(WELCOME_KEY);
       if (raw) {
         sessionStorage.removeItem(WELCOME_KEY);
-        const n = Number(raw);
-        setWelcomeTtl(Number.isFinite(n) && n > 0 ? n : 60);
+        if (window.location.pathname.startsWith("/home")) {
+          const n = Number(raw);
+          setWelcomeTtl(Number.isFinite(n) && n > 0 ? n : 60);
+        }
       }
     } catch {
       /* 无痕等场景静默忽略 */

@@ -2,69 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { authClient } from "@/lib/auth-client";
+import {
+  clearRelaunchIntent,
+  hasFreshRelaunchIntent,
+  navigateAfterAuth,
+  registerWithOtp,
+  sendSignUpOtp,
+  signInAsGuest,
+  signInWithPassword,
+  waitSessionReady,
+} from "@/lib/auth-flow";
 
 type Mode = "signin" | "signup";
 
 const OTP_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
-
-// better-auth 错误码 → 中文文案（框架默认返回英文 message，这里统一翻译）
-const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  INVALID_EMAIL_OR_PASSWORD: "邮箱或密码错误",
-  USER_NOT_FOUND: "该邮箱尚未注册",
-  INVALID_PASSWORD: "密码错误",
-  EMAIL_NOT_VERIFIED: "邮箱尚未验证，请先完成验证",
-  PASSWORD_TOO_SHORT: "密码长度不足",
-  USER_ALREADY_EXISTS: "该邮箱已注册，请直接登录",
-  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "该邮箱已注册，请更换邮箱",
-  INVALID_OTP: "验证码错误",
-  OTP_EXPIRED: "验证码已过期，请重新获取",
-  TOO_MANY_REQUESTS: "操作过于频繁，请稍后再试",
-  RATE_LIMIT: "操作过于频繁，请稍后再试",
-  INVALID_EMAIL: "邮箱格式不正确",
-};
-
-function toChineseError(error: { code?: string; message?: string } | undefined): string {
-  if (!error) return "操作失败，请稍后重试";
-  if (error.code && AUTH_ERROR_MESSAGES[error.code]) {
-    return AUTH_ERROR_MESSAGES[error.code];
-  }
-  // 英文消息（better-auth 未知错误）不直接展示，统一中文兜底
-  const msg = error.message ?? "";
-  if (msg && /[\u4e00-\u9fff]/.test(msg)) return msg;
-  return "操作失败，请稍后重试";
-}
-
-/**
- * Safari/WebKit 专用防御：fetch 响应里的 Set-Cookie 在 WebKit 中可能
- * 晚于紧随其后的整页导航提交到 cookie jar——导航请求读不到会话 cookie，
- * /home 服务端判未登录 307 弹回（线上日志：登录 200 → GET /home 307 →
- * GET / 200，且秒级后第二次登录即成功 = cookie 最终已落盘，纯时序问题）。
- * Chrome/Blink 无此问题（cookie 同步提交）。
- *
- * 登录成功后先轮询 get-session 直到服务端能读到会话（说明 jar 已生效），
- * 再执行跳转。Chrome 下第一次轮询即命中，只多一个 ~10ms 请求；
- * WebKit 卡住时最多等 3s，超时仍跳转（退化为旧行为，不会更糟）。
- */
-async function awaitSessionReady(timeoutMs = 3000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      // 原生 fetch 直连服务端（不经 better-auth 客户端的 cookie 缓存）
-      const r = await fetch("/api/auth/get-session", { cache: "no-store" });
-      if (r.ok) {
-        const j = (await r.json().catch(() => null)) as
-          | { session?: unknown }
-          | null;
-        if (j && j.session) return;
-      }
-    } catch {
-      /* 网络抖动等，继续重试 */
-    }
-    await new Promise((res) => setTimeout(res, 150));
-  }
-}
+const GUEST_TOAST_KEY = "surge:guest-login-toast";
 
 const ICON_MAIL = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
@@ -80,6 +33,10 @@ const ICON_LOCK = (
   </svg>
 );
 
+/**
+ * 登录/注册页。本组件只负责表单 UI 与输入校验，
+ * 认证协议、Safari 兼容、游客沙箱等细节全部在 lib/auth-flow.ts。
+ */
 export function AuthPageClient() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -108,6 +65,29 @@ export function AuthPageClient() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
+  // 跳转 /home 被 307 弹回（Safari cookie 时序）时随登录页重新 mount：
+  // 读到续跳标记就原地轮询到会话就绪再自动跳一次，
+  // 把「用户手动点第二次」变成「页面自动前进一次」
+  useEffect(() => {
+    if (!hasFreshRelaunchIntent()) return;
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      const ready = await waitSessionReady();
+      if (cancelled) return;
+      setLoading(false);
+      if (ready) {
+        clearRelaunchIntent();
+        window.location.assign("/home");
+      } else {
+        setError("会话同步较慢，请再点一次登录");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 发送验证码后聚焦第一格
   useEffect(() => {
     if (otpSent) otpRefs.current[0]?.focus();
@@ -135,12 +115,9 @@ export function AuthPageClient() {
 
     setLoading(true);
     try {
-      const { error } = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: "sign-in",
-      });
-      if (error) {
-        setError(toChineseError(error));
+      const r = await sendSignUpOtp(email, password);
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
       setOtpSent(true);
@@ -150,40 +127,17 @@ export function AuthPageClient() {
     }
   }
 
-  // 注册：验证码通过 → 自动创建用户（emailVerified=true）→ 设置密码
+  // 注册：验证码通过 → 服务端原子完成建号 + 登录 + 初始密码
   async function verifyOtp(otp: string) {
     setLoading(true);
     try {
-      const { error } = await authClient.signIn.emailOtp({
-        email,
-        otp,
-        // 类型要求 name 必填；服务端钩子会覆盖为自动生成的随机 ID
-        name: "",
-        // 注册成功后保持登录 30 天
-        rememberMe: true,
-      });
-      if (error) {
-        setError(toChineseError(error));
+      const r = await registerWithOtp(email, otp, password);
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
-      // 验证通过即已登录，用第一步填的密码保存（走自定义服务端路由）
-      if (password.length < 8) {
-        setError("密码至少需要 8 位");
-        return;
-      }
-      const pwRes = await fetch("/api/set-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: password }),
-      });
-      if (!pwRes.ok) {
-        setError("设置密码失败，请重试");
-        return;
-      }
-      // 整页跳转（非客户端路由）。先等会话可读再跳（Safari WebKit 的
-      // cookie 落盘可能晚于导航请求，见 awaitSessionReady 注释）
-      await awaitSessionReady();
-      window.location.assign("/home");
+      // 整页跳转（非客户端路由），Safari cookie 时序由 auth-flow 兜底
+      await navigateAfterAuth("/home");
     } finally {
       setLoading(false);
     }
@@ -197,19 +151,12 @@ export function AuthPageClient() {
     }
     setLoading(true);
     try {
-      const { error } = await authClient.signIn.email({
-        email,
-        password,
-        // 保持登录 30 天
-        rememberMe: true,
-      });
-      if (error) {
-        setError(toChineseError(error));
+      const r = await signInWithPassword(email, password);
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
-      // 整页跳转，理由同上（Safari cookie 落盘竞态，先等会话可读）
-      await awaitSessionReady();
-      window.location.assign("/home");
+      await navigateAfterAuth("/home");
     } finally {
       setLoading(false);
     }
@@ -220,28 +167,19 @@ export function AuthPageClient() {
     setGuestLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/guest-login", { method: "POST" });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) {
-        // 服务端已统一中文；若仍有英文漏网（如代理层异常），前端兜底替换
-        const raw = typeof data?.error === "string" ? data.error : "";
-        setError(
-          raw && /[\u4e00-\u9fff]/.test(raw) ? raw : "访客登录失败，请稍后重试",
-        );
+      const r = await signInAsGuest();
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
       // 落标记：整页跳到 /home 后由布局里的 GuestToasts 展示
       // 「访客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
       try {
-        sessionStorage.setItem(
-          "surge:guest-login-toast",
-          String(data.ttlMinutes ?? 60),
-        );
+        sessionStorage.setItem(GUEST_TOAST_KEY, String(r.ttlMinutes));
       } catch {
         /* 无痕模式等场景静默忽略 */
       }
-      await awaitSessionReady();
-      window.location.assign("/home");
+      await navigateAfterAuth("/home");
     } finally {
       setGuestLoading(false);
     }

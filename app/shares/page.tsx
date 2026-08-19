@@ -1,10 +1,7 @@
-import { headers } from "next/headers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { listAllShares, shareStatus } from "@/lib/shares";
 import { ShareRowActions } from "@/components/share-row-actions";
-import { expireGuestIfNeeded } from "@/lib/guest-sandbox";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,15 +24,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function SharesPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    redirect("/");
-  }
-
-  // 访客会话到期：销毁并回登录页（带「访客体验已结束」提示）
-  if (await expireGuestIfNeeded(session)) {
-    redirect("/?guestExpired=1");
-  }
+  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  const session = await requireSession();
 
   const rows = await listAllShares(session.user.id);
 
