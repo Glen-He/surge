@@ -7,6 +7,7 @@ export type DbReport = {
   title: string;
   date: string;
   tag: string;
+  tag_color: string | null;
   description: string;
   keywords: string;
   sort_order: number | null;

@@ -25,6 +25,10 @@ export async function ensureSchema() {
   await db.query(
     `ALTER TABLE reports ADD COLUMN IF NOT EXISTS sort_order INTEGER`,
   );
+  // 标签颜色（7 色板之一，见 lib/tag-colors.ts；旧行为空时前端按标签哈希兜底）
+  await db.query(
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS tag_color TEXT`,
+  );
   await db.query(`
     UPDATE reports SET sort_order = sub.rn
     FROM (

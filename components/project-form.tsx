@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { CardHead } from "@/components/card-head";
 import { DatePicker } from "@/components/date-picker";
 import { LIMITS, charWeight } from "@/lib/char-limit";
+import { DEFAULT_TAG_COLOR, TAG_PALETTE } from "@/lib/tag-colors";
 
 export type ProjectFormValues = {
   title: string;
   date: string;
   tag: string;
+  tagColor: string;
   keywords: string;
   description: string;
 };
@@ -121,6 +123,8 @@ export function ProjectForm({
     () => initial?.date ?? new Date().toISOString().slice(0, 10),
   );
   const [tag, setTag] = useState(initial?.tag ?? "");
+  const [tagColor, setTagColor] = useState(initial?.tagColor ?? DEFAULT_TAG_COLOR);
+  const [colorOpen, setColorOpen] = useState(false);
   const [keywords, setKeywords] = useState(initial?.keywords ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [file, setFile] = useState<File | null>(null);
@@ -179,6 +183,7 @@ export function ProjectForm({
           title: title.trim(),
           date,
           tag: tag.trim(),
+          tagColor,
           keywords: keywords.trim(),
           description: description.trim(),
         },
@@ -280,20 +285,72 @@ export function ProjectForm({
                 <label className="project-label" htmlFor="np-tag">
                   标签
                 </label>
-                <input
-                  id="np-tag"
-                  type="text"
-                  placeholder={`例如：调研（${LIMITS.tag} 字内）`}
-                  value={tag}
-                  onChange={(e) => {
-                    setTag(e.target.value);
-                    setErrors((p) => ({
-                      ...p,
-                      tag: fieldLimitError("tag", e.target.value),
-                    }));
-                  }}
-                  className="project-input"
-                />
+                {/* Figma 式取色器：输入框内右侧色点，点击弹出浅色系色板 */}
+                <div className="tag-input-wrap relative">
+                  <input
+                    id="np-tag"
+                    type="text"
+                    placeholder={`例如：调研（${LIMITS.tag} 字内）`}
+                    value={tag}
+                    onChange={(e) => {
+                      setTag(e.target.value);
+                      setErrors((p) => ({
+                        ...p,
+                        tag: fieldLimitError("tag", e.target.value),
+                      }));
+                    }}
+                    className="project-input"
+                  />
+                  <button
+                    type="button"
+                    aria-label="选择标签颜色"
+                    title="选择标签颜色"
+                    aria-expanded={colorOpen}
+                    onClick={() => setColorOpen((o) => !o)}
+                    style={{ backgroundColor: tagColor }}
+                    className="absolute right-2.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 cursor-pointer rounded-full border border-[rgba(0,0,0,0.14)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-transform duration-150 hover:scale-110"
+                  />
+                  {colorOpen && (
+                    <>
+                      {/* 透明遮罩：点击任意处收起色板 */}
+                      <div
+                        className="fixed inset-0 z-20"
+                        onClick={() => setColorOpen(false)}
+                      />
+                      <div className="absolute right-0 top-full z-30 mt-2 flex gap-1.5 rounded-2xl border border-[rgba(0,0,0,0.08)] bg-white p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)]">
+                        {TAG_PALETTE.map((c) => (
+                          <button
+                            key={c.bg}
+                            type="button"
+                            title={`标签颜色：${c.name}`}
+                            aria-label={`标签颜色：${c.name}`}
+                            aria-pressed={tagColor === c.bg}
+                            onClick={() => {
+                              setTagColor(c.bg);
+                              setColorOpen(false);
+                            }}
+                            style={{ backgroundColor: c.bg }}
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[9px] border border-[rgba(0,0,0,0.08)] transition-transform duration-150 hover:scale-110"
+                          >
+                            {tagColor === c.bg && (
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke={c.text}
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-3.5 w-3.5"
+                              >
+                                <path d="m5 13 4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {/* 与左侧名称错误槽同结构同高：超长等错误落在此处，同时保证关键词框与日期框对齐 */}
                 <p className="project-error">{errors.tag ?? ""}</p>
               </div>

@@ -6,13 +6,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import type { ReportCardView as Report } from "@/lib/report-cards";
-
-const TAG_CLASS: Record<Report["tagClass"], string> = {
-  "t-kttks": "bg-[#eef0fb] text-[#403e9f]",
-  "t-nexus": "bg-[#e7f8ef] text-[#166534]",
-  "t-vela": "bg-[#fff4e5] text-[#9b4b00]",
-  "t-other": "bg-[#f2f2f5] text-[#55555c]",
-};
+import { tagTextColor } from "@/lib/tag-colors";
 
 export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
 
@@ -353,7 +347,8 @@ function ReportCard({
         <div>
           <div className="flex items-center justify-between gap-2">
             <span
-              className={`rounded-full px-3 py-0.5 text-[11px] font-semibold ${TAG_CLASS[r.tagClass]}`}
+              className="rounded-full px-3 py-0.5 text-[11px] font-semibold"
+              style={{ backgroundColor: r.tagColor, color: tagTextColor(r.tagColor) }}
             >
               {r.tag}
             </span>

@@ -11,6 +11,7 @@ export default function NewReportPage() {
     fd.set("title", values.title);
     fd.set("date", values.date);
     fd.set("tag", values.tag);
+    fd.set("tagColor", values.tagColor);
     fd.set("description", values.description);
     fd.set("keywords", values.keywords);
     fd.set("file", file!);

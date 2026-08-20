@@ -1366,6 +1366,11 @@ button {
   border-color: var(--accent);
 }
 
+/* 标签输入框内右侧的取色圆点：为圆点留出空间（不遮住文字） */
+.tag-input-wrap .project-input {
+  padding-right: 42px;
+}
+
 textarea.project-input {
   height: auto;
   min-height: 120px;
