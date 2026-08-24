@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  clearRelaunchIntent,
-  hasFreshRelaunchIntent,
   navigateAfterAuth,
   registerWithOtp,
   sendSignUpOtp,
@@ -12,6 +10,10 @@ import {
   signInWithPassword,
   waitSessionReady,
 } from "@/lib/auth-flow";
+import {
+  clearRelaunchIntent,
+  hasFreshRelaunchIntent,
+} from "@/lib/relaunch-marker";
 
 type Mode = "signin" | "signup";
 
@@ -366,7 +368,7 @@ export function AuthPageClient() {
                               ? "发送中…"
                               : "重新获取验证码"}
                         </button>
-                        <span className="text-[#86868b]">
+                        <span className="text-[#6e6e73]">
                           输入完整验证码后自动验证
                         </span>
                       </div>
@@ -460,7 +462,7 @@ export function AuthPageClient() {
                     </Link>
                   ) : (
                     !otpSent && (
-                      <span className="text-[12px] text-[#86868b]">
+                      <span className="text-[12px] text-[#6e6e73]">
                         验证码通过后将自动创建账号
                       </span>
                     )

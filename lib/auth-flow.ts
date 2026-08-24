@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { toChineseError } from "@/lib/auth-errors";
+import { markRelaunchIntent } from "@/lib/relaunch-marker";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 export type GuestResult =
@@ -15,9 +16,6 @@ export type GuestResult =
  * 「等会话可读再跳 + 弹回后自动续跳」，并把诊断职责留给服务端
  * requireSession 的 bounce 日志，UI 与业务流程不感知这些细节。
  * ──────────────────────────────────────────────────────────── */
-
-const RELAUNCH_KEY = "surge:auth-relaunch";
-const RELAUNCH_MAX_AGE_MS = 60_000;
 
 /** 轮询服务端直到会话可读（说明 cookie 已对服务端生效），超时返回 false */
 export async function waitSessionReady(
@@ -45,42 +43,14 @@ export async function waitSessionReady(
 /**
  * 登录成功后的整页跳转。先落「续跳」标记：若跳转被 307 弹回登录页，
  * 登录页重新 mount 时发现标记 → 原地轮询到会话就绪 → 自动再跳一次，
- * 用户无需手动点第二次。/home 成功渲染时会立即清掉标记（见
- * app/home/page.tsx），保证标记只在「认证成功 → 首次落地」之间存活。
+ * 用户无需手动点第二次。/home 成功落地时清掉标记（见
+ * components/relaunch-clear.tsx），保证标记只在「认证成功 → 首次落地」
+ * 之间存活。
  */
 export async function navigateAfterAuth(path: string): Promise<void> {
-  try {
-    sessionStorage.setItem(RELAUNCH_KEY, String(Date.now()));
-  } catch {
-    /* 无痕模式等场景静默忽略 */
-  }
+  markRelaunchIntent();
   await waitSessionReady();
   window.location.assign(path);
-}
-
-/** 登录页 mount 时检查是否存在未超龄的续跳标记（超龄的顺手清掉） */
-export function hasFreshRelaunchIntent(): boolean {
-  let raw: string | null = null;
-  try {
-    raw = sessionStorage.getItem(RELAUNCH_KEY);
-  } catch {
-    return false;
-  }
-  if (!raw) return false;
-  const ts = Number(raw);
-  if (!Number.isFinite(ts) || Date.now() - ts > RELAUNCH_MAX_AGE_MS) {
-    clearRelaunchIntent();
-    return false;
-  }
-  return true;
-}
-
-export function clearRelaunchIntent(): void {
-  try {
-    sessionStorage.removeItem(RELAUNCH_KEY);
-  } catch {
-    /* ignore */
-  }
 }
 
 /* ────────────────────────────────────────────────────────────

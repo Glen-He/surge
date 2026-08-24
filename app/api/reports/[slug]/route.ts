@@ -7,6 +7,7 @@ import { getReportBySlug } from "@/lib/reports-db";
 import { unzipStream, UnzipLimitError } from "@/lib/zip";
 import { dirSizeBytes } from "@/lib/guest-sandbox";
 import { LIMITS, charWeight } from "@/lib/char-limit";
+import { DEFAULT_TAG_COLOR, isTagColor } from "@/lib/tag-colors";
 import {
   MAX_ZIP_BYTES,
   MAX_USER_TOTAL_BYTES,
@@ -40,6 +41,9 @@ export async function PATCH(
   const title = String(form.get("title") ?? "").trim();
   const date = String(form.get("date") ?? "").trim();
   const tag = String(form.get("tag") ?? "").trim();
+  // 标签颜色：仅接受 7 色板内的合法值，否则回退默认色
+  const tagColorRaw = String(form.get("tagColor") ?? "").trim();
+  const tagColor = isTagColor(tagColorRaw) ? tagColorRaw : DEFAULT_TAG_COLOR;
   const description = String(form.get("description") ?? "").trim();
   const keywords = String(form.get("keywords") ?? "").trim();
   const file = form.get("file");
@@ -151,9 +155,9 @@ export async function PATCH(
   try {
     await db.query(
       `UPDATE reports
-       SET title = $1, date = $2, tag = $3, description = $4, keywords = $5
-       WHERE user_id = $6 AND slug = $7`,
-      [title, date, tag, description, keywords, session.user.id, slug],
+       SET title = $1, date = $2, tag = $3, tag_color = $4, description = $5, keywords = $6
+       WHERE user_id = $7 AND slug = $8`,
+      [title, date, tag, tagColor, description, keywords, session.user.id, slug],
     );
   } catch {
     return Response.json({ error: "保存失败，请重试" }, { status: 500 });

@@ -181,7 +181,7 @@ export function GuestToasts() {
           icon: <ClockIcon />,
           title: "访客体验已结束",
           sub: "注册账号可长期保存汇报",
-          subColor: "#C77700",
+          subColor: "#6e6e73",
         }}
       />
     );
@@ -260,7 +260,7 @@ export function GuestSessionWatcher({ expiresAt }: { expiresAt: string }) {
         icon: <ClockIcon />,
         title: "访客会话即将结束",
         sub: "5 分钟后自动退出",
-        subColor: "#C77700",
+        subColor: "#e0301e",
       }}
     />
   );

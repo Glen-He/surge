@@ -26,7 +26,7 @@ export function SignOutModal({
           type="button"
           onClick={() => void onConfirm()}
           disabled={loading}
-          className="btn-danger"
+          className="btn-primary"
         >
           {loading ? "退出中…" : "退出登录"}
         </button>

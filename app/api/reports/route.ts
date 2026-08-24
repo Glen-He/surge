@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { unzipStream, UnzipLimitError } from "@/lib/zip";
 import { dirSizeBytes, isGuestEmail } from "@/lib/guest-sandbox";
 import { LIMITS, charWeight } from "@/lib/char-limit";
+import { DEFAULT_TAG_COLOR, isTagColor } from "@/lib/tag-colors";
 import {
   MAX_ZIP_BYTES,
   MAX_USER_TOTAL_BYTES,
@@ -31,6 +32,9 @@ export async function POST(req: Request) {
   const title = String(form.get("title") ?? "").trim();
   const date = String(form.get("date") ?? "").trim();
   const tag = String(form.get("tag") ?? "").trim();
+  // 标签颜色：仅接受 7 色板内的合法值，否则回退默认色
+  const tagColorRaw = String(form.get("tagColor") ?? "").trim();
+  const tagColor = isTagColor(tagColorRaw) ? tagColorRaw : DEFAULT_TAG_COLOR;
   const description = String(form.get("description") ?? "").trim();
   const keywords = String(form.get("keywords") ?? "").trim();
   const file = form.get("file");
@@ -152,8 +156,8 @@ export async function POST(req: Request) {
     const sortOrder = (minRow.rows[0]?.m ?? 0) - 1;
 
     await db.query(
-      `INSERT INTO reports (id, user_id, slug, title, date, tag, description, keywords, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         randomUUID(),
         session.user.id,
@@ -161,6 +165,7 @@ export async function POST(req: Request) {
         title,
         date,
         tag,
+        tagColor,
         description,
         keywords,
         sortOrder,

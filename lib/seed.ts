@@ -17,6 +17,7 @@ const LEGACY_REPORTS = [
     title: "Vela — P15/CK2α 候选漏斗主流程",
     date: "2026-08-17",
     tag: "候选筛选",
+    tagColor: "#DBEAFE",
     desc: "阶段一 → 阶段四 4B · 候选筛选主流程",
     keywords: "P15,CK2a,CK2,漏斗,funnel,候选,筛选",
   },
@@ -25,6 +26,7 @@ const LEGACY_REPORTS = [
     title: "KTTKS_2 膜内扩散系数分析报告",
     date: "2026-08-17",
     tag: "分子模拟",
+    tagColor: "#F3E8FF",
     desc: "7 窗 restrained production · 力自相关 / running integral / cutoff 敏感性 · 交互式图表",
     keywords: "KTTKS2,扩散,diffusivity,膜内,ACF,分子动力学,MD",
   },
@@ -33,6 +35,7 @@ const LEGACY_REPORTS = [
     title: "Nexus 多肽性质预测工具包",
     date: "2026-08-17",
     tag: "工具包",
+    tagColor: "#DCFCE7",
     desc: "9 个 feature · 7 个 provider · pepADMET 能力覆盖矩阵 · 架构设计",
     keywords: "peptide,ADMET,预测,LogD,BBB,toxicity,CLI",
   },
@@ -110,8 +113,8 @@ export async function seedDefaultUser() {
 
         // 写数据库
         await db.query(
-          `INSERT INTO reports (id, user_id, slug, title, date, tag, description, keywords)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             crypto.randomUUID(),
             user.id,
@@ -119,6 +122,7 @@ export async function seedDefaultUser() {
             legacy.title,
             legacy.date,
             legacy.tag,
+            legacy.tagColor,
             legacy.desc,
             legacy.keywords,
           ],

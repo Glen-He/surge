@@ -14,8 +14,8 @@ function fmtDate(d: Date | null): string {
 
 const STATUS_CLASS: Record<string, string> = {
   active: "bg-[#e9fbe9] text-[#166534]",
-  revoked: "bg-[#f2f2f7] text-[#86868b]",
-  expired: "bg-[#f2f2f7] text-[#86868b]",
+  revoked: "bg-[#f2f2f7] text-[#6e6e73]",
+  expired: "bg-[#f2f2f7] text-[#6e6e73]",
 };
 const STATUS_LABEL: Record<string, string> = {
   active: "生效中",
@@ -82,7 +82,7 @@ export default async function SharesPage() {
                         </span>
                       </td>
                       <td className="max-w-[260px] truncate px-5 py-3.5 font-medium">
-                        <Link href={`/report/${s.report_slug}`} className="hover:text-[#007aff]">
+                        <Link href={`/report/${s.report_slug}`} className="hover:text-[#0071e3]">
                           {s.report_title}
                         </Link>
                       </td>

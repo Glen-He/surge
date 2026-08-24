@@ -91,7 +91,8 @@ export function DatePicker({
         aria-expanded={open}
         className={`project-input date-trigger ${error ? "project-input-error" : ""}`}
       >
-        <span>{value ? value.replaceAll("-", " / ") : "选择日期"}</span>
+        {/* 值格式 yyyy-mm-dd，与主页卡片日期显示一致 */}
+        <span>{value || "选择日期"}</span>
         <svg
           viewBox="0 0 24 24"
           fill="none"

@@ -108,7 +108,7 @@ export function DeleteAccountModal({
           inputMode="numeric"
           autoComplete="one-time-code"
           disabled={loading}
-          className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+          className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         <button
           type="button"
@@ -126,7 +126,7 @@ export function DeleteAccountModal({
         </button>
       </div>
 
-      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[#ff3b30]">
+      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[#e0301e]">
         {error}
       </p>
 

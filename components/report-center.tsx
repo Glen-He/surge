@@ -6,13 +6,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import type { ReportCardView as Report } from "@/lib/report-cards";
-
-const TAG_CLASS: Record<Report["tagClass"], string> = {
-  "t-kttks": "bg-[#eef0fb] text-[#403e9f]",
-  "t-nexus": "bg-[#e7f8ef] text-[#166534]",
-  "t-vela": "bg-[#fff4e5] text-[#9b4b00]",
-  "t-other": "bg-[#f2f2f5] text-[#55555c]",
-};
+import { tagTextColor } from "@/lib/tag-colors";
 
 export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
 
@@ -56,7 +50,7 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
             }}
             onBlur={submit}
             autoComplete="off"
-            className="h-[50px] w-full rounded-full border border-[rgba(0,0,0,0.08)] bg-white pl-10 pr-10 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+            className="h-[50px] w-full rounded-full border border-[rgba(0,0,0,0.08)] bg-white pl-10 pr-10 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
           />
           {draft !== "" && (
             <button
@@ -96,16 +90,17 @@ function monthLabel(key: string): string {
   return `${y} 年 ${parseInt(m, 10)} 月`;
 }
 
-// 新建项目圆形按钮：52px 黑圆白＋（SVG 双线 24px stroke 2.5），
+// 新建项目圆形按钮：52px 蓝圆白＋（SVG 双线 24px stroke 2.5），
 // hover 放大 1.03 + ＋ 旋转 90° + 轻阴影（200ms ease-out），按压缩到 0.96；
-// 胶囊 Tooltip 在按钮下方，延迟 200ms（hover 动画一结束即出现），移出立即消失
+// 胶囊 Tooltip 在按钮下方（白底深字 + 细边框轻阴影），延迟 60ms 滤掉
+// 快速划过、随后 150ms 淡入；移出立即消失
 function NewProjectButton() {
   return (
     <div className="group/new relative shrink-0">
       <Link
         href="/new-report"
         aria-label="新建项目"
-        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[#1d1d1f] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] active:scale-[0.96]"
+        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[#0071e3] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] active:scale-[0.96]"
       >
         <svg
           viewBox="0 0 24 24"
@@ -118,7 +113,7 @@ function NewProjectButton() {
           <path d="M12 5v14M5 12h14" />
         </svg>
       </Link>
-      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#1d1d1f] px-3 py-1 text-[12px] font-medium text-white opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[200ms]">
+      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1 text-[12px] font-medium text-[#1d1d1f] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[60ms]">
         新建项目
       </span>
     </div>
@@ -283,21 +278,16 @@ function DeleteIcon({ r }: { r: Report }) {
           placeholder={code}
           inputMode="numeric"
           autoComplete="off"
-          className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] tracking-[0.2em] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+          className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] tracking-[0.2em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}
         <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#e0301e]">{error}</p>
         <div className="mt-3 flex justify-end gap-2.5">
-          {/* 浅色按钮带 1px 边框：高度/padding 各补偿边框厚度，
-              去掉边框后的内容尺寸与右侧深色按钮完全一致。
-              高度/padding/字号用内联样式：.btn-secondary 是非 layered 的
-              普通 CSS 规则，会压过 Tailwind @layer utilities 的同类属性 */}
           <button
             type="button"
             onClick={() => setOpen(false)}
             disabled={deleting}
-            className="btn-secondary min-w-[90px] rounded-full"
-            style={{ height: 40, padding: "0 21px", fontSize: 14 }}
+            className="btn-secondary"
           >
             取消
           </button>
@@ -305,7 +295,7 @@ function DeleteIcon({ r }: { r: Report }) {
             type="button"
             onClick={remove}
             disabled={!confirmed || deleting}
-            className="inline-flex h-[38px] min-w-[88px] items-center justify-center rounded-full bg-[#e0301e] px-5 text-[14px] font-medium text-white transition-opacity hover:opacity-85 disabled:opacity-40"
+            className="btn-danger"
           >
             {deleting ? "删除中…" : "删除"}
           </button>
@@ -353,11 +343,12 @@ function ReportCard({
         <div>
           <div className="flex items-center justify-between gap-2">
             <span
-              className={`rounded-full px-3 py-0.5 text-[11px] font-semibold ${TAG_CLASS[r.tagClass]}`}
+              className="rounded-full px-3 py-0.5 text-[11px] font-semibold"
+              style={{ backgroundColor: r.tagColor, color: tagTextColor(r.tagColor) }}
             >
               {r.tag}
             </span>
-            <span className="whitespace-nowrap text-xs text-[#86868b] tabular-nums">
+            <span className="whitespace-nowrap text-xs text-[#6e6e73] tabular-nums">
               {r.date}
             </span>
           </div>

@@ -15,6 +15,7 @@ export interface DemoTemplate {
   title: string;
   date: string; // YYYY-MM-DD
   tag: string;
+  tagColor: string; // lib/tag-colors.ts 7 色板之一
   description: string;
   keywords: string;
 }
@@ -27,6 +28,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     title: "后台服务性能优化与迁移进度",
     date: "2026-08-14",
     tag: "性能优化",
+    tagColor: "#DBEAFE",
     description: "订单服务批量写入模型引入 + 搜索服务从 ES 迁移到 OpenSearch，P99 接口响应下降 56%。",
     keywords: "Go,OpenSearch,Redis,性能优化",
   },
@@ -35,6 +37,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     title: "V2.4.0 版本发布前迭代复盘",
     date: "2026-08-14",
     tag: "项目管理",
+    tagColor: "#F3E8FF",
     description: "Sprint-37 燃尽分析、需求交付清单、发布前 Checklist；整体进度 88%，预计 8/18 晚间冻结。",
     keywords: "Sprint,燃尽图,发布冻结",
   },
@@ -43,6 +46,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     title: "8.13 搜索服务超时故障 P1 分析报告",
     date: "2026-08-14",
     tag: "事故复盘",
+    tagColor: "#FEE2E2",
     description: "Full GC 26 分钟影响 4.18 万用户，根因定位分词插件堆内存泄漏，附 5 条行动项。",
     keywords: "P1,GC,Postmortem,回滚",
   },
@@ -51,6 +55,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     title: "V2.3.0 上线首周稳定性报告",
     date: "2026-08-07",
     tag: "稳定性",
+    tagColor: "#DCFCE7",
     description: "核心接口可用率 99.982%，P0/P1 事故 0 起；3 个 P2 缺陷跟踪；SLA 达标。",
     keywords: "SLA,监控,MTTR",
   },
@@ -59,6 +64,7 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     title: "AI 摘要功能技术可行性分析报告",
     date: "2026-08-07",
     tag: "技术预研",
+    tagColor: "#FFEDD5",
     description: "PoC 6 项指标全部达标，成本 ¥0.032/条，建议立项排期至 V2.5，附脱敏 + RAG 架构。",
     keywords: "LLM,RAG,Feasibility",
   },
@@ -107,8 +113,8 @@ export async function seedDemoReports(userId: string): Promise<void> {
     }
     try {
       await db.query(
-        `INSERT INTO reports (id, user_id, slug, title, date, tag, description, keywords, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           randomUUID(),
           userId,
@@ -116,6 +122,7 @@ export async function seedDemoReports(userId: string): Promise<void> {
           t.title,
           t.date,
           t.tag,
+          t.tagColor,
           t.description,
           t.keywords,
           sortOrder++,

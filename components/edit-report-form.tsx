@@ -18,6 +18,7 @@ export function EditReportForm({
     fd.set("title", values.title);
     fd.set("date", values.date);
     fd.set("tag", values.tag);
+    fd.set("tagColor", values.tagColor);
     fd.set("description", values.description);
     fd.set("keywords", values.keywords);
     if (file) fd.set("file", file);
