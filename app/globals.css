@@ -37,6 +37,8 @@
   letter-spacing: -0.02em;
   color: #1d1d1f;
 }
+/* 与 .btn-light 同款视觉（页级导航胶囊）：字号/字重必须显式设置，
+   按钮元素不继承页面字号，缺失时落回浏览器默认 13.33px */
 .rpt-sys-head .rpt-sys-back {
   display: inline-flex;
   align-items: center;
@@ -45,22 +47,26 @@
   flex: 0 0 auto;
   height: 40px;
   padding: 0 16px;
-  border: 1px solid #d2d2d7;
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
-  background: #fff;
-  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.72);
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
   transition:
-    background 0.18s ease,
-    border-color 0.18s ease;
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 .rpt-sys-head .rpt-sys-back:hover {
   background: #ededf2;
+  color: #1d1d1f;
 }
 .rpt-sys-head .rpt-sys-back:focus {
   outline: none;
-  border-color: #007aff;
+  border-color: #0071e3;
 }
 .rpt-sys-head .rpt-sys-back svg {
   width: 15px;
@@ -88,22 +94,24 @@
 
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
-  --text-tertiary: #86868b;
+  /* 三级信息文字：#6e6e73 保白底 4.7:1 达 WCAG AA（#86868b 仅 3.9:1，
+     只允许用于图标/装饰，信息文字一律走本 token） */
+  --text-tertiary: #6e6e73;
 
   --border: rgba(0, 0, 0, 0.08);
   --border-hover: rgba(0, 0, 0, 0.14);
 
-  --accent: #007aff;
-  --accent-hover: #006ee6;
-  --accent-soft: rgba(0, 122, 255, 0.08);
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-soft: rgba(0, 113, 227, 0.08);
 
   --success: #34c759;
   --success-text: #18864b;
   --success-soft: rgba(52, 199, 89, 0.1);
 
-  --danger: #ff3b30;
-  --danger-hover: #e63229;
-  --danger-soft: rgba(255, 59, 48, 0.08);
+  --danger: #e0301e;
+  --danger-hover: #c72a1a;
+  --danger-soft: rgba(224, 48, 30, 0.08);
 }
 
 /* ============ 基础 ============ */
@@ -253,6 +261,7 @@ button {
   gap: 6px;
   height: 42px;
   padding: 0 20px;
+  min-width: 104px;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
@@ -286,13 +295,14 @@ button {
   justify-content: center;
   gap: 6px;
   height: 44px;
-  padding: 0 18px;
+  padding: 0 21px;
+  min-width: 106px;
   border-radius: 999px;
   background: #fff;
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 500;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   white-space: nowrap;
   transition:
     border-color 0.15s ease,
@@ -301,7 +311,7 @@ button {
 
 .btn-secondary:hover:not(:disabled) {
   border-color: var(--border-hover);
-  background: #fafafa;
+  background: #ededf2;
 }
 
 .btn-secondary:disabled {
@@ -333,6 +343,7 @@ button {
   gap: 6px;
   height: 42px;
   padding: 0 20px;
+  min-width: 104px;
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
@@ -359,14 +370,15 @@ button {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
-  padding: 0 18px;
+  height: 44px;
+  padding: 0 21px;
+  min-width: 106px;
   border-radius: 999px;
   background: #fff;
   color: var(--danger);
   font-size: 15px;
   font-weight: 500;
-  border: 1px solid rgba(255, 59, 48, 0.35);
+  border: 1px solid rgba(224, 48, 30, 0.35);
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease;
@@ -374,7 +386,7 @@ button {
 
 .btn-danger-outline:hover:not(:disabled) {
   background: var(--danger-soft);
-  border-color: rgba(255, 59, 48, 0.5);
+  border-color: rgba(224, 48, 30, 0.5);
 }
 
 .btn-danger-outline:disabled {
@@ -408,7 +420,7 @@ button {
   background: none;
   border: none;
   padding: 6px 0;
-  color: #ff3b30;
+  color: var(--danger);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -437,8 +449,9 @@ button {
     color 0.15s ease;
 }
 
+/* 白色系按钮 hover 统一浅灰 #ededf2（与 .rpt-sys-back、分享小胶囊同值） */
 .btn-light:hover {
-  background: #e4e4e9;
+  background: #ededf2;
   color: #1d1d1f;
 }
 
@@ -450,17 +463,8 @@ button {
   gap: 10px;
 }
 
-/* 成对按钮视觉等高同宽：带边框 112×44，实心四周各收 1px → 110×42（对齐边框内芯） */
-.modal-actions > button,
-.modal-actions > a {
-  width: 112px;
-}
-
-.modal-actions > .btn-primary,
-.modal-actions > .btn-danger {
-  width: 110px;
-}
-
+/* 成对等宽由按钮类自身的 min-width 保证（实心 104 / 描边 106，光学补偿 2px）；
+   固定 width 钉死的旧方案已移除，长文案（如「发送验证码」）不再被压缩 */
 @media (max-width: 420px) {
   .modal-actions {
     flex-direction: column-reverse;
@@ -701,7 +705,7 @@ button {
 
 .step-dot-todo {
   background: #f0f0f2;
-  color: #86868b;
+  color: #6e6e73;
 }
 
 .step-label {
@@ -730,7 +734,7 @@ button {
 }
 
 .step-line-done {
-  background: rgba(0, 122, 255, 0.35);
+  background: rgba(0, 113, 227, 0.35);
 }
 
 /* 当前绑定邮箱等轻量信息行 */
@@ -778,7 +782,7 @@ button {
 
 .pw-strength-label {
   font-size: 12px;
-  color: #86868b;
+  color: #6e6e73;
 }
 
 /* 验证方式选择：桌面双列小卡，手机单列 */
@@ -804,8 +808,8 @@ button {
 }
 
 .verify-method:hover {
-  background: rgba(0, 122, 255, 0.035);
-  border-color: rgba(0, 122, 255, 0.25);
+  background: rgba(0, 113, 227, 0.035);
+  border-color: rgba(0, 113, 227, 0.25);
 }
 
 .verify-method-icon {
@@ -1229,14 +1233,14 @@ button {
   cursor: not-allowed;
 }
 
-/* 主提交：黑色品牌动作 */
+/* 主提交：苹果官网按钮蓝 */
 .auth-submit {
   margin-top: 24px;
   width: 100%;
   height: 48px;
   border: 0;
   border-radius: 999px;
-  background: #1d1d1f;
+  background: var(--accent);
   color: #fff;
   font-size: 15px;
   font-weight: 600;
@@ -1272,7 +1276,7 @@ button {
 }
 
 .auth-guest:hover {
-  background: #e4e4e9;
+  background: #ededf2;
   color: var(--text-primary);
   border-color: rgba(0, 0, 0, 0.14);
 }
@@ -1420,8 +1424,8 @@ textarea.project-input {
 
 .upload-zone:hover,
 .upload-zone-drag {
-  border-color: rgba(0, 122, 255, 0.4);
-  background: rgba(0, 122, 255, 0.03);
+  border-color: rgba(0, 113, 227, 0.4);
+  background: rgba(0, 113, 227, 0.03);
 }
 
 .upload-title {
@@ -1514,7 +1518,7 @@ textarea.project-input {
   gap: 8px;
   width: 110px;
   height: 42px;
-  background: #1d1d1f;
+  background: var(--accent);
   color: #fff;
   border: 0;
   border-radius: 999px;
@@ -1552,7 +1556,7 @@ textarea.project-input {
 }
 
 .btn-cancel-page:hover {
-  background: #e4e4e9;
+  background: #ededf2;
   color: var(--text-primary);
 }
 
@@ -1635,7 +1639,7 @@ textarea.project-input {
 .date-week span {
   text-align: center;
   font-size: 12px;
-  color: #86868b;
+  color: #6e6e73;
 }
 
 .date-grid {
@@ -1728,9 +1732,9 @@ textarea.project-input {
   --normal-bg: rgba(255, 255, 255, 0.78);
   --normal-border: rgba(0, 0, 0, 0.06);
   --normal-text: #1d1d1f;
-  --accent: #007aff;
+  --accent: #0071e3;
   --success: #34c759;
-  --danger: #ff3b30;
+  --danger: #e0301e;
   --warning: #ff9500;
   font-family:
     -apple-system,

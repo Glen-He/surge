@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 // 汇报页制作指南：从 Home 页头 / 新建项目页进入
 // 视觉与 account-shell 体系一致（1080px 轨道、白卡 22px 圆角）；
-// 主题色用苹果网页蓝 #007aff（与站内分享创建按钮/搜索聚焦色同款）
+// 主题色用苹果官网按钮蓝 #0071e3（全站主操作按钮/聚焦色统一同款）
 
 const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要求如下：
 
@@ -40,7 +40,7 @@ const ICON_BACK = (
 function SectionTitle({ no, children }: { no: number; children: React.ReactNode }) {
   return (
     <h2 className="mb-5 flex items-center gap-2.5 text-[19px] font-semibold text-[#1d1d1f]">
-      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-[rgba(0,122,255,0.1)] text-[14px] font-bold text-[#007aff]">
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-[rgba(0,113,227,0.1)] text-[14px] font-bold text-[#0071e3]">
         {no}
       </span>
       {children}
@@ -93,8 +93,8 @@ function CopyButton() {
     <button
       type="button"
       onClick={copy}
-      className={`inline-flex h-[32px] w-[56px] items-center justify-center rounded-full text-[12.5px] font-semibold text-white transition-colors duration-200 ${
-        copied ? "bg-[#34c759]" : "bg-[#007aff] hover:bg-[#0071e3]"
+      className={`inline-flex h-[32px] w-[56px] items-center justify-center rounded-full text-[12px] font-semibold text-white transition-colors duration-200 ${
+        copied ? "bg-[#34c759]" : "bg-[#0071e3] hover:bg-[#0077ed]"
       }`}
     >
       {copied ? "已复制" : "复制"}
@@ -194,7 +194,7 @@ function GuideContent() {
               {PROMPT}
             </pre>
           </div>
-          <p className="mt-[22px] text-[12px] text-[#86868b]">
+          <p className="mt-[22px] text-[12px] text-[#6e6e73]">
             「页面约定」是平台的格式要求，建议保留原样；其余部分按你的需要随意增删修改。
           </p>
           <Callout tone="blue">

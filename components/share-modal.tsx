@@ -23,9 +23,9 @@ function fmtDate(s: string | null): string {
 }
 
 function statusOf(s: ShareView): { label: string; cls: string } {
-  if (s.revokedAt) return { label: "已撤销", cls: "bg-[#f2f2f7] text-[#86868b]" };
+  if (s.revokedAt) return { label: "已撤销", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
   if (s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) {
-    return { label: "已过期", cls: "bg-[#f2f2f7] text-[#86868b]" };
+    return { label: "已过期", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
   }
   return { label: "生效中", cls: "bg-[#e9fbe9] text-[#166534]" };
 }
@@ -152,7 +152,7 @@ export function ShareModal({
                   setError("");
                 }}
                 placeholder="留空则任何人可查看"
-                className="h-[38px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+                className="h-[38px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
               />
             </div>
             <div>
@@ -161,7 +161,7 @@ export function ShareModal({
                 <select
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
-                  className="h-[38px] w-full appearance-none rounded-[10px] border border-black/12 bg-white pl-3 pr-9 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+                  className="h-[38px] w-full appearance-none rounded-[10px] border border-black/12 bg-white pl-3 pr-9 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
                 >
                   <option value={0}>永久有效</option>
                   <option value={1}>1 天</option>
@@ -185,7 +185,7 @@ export function ShareModal({
           {/* 提示行固定占位 18px：错误（红）/ 达到上限说明（灰）都不改变弹窗高度 */}
           <p
             className={`mt-2 h-[18px] text-[13px] leading-[18px] ${
-              limitReached && !error ? "text-[#86868b]" : "text-[#e0301e]"
+              limitReached && !error ? "text-[#6e6e73]" : "text-[#e0301e]"
             }`}
           >
             {error ||
@@ -199,7 +199,7 @@ export function ShareModal({
               type="button"
               onClick={create}
               disabled={creating || limitReached}
-              className="inline-flex h-[38px] min-w-[104px] items-center justify-center rounded-full bg-[#007aff] px-5 text-[14px] font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+              className="btn-primary"
             >
               {creating ? "创建中…" : "生成链接"}
             </button>
@@ -220,11 +220,11 @@ export function ShareModal({
             className="h-[141px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {loading ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#86868b]">
+              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">
                 加载中…
               </div>
             ) : shares.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#86868b]">
+              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">
                 还没有分享链接，先生成一个
               </div>
             ) : (
@@ -253,7 +253,7 @@ export function ShareModal({
                         type="button"
                         onClick={() => copyLink(s)}
                         disabled={!active}
-                        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-black/12 text-[11.5px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
+                        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
                       >
                         {copiedId === s.id ? "已复制" : "复制链接"}
                       </button>
@@ -262,7 +262,7 @@ export function ShareModal({
                           type="button"
                           onClick={() => revoke(s.id)}
                           disabled={revokingId === s.id}
-                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(224,48,30,0.35)] text-[11.5px] font-medium text-[#c0261c] transition-colors hover:bg-[#fef2f2] disabled:opacity-40"
+                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(224,48,30,0.35)] text-[12px] font-medium text-[#c0261c] transition-colors hover:bg-[#fef2f2] disabled:opacity-40"
                         >
                           {revokingId === s.id ? "撤销中…" : "撤销"}
                         </button>

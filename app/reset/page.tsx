@@ -98,7 +98,7 @@ function ResetPasswordForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
                 autoFocus
-                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-12 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#007aff] focus:bg-white"
+                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-12 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
               />
               <button
                 type="button"
@@ -134,7 +134,7 @@ function ResetPasswordForm() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password"
-                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-4 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#007aff] focus:bg-white"
+                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-4 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
               />
             </div>
 

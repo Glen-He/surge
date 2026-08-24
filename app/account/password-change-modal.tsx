@@ -26,7 +26,7 @@ function passwordStrength(pw: string): 0 | 1 | 2 | 3 {
 }
 
 const STRENGTH_META = {
-  1: { label: "弱", color: "#ff3b30" },
+  1: { label: "弱", color: "#e0301e" },
   2: { label: "一般", color: "#ff9500" },
   3: { label: "强", color: "#34c759" },
 } as const;
@@ -449,7 +449,7 @@ export function PasswordChangeModal({
               autoComplete="one-time-code"
               disabled={loading}
               autoFocus
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
               type="button"
@@ -466,11 +466,11 @@ export function PasswordChangeModal({
                     : "获取验证码"}
             </button>
           </div>
-          <p className="mt-2 text-[13px] text-[#86868b]">
+          <p className="mt-2 text-[13px] text-[#6e6e73]">
             验证码 6 位数字，输入后自动验证，5 分钟内有效
           </p>
           <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#86868b]">
+          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
             {loading ? "验证中…" : ""}
           </p>
         </div>

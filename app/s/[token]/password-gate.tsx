@@ -64,7 +64,7 @@ export function SharePasswordGate({
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="访问密码"
           autoFocus
-          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位：避免密码错误提示出现时卡片高度跳变 */}
         <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#e0301e]">{error}</p>
@@ -72,11 +72,11 @@ export function SharePasswordGate({
           type="button"
           onClick={submit}
           disabled={loading || !password}
-          className="mt-4 h-[44px] w-full rounded-full bg-[#007aff] text-[15px] font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+          className="mt-4 h-[44px] w-full rounded-full bg-[#0071e3] text-[15px] font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
         >
           {loading ? "验证中…" : "查看报告"}
         </button>
-        <p className="mt-5 text-center text-[12px] text-[#86868b]">
+        <p className="mt-5 text-center text-[12px] text-[#6e6e73]">
           来自 SURGE 工作汇报系统的分享
         </p>
       </div>

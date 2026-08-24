@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { CardHead } from "@/components/card-head";
 import { DatePicker } from "@/components/date-picker";
 import { LIMITS, charWeight } from "@/lib/char-limit";
-import { DEFAULT_TAG_COLOR, TAG_PALETTE } from "@/lib/tag-colors";
+import { DEFAULT_TAG_COLOR, TAG_PALETTE, tagSwatchColor } from "@/lib/tag-colors";
 
 export type ProjectFormValues = {
   title: string;
@@ -307,7 +307,7 @@ export function ProjectForm({
                     title="选择标签颜色"
                     aria-expanded={colorOpen}
                     onClick={() => setColorOpen((o) => !o)}
-                    style={{ backgroundColor: tagColor }}
+                    style={{ backgroundColor: tagSwatchColor(tagColor) }}
                     className="absolute right-2.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 cursor-pointer rounded-full border border-[rgba(0,0,0,0.14)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-transform duration-150 hover:scale-110"
                   />
                   {colorOpen && (
@@ -329,14 +329,14 @@ export function ProjectForm({
                               setTagColor(c.bg);
                               setColorOpen(false);
                             }}
-                            style={{ backgroundColor: c.bg }}
+                            style={{ backgroundColor: c.swatch }}
                             className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[9px] border border-[rgba(0,0,0,0.08)] transition-transform duration-150 hover:scale-110"
                           >
                             {tagColor === c.bg && (
                               <svg
                                 viewBox="0 0 24 24"
                                 fill="none"
-                                stroke={c.text}
+                                stroke="#fff"
                                 strokeWidth="3"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"

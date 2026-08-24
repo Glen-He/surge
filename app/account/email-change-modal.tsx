@@ -267,7 +267,7 @@ export function EmailChangeModal({
             为了保护账号安全，请先验证当前绑定邮箱。
           </p>
 
-          <p className="mt-4 text-[13px] text-[#86868b]">当前绑定邮箱</p>
+          <p className="mt-4 text-[13px] text-[#6e6e73]">当前绑定邮箱</p>
           <div className="info-card mt-1.5">
             <span className="info-card-icon">{ICON_MAIL}</span>
             <span className="break-email min-w-0 text-[15px] font-semibold text-[#1d1d1f]">
@@ -291,7 +291,7 @@ export function EmailChangeModal({
               autoComplete="one-time-code"
               disabled={loading}
               autoFocus
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
               type="button"
@@ -308,11 +308,11 @@ export function EmailChangeModal({
                     : "获取验证码"}
             </button>
           </div>
-          <p className="mt-2 text-[13px] text-[#86868b]">
+          <p className="mt-2 text-[13px] text-[#6e6e73]">
             验证码 6 位数字，输入后自动验证，5 分钟内有效
           </p>
           <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#86868b]">
+          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
             {loading ? "验证中…" : ""}
           </p>
         </div>
@@ -362,7 +362,7 @@ export function EmailChangeModal({
               inputMode="numeric"
               autoComplete="one-time-code"
               disabled={loading}
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#007aff]"
+              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
               type="button"
@@ -379,11 +379,11 @@ export function EmailChangeModal({
                     : "获取验证码"}
             </button>
           </div>
-          <p className="mt-2 text-[13px] text-[#86868b]">
+          <p className="mt-2 text-[13px] text-[#6e6e73]">
             验证码 6 位数字，输入后自动验证，5 分钟内有效
           </p>
           <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#86868b]">
+          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
             {loading ? "验证中…" : ""}
           </p>
         </div>

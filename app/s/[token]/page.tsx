@@ -52,7 +52,7 @@ export default async function SharePage({
       <header className="rpt-sys-head">
         <h1 className="rpt-sys-title">{found.reportTitle}</h1>
         <div className="flex h-[40px] shrink-0 items-center">
-          <span className="text-[13px] text-[#86868b]">
+          <span className="text-[13px] text-[#6e6e73]">
             分享页面 · 来自 SURGE 工作汇报系统
           </span>
         </div>

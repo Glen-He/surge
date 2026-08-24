@@ -31,14 +31,19 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
           left % 60,
         ).padStart(2, "0")}`;
 
+  // <10 分钟转红提示紧迫
+  const urgent = left !== null && left < 600;
+
   return (
     // 第二行：邮箱正下方（同一文字列内，天然与邮箱左对齐）。
-    // 文字列总高 ≈ 24 + 10 + 20 = 54px < 头像 56px，行高不变 → 卡片高度不增
+    // 清晰度靠文字层级：说明文字灰 13px，时间数字近黑 14px semibold，
+    // 深浅对比聚焦视线，不引入新颜色/容器框。
+    // 文字列总高 ≈ 24 + 10 + 21 = 55px < 头像 56px，行高不变 → 卡片高度不增
     <div className="mt-[10px] flex items-center gap-1.5 text-[13px] leading-[1.5] text-[#6e6e73]">
       <svg
         viewBox="0 0 24 24"
         fill="none"
-        stroke="#C77700"
+        stroke={urgent ? "#e0301e" : "currentColor"}
         strokeWidth={1.8}
         className="h-[15px] w-[15px] shrink-0"
         aria-hidden="true"
@@ -48,8 +53,12 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
       </svg>
       访客会话剩余
       <span
-        className="font-semibold"
-        style={{ color: "#C77700", fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}
+        className="text-[14px] font-semibold"
+        style={{
+          color: urgent ? "#e0301e" : "#1d1d1f",
+          fontVariantNumeric: "tabular-nums",
+          letterSpacing: "0.02em",
+        }}
       >
         {label}
       </span>
@@ -151,7 +160,7 @@ export function AccountForm({
             </div>
           </div>
           <div className="card-action-wrap">
-            <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[#ff3b30]">
+            <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[#e0301e]">
               {deletionRequestedAt
                 ? `已申请删除，${deletionLabel} 前可取消。`
                 : null}
@@ -254,9 +263,10 @@ export function AccountForm({
               <button
                 type="button"
                 onClick={() => setOpenSignOut(true)}
-                className="btn-danger-outline"
+                className="btn-action"
               >
                 退出登录
+                {ICON_CHEVRON}
               </button>
             </div>
           </div>
