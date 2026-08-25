@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { passwordPolicyError } from "@/lib/password-policy";
 import {
   consumeChangeToken,
   getChangeToken,
@@ -23,11 +24,9 @@ export async function POST(req: Request) {
   if (!token) {
     return Response.json({ error: "请先验证身份" }, { status: 400 });
   }
-  if (newPassword.length < 8) {
-    return Response.json({ error: "新密码至少 8 位" }, { status: 400 });
-  }
-  if (newPassword.length > 100) {
-    return Response.json({ error: "密码过长" }, { status: 400 });
+  const pwdError = passwordPolicyError(newPassword);
+  if (pwdError) {
+    return Response.json({ error: pwdError }, { status: 400 });
   }
 
   const change = await getChangeToken(token, session.user.id, "password_change");

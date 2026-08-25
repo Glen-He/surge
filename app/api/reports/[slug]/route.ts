@@ -2,10 +2,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db, withUserStorageLock } from "@/lib/db";
 import { getReportBySlug } from "@/lib/reports-db";
 import { unzipStream, UnzipLimitError } from "@/lib/zip";
 import { dirSizeBytes } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import { LIMITS, charWeight } from "@/lib/char-limit";
 import { DEFAULT_TAG_COLOR, isTagColor } from "@/lib/tag-colors";
 import {
@@ -79,77 +80,86 @@ export async function PATCH(
     const isHtmlFile =
       /\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html";
 
-    // 全站总量检查：≥10GB 暂停上传；≥8GB 后台预警
-    const siteTotal = await dirSizeBytes(USERS_DIR);
-    if (siteTotal >= SITE_TOTAL_CAP_BYTES) {
-      return Response.json(
-        { error: "服务器存储已达上限，上传暂停，请联系管理员" },
-        { status: 503 },
-      );
-    }
-    if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
-      console.warn(
-        `[storage] 全站占用 ${(siteTotal / 1024 ** 3).toFixed(2)}GB，已达 8GB 预警线（上限 10GB）`,
-      );
-    }
-
-    // 清理上次失败可能残留的 tmp（避免污染配额计算），再统计已用容量
-    await fs.rm(tmp, { recursive: true, force: true });
-
-    // 配额预检基数：替换场景下原目录随后会被移除，不计入已用
-    const usedBefore = await dirSizeBytes(userDir);
-    const oldSize = await dirSizeBytes(dir);
-
-    await fs.mkdir(tmp, { recursive: true });
-
-    try {
-      if (isHtmlFile) {
-        // 单文件上传：HTML 本身就是入口，直接写入 report.html
-        await fs.writeFile(path.join(tmp, "report.html"), buf);
-        if (usedBefore - oldSize + buf.byteLength > MAX_USER_TOTAL_BYTES) {
-          throw new UnzipLimitError(
-            `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
-          );
-        }
-      } else {
-        const result = await unzipStream(buf, tmp);
-        if (
-          usedBefore - oldSize + result.totalBytes >
-          MAX_USER_TOTAL_BYTES
-        ) {
-          throw new UnzipLimitError(
-            `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
-          );
-        }
-        await fs.access(path.join(tmp, "report.html"));
+    // 配额检查 + 写盘临界区：与 POST 上传共用同一把用户级锁，
+    // 替换场景的存量扣减（oldSize）同样需要串行化，防并发竞态
+    const failure = await withUserStorageLock(session.user.id, async (): Promise<Response | null> => {
+      // 全站总量检查：≥10GB 暂停上传；≥8GB 后台预警
+      const siteTotal = await dirSizeBytes(USERS_DIR);
+      if (siteTotal >= SITE_TOTAL_CAP_BYTES) {
+        return Response.json(
+          { error: "服务器存储已达上限，上传暂停，请联系管理员" },
+          { status: 503 },
+        );
       }
-    } catch (err) {
+      if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
+        logger.warn("storage", "全站占用已达预警线", {
+          usedGB: Number((siteTotal / 1024 ** 3).toFixed(2)),
+          warnGB: 8,
+          capGB: 10,
+        });
+      }
+
+      // 清理上次失败可能残留的 tmp（避免污染配额计算），再统计已用容量
       await fs.rm(tmp, { recursive: true, force: true });
-      if (err instanceof UnzipLimitError) {
-        return Response.json({ error: err.message }, { status: 403 });
-      }
-      return Response.json(
-        { error: "文件无效或缺少 report.html（入口文件）" },
-        { status: 400 },
-      );
-    }
 
-    try {
-      await fs.rm(old, { recursive: true, force: true });
-      await fs.rename(dir, old);
-      await fs.rename(tmp, dir);
-      await fs.rm(old, { recursive: true, force: true });
-    } catch {
-      // 替换失败时尽力恢复原目录
+      // 配额预检基数：替换场景下原目录随后会被移除，不计入已用
+      const usedBefore = await dirSizeBytes(userDir);
+      const oldSize = await dirSizeBytes(dir);
+
+      await fs.mkdir(tmp, { recursive: true });
+
       try {
-        await fs.rm(dir, { recursive: true, force: true });
-        await fs.rename(old, dir);
-      } catch {
-        // 原目录恢复失败时保留 tmp 供排查
+        if (isHtmlFile) {
+          // 单文件上传：HTML 本身就是入口，直接写入 report.html
+          await fs.writeFile(path.join(tmp, "report.html"), buf);
+          if (usedBefore - oldSize + buf.byteLength > MAX_USER_TOTAL_BYTES) {
+            throw new UnzipLimitError(
+              `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
+            );
+          }
+        } else {
+          const result = await unzipStream(buf, tmp);
+          if (
+            usedBefore - oldSize + result.totalBytes >
+            MAX_USER_TOTAL_BYTES
+          ) {
+            throw new UnzipLimitError(
+              `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
+            );
+          }
+          await fs.access(path.join(tmp, "report.html"));
+        }
+      } catch (err) {
+        await fs.rm(tmp, { recursive: true, force: true });
+        if (err instanceof UnzipLimitError) {
+          return Response.json({ error: err.message }, { status: 403 });
+        }
+        return Response.json(
+          { error: "文件无效或缺少 report.html（入口文件）" },
+          { status: 400 },
+        );
       }
-      await fs.rm(tmp, { recursive: true, force: true });
-      return Response.json({ error: "替换报告文件失败，请重试" }, { status: 500 });
-    }
+
+      try {
+        await fs.rm(old, { recursive: true, force: true });
+        await fs.rename(dir, old);
+        await fs.rename(tmp, dir);
+        await fs.rm(old, { recursive: true, force: true });
+      } catch {
+        // 替换失败时尽力恢复原目录
+        try {
+          await fs.rm(dir, { recursive: true, force: true });
+          await fs.rename(old, dir);
+        } catch {
+          // 原目录恢复失败时保留 tmp 供排查
+        }
+        await fs.rm(tmp, { recursive: true, force: true });
+        return Response.json({ error: "替换报告文件失败，请重试" }, { status: 500 });
+      }
+
+      return null;
+    });
+    if (failure) return failure;
   }
 
   try {

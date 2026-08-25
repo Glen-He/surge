@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { logger } from "./logger";
 
 // 账号删除冷却期（15 天）：
 // - 申请后 deletion_requested_at 记录时间戳，冷却期内可登录、可取消；
@@ -43,6 +44,6 @@ export async function purgeExpiredDeletions(): Promise<void> {
          AND deletion_requested_at + INTERVAL '15 days' <= NOW()`,
     );
   } catch (err) {
-    console.error("[purgeExpiredDeletions]", err);
+    logger.error("account-deletion", "清理到期删除账号失败", err as Error);
   }
 }

@@ -2,11 +2,17 @@ import { headers as nextHeaders, cookies as nextCookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { destroyGuestUser, isGuestEmail } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import { ensureOtpMigration } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
 function baseUrl(hs: Headers): string {
+  // 优先使用部署配置的固定地址（与 auth.baseURL 同源），
+  // 避免内部调用 URL 的 host 取自客户端可控的转发头
+  if (process.env.BETTER_AUTH_URL) {
+    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
+  }
   const host = hs.get("x-forwarded-host") ?? hs.get("host") ?? "localhost:3000";
   const proto = hs.get("x-forwarded-proto") ?? "http";
   return `${proto}://${host}`;
@@ -54,7 +60,7 @@ export async function POST() {
 
   // 2) 若是访客 → 销毁沙箱（删 user、级联 reports/sessions/otp_codes/account_changes、磁盘目录）
   if (guestId) {
-    try { await destroyGuestUser(guestId); } catch (e) { console.warn("[end-session] destroy", e); }
+    try { await destroyGuestUser(guestId); } catch (e) { logger.warn("end-session", "销毁访客沙箱失败", e as Error, { guestId }); }
   }
 
   // 3) 兜底：再清一次前端的 better-auth cookie（防止 handler 返回没有清除干净）

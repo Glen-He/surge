@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { scheduleDeletion } from "@/lib/account-deletion";
 import { destroyGuestUser, isGuestEmail } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import { logSecurity, verifyStoredOtp } from "@/lib/account";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
 
   // 访客：跳过 15 天冷却，直接销毁沙箱（DB 级联 + 磁盘目录），前端按 redirectTo 跳登录
   if (isGuestEmail(session.user.email)) {
-    try { await destroyGuestUser(session.user.id); } catch (e) { console.warn("[deletion/schedule] destroy", e); }
+    try { await destroyGuestUser(session.user.id); } catch (e) { logger.warn("deletion/schedule", "销毁访客沙箱失败", e as Error, { userId: session.user.id }); }
     return Response.json({ ok: true, guestDestroyed: true, redirectTo: "/" });
   }
 

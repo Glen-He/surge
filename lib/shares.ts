@@ -11,9 +11,16 @@ const TOKEN_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 export function generateShareToken(len = 22): string {
-  const bytes = randomBytes(len);
+  // rejection sampling 消除模偏差：256 % 62 = 8，直接取模会让前 8 个
+  // 字符（A-H）的概率略高；丢弃 >= 248 的字节后每个字符严格等概率
+  const LIMIT = 256 - (256 % 62);
   let out = "";
-  for (let i = 0; i < len; i++) out += TOKEN_ALPHABET[bytes[i] % 62];
+  while (out.length < len) {
+    const bytes = randomBytes(len);
+    for (let i = 0; i < bytes.length && out.length < len; i++) {
+      if (bytes[i] < LIMIT) out += TOKEN_ALPHABET[bytes[i] % 62];
+    }
+  }
   return out;
 }
 
@@ -40,16 +47,35 @@ export function verifySharePassword(
   );
 }
 
-// 解锁 cookie 值：HMAC(token, SECRET)。SECRET 缺省派生自 DATABASE_URL，
-// 生产建议显式配置 SHARE_SECRET。
+// 解锁 cookie 值：HMAC(token, SECRET)。
+// 密钥解析：SHARE_SECRET 优先 → DATABASE_URL（内含高熵口令，开发/自托管可接受）
+// → 生产环境两者皆缺直接抛错，绝不静默落入固定值——否则任何人都能自算
+// HMAC 伪造解锁凭证，绕过所有受密码保护的分享。
 function shareSecret(): string {
-  return process.env.SHARE_SECRET || process.env.DATABASE_URL || "dev-only";
+  if (process.env.SHARE_SECRET) return process.env.SHARE_SECRET;
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("缺少 SHARE_SECRET（或 DATABASE_URL）：分享解锁凭证无签名密钥");
+  }
+  return "dev-only";
 }
 
 export function unlockProof(token: string): string {
   return createHmac("sha256", shareSecret())
     .update(`share-unlock:${token}`)
     .digest("hex");
+}
+
+// 恒时校验解锁 cookie：HMAC 是确定性值，普通 !== 在理论上可被
+// 计时逐字节恢复（与资产签名校验同一套 timingSafeEqual 防护）
+export function verifyUnlockProof(
+  token: string,
+  proof: string | undefined,
+): boolean {
+  if (!proof) return false;
+  const expect = Buffer.from(unlockProof(token), "hex");
+  const got = Buffer.from(proof, "hex");
+  return got.length === expect.length && timingSafeEqual(got, expect);
 }
 
 export function unlockCookieName(token: string): string {

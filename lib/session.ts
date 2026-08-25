@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { expireGuestIfNeeded } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 
 /**
  * 服务端页面统一鉴权（DAL 层，Next.js 官方认证指南推荐的集中 session 校验）：
@@ -28,11 +29,9 @@ export async function requireSession() {
       .split(";")
       .map((c) => c.split("=")[0].trim())
       .filter(Boolean);
-    console.warn(
-      `[auth] bounce to / : session null, cookie header ${
-        names.length > 0 ? `PRESENT [${names.join(",")}]` : "ABSENT"
-      }`,
-    );
+    logger.warn("auth", "bounce to / : session null", {
+      cookieHeader: names.length > 0 ? `PRESENT [${names.join(",")}]` : "ABSENT",
+    });
     redirect("/");
   }
   return session;

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { renderOtpEmail } from "@/lib/email-templates";
 import { guestOtpResponse } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import {
   checkOtpRateLimit,
   generateAndStoreOtp,
@@ -59,7 +60,7 @@ export async function POST() {
       ...guestOtpResponse(email, code),
     });
   } catch (err) {
-    console.error("[send-otp/deletion]", err);
+    logger.error("send-otp/deletion", "验证码发送失败", err as Error);
     return Response.json(
       { error: "验证码发送失败，请稍后重试" },
       { status: 500 },

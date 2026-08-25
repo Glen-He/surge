@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Toolbar, ReportList } from "@/components/report-center";
+import { EmptyState } from "@/components/empty-state";
 import type { ReportCardView } from "@/lib/report-cards";
 
 // 客户端包装：Toolbar（含新建按钮）+ 数据区，空项目也保留工具栏布局
-// 搜索为显式动作：点击/回车后才应用查询
 export function ReportBoard({ reports }: { reports: ReportCardView[] }) {
   const [q, setQ] = useState("");
 
@@ -14,9 +14,12 @@ export function ReportBoard({ reports }: { reports: ReportCardView[] }) {
       <Toolbar onSearch={setQ} />
 
       {reports.length === 0 ? (
-        <div className="mt-12 py-16 text-center text-[#6e6e73]">
-          <div className="mb-2.5 text-4xl">📄</div>
-          你还没有任何项目，点击搜索框旁的「＋」新建
+        <div className="mt-12">
+          <EmptyState
+            icon="doc"
+            title="你还没有任何项目"
+            hint="点击搜索框旁的「＋」新建第一个报告"
+          />
         </div>
       ) : (
         <ReportList reports={reports} q={q} />

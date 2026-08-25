@@ -260,7 +260,7 @@ export function GuestSessionWatcher({ expiresAt }: { expiresAt: string }) {
         icon: <ClockIcon />,
         title: "访客会话即将结束",
         sub: "5 分钟后自动退出",
-        subColor: "#e0301e",
+        subColor: "#ff3b30",
       }}
     />
   );

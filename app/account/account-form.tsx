@@ -43,7 +43,7 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
       <svg
         viewBox="0 0 24 24"
         fill="none"
-        stroke={urgent ? "#e0301e" : "currentColor"}
+        stroke={urgent ? "#ff3b30" : "currentColor"}
         strokeWidth={1.8}
         className="h-[15px] w-[15px] shrink-0"
         aria-hidden="true"
@@ -55,7 +55,7 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
       <span
         className="text-[14px] font-semibold"
         style={{
-          color: urgent ? "#e0301e" : "#1d1d1f",
+          color: urgent ? "#ff3b30" : "#1d1d1f",
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "0.02em",
         }}
@@ -160,7 +160,7 @@ export function AccountForm({
             </div>
           </div>
           <div className="card-action-wrap">
-            <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[#e0301e]">
+            <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[#ff3b30]">
               {deletionRequestedAt
                 ? `已申请删除，${deletionLabel} 前可取消。`
                 : null}

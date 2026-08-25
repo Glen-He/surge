@@ -51,12 +51,15 @@ export function requestOrigin(req: Request): string {
 // 归属）为每个资产 URL 附加短期签名，资产端点验签通过即可免 cookie 放行。
 const ASSET_SIG_TTL_SEC = 24 * 60 * 60;
 
+// 密钥解析：BETTER_AUTH_SECRET / AUTH_SECRET 优先 → 生产环境缺失直接抛错
+// （绝不静默落入固定值，否则资产 URL 签名可被伪造）→ 开发环境用固定值
 function assetSecret(): string {
-  return (
-    process.env.BETTER_AUTH_SECRET ??
-    process.env.AUTH_SECRET ??
-    "surge-dev-asset-secret"
-  );
+  const s = process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
+  if (s) return s;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("缺少 BETTER_AUTH_SECRET：资产 URL 签名无密钥");
+  }
+  return "surge-dev-asset-secret";
 }
 
 function assetHmac(p: string, u: string, e: number): string {

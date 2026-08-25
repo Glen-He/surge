@@ -1,5 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { toChineseError } from "@/lib/auth-errors";
+import { passwordPolicyError } from "@/lib/password-policy";
 import { markRelaunchIntent } from "@/lib/relaunch-marker";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -80,8 +81,9 @@ export async function sendSignUpOtp(
 ): Promise<AuthResult> {
   // 密码规则必须拦在发码之前：验证通过即建号登录，
   // 规则不满足会导致「UI 提示失败、服务端 session 已建立」的状态分裂
-  if (password.length < 8) {
-    return { ok: false, error: "密码至少需要 8 位" };
+  const pwdError = passwordPolicyError(password);
+  if (pwdError) {
+    return { ok: false, error: pwdError };
   }
   const { error } = await authClient.emailOtp.sendVerificationOtp({
     email,
@@ -102,8 +104,9 @@ export async function registerWithOtp(
   otp: string,
   password: string,
 ): Promise<AuthResult> {
-  if (password.length < 8) {
-    return { ok: false, error: "密码至少需要 8 位" };
+  const pwdError = passwordPolicyError(password);
+  if (pwdError) {
+    return { ok: false, error: pwdError };
   }
   try {
     const res = await fetch("/api/auth/register", {

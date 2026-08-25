@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { renderOtpEmail } from "@/lib/email-templates";
 import { guestOtpResponse } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import {
   checkOtpRateLimit,
   generateAndStoreOtp,
@@ -61,14 +62,11 @@ export async function POST() {
       ...guestOtpResponse(email, code),
     });
   } catch (err) {
-    console.error("[send-otp/password] full error:", err);
-    console.error(
-      "[send-otp/password] error details:",
-      JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2),
-    );
-    const message = err instanceof Error ? err.message : "未知错误";
+    // 详细错误只进服务端日志；响应体给通用文案，不向客户端泄露
+    // SMTP 配置/内部栈等实现细节（debug 字段属于信息泄露，已移除）
+    logger.error("send-otp/password", "发送失败", err as Error);
     return Response.json(
-      { error: `发送失败：${message}`, debug: String(err) },
+      { error: "验证码发送失败，请稍后重试" },
       { status: 500 },
     );
   }

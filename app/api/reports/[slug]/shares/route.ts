@@ -18,15 +18,6 @@ export const dynamic = "force-dynamic";
 
 const EXPIRY_DAYS = [1, 7, 30, 0]; // 0 = 永久
 
-async function ownsReport(userId: string, slug: string) {
-  await ensureOtpMigration();
-  const r = await db.query<{ id: string }>(
-    `SELECT id FROM reports WHERE user_id = $1 AND slug = $2 LIMIT 1`,
-    [userId, slug],
-  );
-  return r.rows[0]?.id ?? null;
-}
-
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> },
@@ -65,22 +56,6 @@ export async function POST(
   }
 
   const { slug } = await params;
-  const reportId = await ownsReport(session.user.id, slug);
-  if (!reportId) {
-    return Response.json({ error: "报告不存在" }, { status: 404 });
-  }
-
-  // 上限 5 条/报告：撤销是物理删除，删除后名额立即释放
-  const existing = await db.query<{ n: string }>(
-    `SELECT count(*)::text AS n FROM report_shares WHERE report_id = $1`,
-    [reportId],
-  );
-  if (Number(existing.rows[0]?.n ?? 0) >= 5) {
-    return Response.json(
-      { error: "最多 5 条分享链接，撤销旧链接后可再次创建" },
-      { status: 400 },
-    );
-  }
 
   const body = await req.json().catch(() => ({}));
   const password =
@@ -100,13 +75,49 @@ export async function POST(
   const expiresAt =
     days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
 
-  const id = generateShareId();
-  const token = generateShareToken();
-  await db.query(
-    `INSERT INTO report_shares (id, report_id, token, password_hash, expires_at)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [id, reportId, token, password ? hashSharePassword(password) : null, expiresAt],
-  );
+  // 上限 5 条/报告：count + insert 放进同一事务并锁报告行（FOR UPDATE），
+  // 并发创建会在锁上排队，杜绝「多个请求同时通过检查、插入第 6 条」的竞态。
+  // 撤销是物理删除，删除后名额立即释放。
+  await ensureOtpMigration();
+  const client = await db.connect();
+  let id: string;
+  let token: string;
+  try {
+    await client.query("BEGIN");
+    const own = await client.query<{ id: string }>(
+      `SELECT id FROM reports WHERE user_id = $1 AND slug = $2 LIMIT 1 FOR UPDATE`,
+      [session.user.id, slug],
+    );
+    const reportId = own.rows[0]?.id ?? null;
+    if (!reportId) {
+      await client.query("ROLLBACK");
+      return Response.json({ error: "报告不存在" }, { status: 404 });
+    }
+    const existing = await client.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM report_shares WHERE report_id = $1`,
+      [reportId],
+    );
+    if (Number(existing.rows[0]?.n ?? 0) >= 5) {
+      await client.query("ROLLBACK");
+      return Response.json(
+        { error: "最多 5 条分享链接，撤销旧链接后可再次创建" },
+        { status: 400 },
+      );
+    }
+    id = generateShareId();
+    token = generateShareToken();
+    await client.query(
+      `INSERT INTO report_shares (id, report_id, token, password_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, reportId, token, password ? hashSharePassword(password) : null, expiresAt],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 
   return Response.json({
     ok: true,

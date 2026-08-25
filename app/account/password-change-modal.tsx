@@ -5,6 +5,10 @@ import Link from "next/link";
 import { Modal } from "@/components/modal";
 import { StepIndicator } from "@/components/step-indicator";
 import { showGuestOtpFromResponse } from "@/lib/guest-otp-store";
+import {
+  PASSWORD_RULE_TEXT,
+  passwordPolicyError,
+} from "@/lib/password-policy";
 
 // 状态机：选择方式 → 验证（密码 / 邮箱验证码）→ 设置新密码 → 完成
 type Mode = "select" | "password" | "otp" | "new-password" | "success";
@@ -26,7 +30,7 @@ function passwordStrength(pw: string): 0 | 1 | 2 | 3 {
 }
 
 const STRENGTH_META = {
-  1: { label: "弱", color: "#e0301e" },
+  1: { label: "弱", color: "#ff3b30" },
   2: { label: "一般", color: "#ff9500" },
   3: { label: "强", color: "#34c759" },
 } as const;
@@ -281,8 +285,9 @@ export function PasswordChangeModal({
     if (loading) return;
     setNewPasswordError("");
     setMsg(null);
-    if (newPassword.length < 8) {
-      setNewPasswordError("新密码至少 8 个字符");
+    const pwdError = passwordPolicyError(newPassword);
+    if (pwdError) {
+      setNewPasswordError(pwdError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -497,7 +502,7 @@ export function PasswordChangeModal({
           <div className="relative">
             <input
               type={newShow ? "text" : "password"}
-              placeholder="至少 8 个字符"
+              placeholder={PASSWORD_RULE_TEXT}
               value={newPassword}
               onChange={(e) => {
                 setNewPassword(e.target.value);

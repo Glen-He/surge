@@ -13,6 +13,7 @@ import {
   GUEST_EMAIL_DOMAIN,
   isGuestEmail,
 } from "./guest-sandbox";
+import { passwordPolicyError } from "./password-policy";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -31,6 +32,10 @@ export const auth = betterAuth({
 
   database: new Pool({
     connectionString: process.env.DATABASE_URL!,
+    // 与 lib/db.ts 同款超时兜底，防止认证请求在数据库抖动时挂死
+    max: Number(process.env.DB_POOL_MAX ?? 10),
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
   }),
 
   // 匿名访客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
@@ -68,6 +73,15 @@ export const auth = betterAuth({
   advanced: {
     ipAddress: {
       ipAddressHeaders: ["x-forwarded-for"],
+      // 信任的反代地址（IP/CIDR，逗号分隔，默认本机反代）。
+      // 反代 append 模式下 XFF 形如「伪造段, 真实IP」；不配置信任代理时
+      // better-auth 遇多段头会直接放弃解析 -> 全站共享同一个限流桶，
+      // 「同 IP 5 次/10 分钟」实际从未按 IP 生效。配置后从 XFF 末段
+      // 往前取第一个非代理 IP（即真实客户端 IP，与 lib/client-ip 同语义）。
+      trustedProxies: (process.env.TRUSTED_PROXIES ?? "127.0.0.1,::1")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
     },
   },
 
@@ -127,6 +141,18 @@ export const auth = betterAuth({
             },
           },
         };
+      }
+
+      // ── 重置密码的复杂度校验（客户端之外的服务端强制点）──
+      // reset-password 是 better-auth 内置端点、不经过自建路由，
+      // 密码策略必须在这里拦，否则直连 API 可设置纯数字等弱密码
+      if (ctx.path === "/reset-password") {
+        const pwd =
+          typeof ctx.body?.newPassword === "string" ? ctx.body.newPassword : "";
+        const pwdErr = passwordPolicyError(pwd);
+        if (pwdErr) {
+          throw new APIError("BAD_REQUEST", { message: pwdErr });
+        }
       }
 
       // ── 统一验证码发送频控（覆盖注册 / 登录 / 找回密码等所有 better-auth OTP）──

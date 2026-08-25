@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { authClient } from "@/lib/auth-client";
+import {
+  PASSWORD_RULE_TEXT,
+  passwordPolicyError,
+} from "@/lib/password-policy";
 
 // better-auth 错误码 → 中文（框架默认返回英文 message）
 const RESET_ERROR_MESSAGES: Record<string, string> = {
@@ -41,8 +45,9 @@ function ResetPasswordForm() {
       setError("链接无效或已过期，请重新发起重置");
       return;
     }
-    if (password.length < 8) {
-      setError("密码至少需要 8 位");
+    const pwdError = passwordPolicyError(password);
+    if (pwdError) {
+      setError(pwdError);
       return;
     }
     if (password !== confirm) {
@@ -93,7 +98,7 @@ function ResetPasswordForm() {
               </span>
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="新密码（至少 8 位）"
+                placeholder={`新密码（${PASSWORD_RULE_TEXT}）`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"

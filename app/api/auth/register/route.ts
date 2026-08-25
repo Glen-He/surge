@@ -2,11 +2,19 @@ import { headers as nextHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { toChineseError } from "@/lib/auth-errors";
+import { clientIp } from "@/lib/client-ip";
+import { passwordPolicyError } from "@/lib/password-policy";
+import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 function baseUrl(hs: Headers): string {
+  // 优先使用部署配置的固定地址（与 auth.baseURL 同源），
+  // 避免内部调用 URL 的 host 取自客户端可控的转发头
+  if (process.env.BETTER_AUTH_URL) {
+    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
+  }
   const host = hs.get("x-forwarded-host") ?? hs.get("host") ?? "localhost:3000";
   const proto = hs.get("x-forwarded-proto") ?? "http";
   return `${proto}://${host}`;
@@ -56,15 +64,16 @@ export async function POST(req: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "邮箱格式不正确" }, { status: 400 });
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: "密码至少需要 8 位" }, { status: 400 });
+  const pwdError = passwordPolicyError(password);
+  if (pwdError) {
+    return NextResponse.json({ error: pwdError }, { status: 400 });
   }
   if (!/^\d{6}$/.test(otp)) {
     return NextResponse.json({ error: "请输入 6 位验证码" }, { status: 400 });
   }
 
   const hs = await nextHeaders();
-  const ip = hs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = clientIp(hs);
   if (!rateLimit(`register:${ip}`, 10, 10 * 60 * 1000)) {
     return NextResponse.json(
       { error: "操作过于频繁，请稍后再试" },
@@ -83,7 +92,7 @@ export async function POST(req: Request) {
   try {
     otpRes = await auth.handler(otpReq);
   } catch (e) {
-    console.error("[register] sign-in/email-otp", e);
+    logger.error("register", "sign-in/email-otp 失败", e as Error, { email });
     return NextResponse.json(
       { error: "注册失败，请稍后重试" },
       { status: 500 },
@@ -125,7 +134,7 @@ export async function POST(req: Request) {
     const e = err as { body?: { code?: string }; code?: string };
     const code = e?.body?.code ?? e?.code ?? "";
     if (code !== "PASSWORD_ALREADY_SET") {
-      console.error("[register] setPassword", err);
+      logger.error("register", "setPassword 失败", err as Error, { email });
       return NextResponse.json(
         { error: "注册失败，请稍后重试" },
         { status: 500 },
