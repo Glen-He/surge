@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from "crypto";
 import { db } from "./db";
 import nodemailer from "nodemailer";
 import { ensureOtpMigration } from "./schema";
+import { logger } from "./logger";
 import { isGuestEmail } from "./guest-sandbox";
 
 // 邮件发送器（与 auth.ts 同一套 SMTP 配置）
@@ -35,7 +36,7 @@ export async function logSecurity(opts: {
       ],
     );
   } catch (err) {
-    console.error("[security-log]", err);
+    logger.error("security-log", "写入安全日志失败", err as Error);
   }
 }
 

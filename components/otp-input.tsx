@@ -85,7 +85,7 @@ export function OTPInput({
           aria-label={`验证码第 ${i + 1} 位`}
           className={`h-[48px] w-full rounded-[12px] border bg-white text-center text-lg font-semibold text-[#1d1d1f] outline-none transition-colors ${
             error
-              ? "border-[#e0301e] focus:border-[#e0301e]"
+              ? "otp-error border-[#ff3b30] focus:border-[#ff3b30]"
               : "border-[rgba(0,0,0,0.12)] focus:border-[#0071e3]"
           } disabled:cursor-not-allowed disabled:opacity-50`}
         />

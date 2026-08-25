@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/empty-state";
 import { listAllShares, shareStatus } from "@/lib/shares";
 import { ShareRowActions } from "@/components/share-row-actions";
 import { requireSession } from "@/lib/session";
@@ -51,11 +52,12 @@ export default async function SharesPage() {
         </div>
 
         {rows.length === 0 ? (
-          <div className="rounded-[16px] border border-black/8 bg-white p-16 text-center">
-            <p className="text-[15px] text-[#1d1d1f]">还没有任何分享链接</p>
-            <p className="mt-2 text-[13px] text-[#6e6e73]">
-              在项目卡片的分享图标或报告页的分享按钮里生成链接，都会汇总在这里管理。
-            </p>
+          <div className="rounded-[16px] border border-black/8 bg-white">
+            <EmptyState
+              icon="share"
+              title="还没有任何分享链接"
+              hint="在项目卡片的分享图标或报告页的分享按钮里生成链接，都会汇总在这里管理。"
+            />
           </div>
         ) : (
           <div className="overflow-hidden rounded-[16px] border border-black/8 bg-white">

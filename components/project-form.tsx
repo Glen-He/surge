@@ -217,8 +217,9 @@ export function ProjectForm({
                 strokeWidth="1.8"
                 className="h-[15px] w-[15px]"
               >
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a1 1 0 0 0-1-1H6.5A2.5 2.5 0 0 0 4 5.5v14z" />
-                <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z" />
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
               </svg>
               制作指南
             </Link>

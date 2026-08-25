@@ -126,7 +126,7 @@ export function DeleteAccountModal({
         </button>
       </div>
 
-      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[#e0301e]">
+      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[#ff3b30]">
         {error}
       </p>
 

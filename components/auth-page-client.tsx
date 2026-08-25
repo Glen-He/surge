@@ -14,6 +14,7 @@ import {
   clearRelaunchIntent,
   hasFreshRelaunchIntent,
 } from "@/lib/relaunch-marker";
+import { PASSWORD_RULE_TEXT } from "@/lib/password-policy";
 
 type Mode = "signin" | "signup";
 
@@ -419,7 +420,7 @@ export function AuthPageClient() {
                         <input
                           id="auth-password"
                           type={showPassword ? "text" : "password"}
-                          placeholder={isSignUp ? "至少 8 位" : "••••••••"}
+                          placeholder={isSignUp ? PASSWORD_RULE_TEXT : "••••••••"}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           autoComplete={

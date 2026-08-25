@@ -185,7 +185,7 @@ export function ShareModal({
           {/* 提示行固定占位 18px：错误（红）/ 达到上限说明（灰）都不改变弹窗高度 */}
           <p
             className={`mt-2 h-[18px] text-[13px] leading-[18px] ${
-              limitReached && !error ? "text-[#6e6e73]" : "text-[#e0301e]"
+              limitReached && !error ? "text-[#6e6e73]" : "text-[#ff3b30]"
             }`}
           >
             {error ||
@@ -262,7 +262,7 @@ export function ShareModal({
                           type="button"
                           onClick={() => revoke(s.id)}
                           disabled={revokingId === s.id}
-                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(224,48,30,0.35)] text-[12px] font-medium text-[#c0261c] transition-colors hover:bg-[#fef2f2] disabled:opacity-40"
+                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(255,59,48,0.35)] text-[12px] font-medium text-[#ff3b30] transition-colors hover:bg-[rgba(255,59,48,0.06)] disabled:opacity-40"
                         >
                           {revokingId === s.id ? "撤销中…" : "撤销"}
                         </button>

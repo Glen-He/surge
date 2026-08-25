@@ -1,6 +1,8 @@
 import { headers as nextHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { clientIp } from "@/lib/client-ip";
+import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   createGuestSessionRecord,
@@ -29,7 +31,7 @@ export async function POST() {
   const hs = await nextHeaders();
 
   // IP 频控：初始化会灌 5 条报告 + 磁盘目录，同 IP 10 分钟最多 5 次
-  const ip = hs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = clientIp(hs);
   if (!rateLimit(`guest-init:${ip}`, 5, 10 * 60 * 1000)) {
     return NextResponse.json(
       { error: "访客登录过于频繁，请稍后再试" },
@@ -55,14 +57,14 @@ export async function POST() {
   try {
     await purgeStaleGuests();
   } catch (e) {
-    console.warn("[guest-init] purge", e);
+    logger.warn("guest-init", "清理过期访客沙箱失败", e as Error);
   }
 
   try {
     await createGuestSessionRecord(userId, GUEST_TTL_MINUTES);
     await seedDemoReports(userId);
   } catch (e) {
-    console.error("[guest-init] seed failed", e);
+    logger.error("guest-init", "访客沙箱初始化失败", e as Error, { userId });
     // 初始化失败不要把账号留在表里（级联清理会话/报告/沙箱记录）
     try {
       await destroyGuestUser(userId);

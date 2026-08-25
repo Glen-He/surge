@@ -1,4 +1,5 @@
 import path from "path";
+import { clientIp } from "@/lib/client-ip";
 import { findValidShare, incrementShareView, shouldCountView } from "@/lib/shares";
 import { loadReportHtml, reportDocCsp, requestOrigin } from "@/lib/report-pipeline";
 
@@ -24,8 +25,8 @@ export async function GET(
     const { cookies } = await import("next/headers");
     const jar = await cookies();
     const proof = jar.get(`share_${token}`)?.value;
-    const { unlockProof } = await import("@/lib/shares");
-    if (proof !== unlockProof(token)) {
+    const { verifyUnlockProof } = await import("@/lib/shares");
+    if (!verifyUnlockProof(token, proof)) {
       return new Response("需要密码", { status: 401 });
     }
   }
@@ -36,8 +37,7 @@ export async function GET(
       assetUrl: (p) => `/api/share/${token}/asset?p=${encodeURIComponent(p)}`,
     });
     // 只统计真实文档加载（密码通过后）；同 IP 同 token 1 小时内只计 1 次（防刷）
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = clientIp(req.headers);
     if (shouldCountView(token, ip)) void incrementShareView(token);
     return new Response(html, {
       headers: {

@@ -67,7 +67,7 @@ export function SharePasswordGate({
           className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位：避免密码错误提示出现时卡片高度跳变 */}
-        <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#e0301e]">{error}</p>
+        <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
         <button
           type="button"
           onClick={submit}

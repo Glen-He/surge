@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { findValidShare, unlockProof } from "@/lib/shares";
+import { findValidShare, verifyUnlockProof } from "@/lib/shares";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export async function GET(
       .map((s) => s.trim())
       .find((s) => s.startsWith(`share_${token}=`));
     const proof = cookie?.slice(`share_${token}=`.length);
-    if (proof !== unlockProof(token)) {
+    if (!verifyUnlockProof(token, proof)) {
       return new Response("需要密码", { status: 401 });
     }
   }

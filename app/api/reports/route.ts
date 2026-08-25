@@ -3,9 +3,10 @@ import { promises as fs } from "fs";
 import path from "path";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db, withUserStorageLock } from "@/lib/db";
 import { unzipStream, UnzipLimitError } from "@/lib/zip";
 import { dirSizeBytes, isGuestEmail } from "@/lib/guest-sandbox";
+import { logger } from "@/lib/logger";
 import { LIMITS, charWeight } from "@/lib/char-limit";
 import { DEFAULT_TAG_COLOR, isTagColor } from "@/lib/tag-colors";
 import {
@@ -83,101 +84,107 @@ export async function POST(req: Request) {
 
   const userDir = path.join(USERS_DIR, session.user.id);
 
-  // 全站总量检查：≥10GB 暂停上传；≥8GB 后台预警
-  const siteTotal = await dirSizeBytes(USERS_DIR);
-  if (siteTotal >= SITE_TOTAL_CAP_BYTES) {
-    return Response.json(
-      { error: "服务器存储已达上限，上传暂停，请联系管理员" },
-      { status: 503 },
-    );
-  }
-  if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
-    console.warn(
-      `[storage] 全站占用 ${(siteTotal / 1024 ** 3).toFixed(2)}GB，已达 8GB 预警线（上限 10GB）`,
-    );
-  }
-
-  // 用户已用容量（新项目目录尚未创建，先算存量）
-  const used = await dirSizeBytes(userDir);
-
-  const slug = `r_${randomUUID().slice(0, 8)}`;
-  const dir = path.join(userDir, slug);
-  // 先解压到随机临时目录，全部校验通过后再转正为正式项目目录；
-  // 任何失败（超限/缺入口/写库失败）都立即删除临时目录，不留残骸
-  const tmp = path.join(userDir, `${slug}.tmp`);
-  await fs.rm(tmp, { recursive: true, force: true });
-  await fs.mkdir(tmp, { recursive: true });
-
-  // 解压（zip）或直接落盘（单 HTML）：50 文件 / 5 层目录 / 累计 10MB 硬顶
-  // 全部校验通过后再转正为正式项目目录；任何失败都立即删除临时目录不留残骸
-  let projectBytes = 0;
-  try {
-    if (isHtmlFile) {
-      // 单文件上传：HTML 本身就是入口，直接写入 report.html
-      await fs.writeFile(path.join(tmp, "report.html"), buf);
-      projectBytes = buf.byteLength;
-    } else {
-      const result = await unzipStream(buf, tmp);
-      projectBytes = result.totalBytes;
-      // 入口文件校验
-      await fs.access(path.join(tmp, "report.html"));
-    }
-
-    // 解压后精确配额复查：存量 + 本项目 ≤ 用户总容量
-    if (used + projectBytes > MAX_USER_TOTAL_BYTES) {
-      throw new UnzipLimitError(
-        `个人存储上限 200MB（已用 ${Math.round(used / 1024 / 1024)}MB），请先删除一些报告再上传`,
+  // 配额检查 + 写盘临界区：advisory lock 串行化同一用户的并发上传，
+  // 防止并行请求各自读到旧存量而双双超额
+  return withUserStorageLock(session.user.id, async () => {
+    // 全站总量检查：≥10GB 暂停上传；≥8GB 后台预警
+    const siteTotal = await dirSizeBytes(USERS_DIR);
+    if (siteTotal >= SITE_TOTAL_CAP_BYTES) {
+      return Response.json(
+        { error: "服务器存储已达上限，上传暂停，请联系管理员" },
+        { status: 503 },
       );
     }
-  } catch (err) {
-    await fs.rm(tmp, { recursive: true, force: true });
-    if (err instanceof UnzipLimitError) {
-      return Response.json({ error: err.message }, { status: 400 });
+    if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
+      logger.warn("storage", "全站占用已达预警线", {
+        usedGB: Number((siteTotal / 1024 ** 3).toFixed(2)),
+        warnGB: 8,
+        capGB: 10,
+      });
     }
-    return Response.json(
-      { error: "文件无效或缺少 report.html（入口文件）" },
-      { status: 400 },
-    );
-  }
 
-  // 校验全部通过：临时目录转正
-  try {
-    await fs.rename(tmp, dir);
-  } catch {
+    // 用户已用容量（新项目目录尚未创建，先算存量）
+    const used = await dirSizeBytes(userDir);
+
+    const slug = `r_${randomUUID().slice(0, 8)}`;
+    const dir = path.join(userDir, slug);
+    // 先解压到随机临时目录，全部校验通过后再转正为正式项目目录；
+    // 任何失败（超限/缺入口/写库失败）都立即删除临时目录，不留残骸
+    const tmp = path.join(userDir, `${slug}.tmp`);
     await fs.rm(tmp, { recursive: true, force: true });
-    return Response.json({ error: "保存失败，请重试" }, { status: 500 });
-  }
+    await fs.mkdir(tmp, { recursive: true });
 
-  try {
-    const minRow = await db.query<{ m: number }>(
-      `SELECT COALESCE(MIN(sort_order), 0) AS m FROM reports WHERE user_id = $1`,
-      [session.user.id],
-    );
-    const sortOrder = (minRow.rows[0]?.m ?? 0) - 1;
+    // 解压（zip）或直接落盘（单 HTML）：50 文件 / 5 层目录 / 累计 10MB 硬顶
+    // 全部校验通过后再转正为正式项目目录；任何失败都立即删除临时目录不留残骸
+    let projectBytes = 0;
+    try {
+      if (isHtmlFile) {
+        // 单文件上传：HTML 本身就是入口，直接写入 report.html
+        await fs.writeFile(path.join(tmp, "report.html"), buf);
+        projectBytes = buf.byteLength;
+      } else {
+        const result = await unzipStream(buf, tmp);
+        projectBytes = result.totalBytes;
+        // 入口文件校验
+        await fs.access(path.join(tmp, "report.html"));
+      }
 
-    await db.query(
-      `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        randomUUID(),
-        session.user.id,
-        slug,
-        title,
-        date,
-        tag,
-        tagColor,
-        description,
-        keywords,
-        sortOrder,
-      ],
-    );
-  } catch (err) {
-    await fs.rm(dir, { recursive: true, force: true });
-    return Response.json(
-      { error: "保存失败，请重试" },
-      { status: 500 },
-    );
-  }
+      // 解压后精确配额复查：存量 + 本项目 ≤ 用户总容量
+      if (used + projectBytes > MAX_USER_TOTAL_BYTES) {
+        throw new UnzipLimitError(
+          `个人存储上限 200MB（已用 ${Math.round(used / 1024 / 1024)}MB），请先删除一些报告再上传`,
+        );
+      }
+    } catch (err) {
+      await fs.rm(tmp, { recursive: true, force: true });
+      if (err instanceof UnzipLimitError) {
+        return Response.json({ error: err.message }, { status: 400 });
+      }
+      return Response.json(
+        { error: "文件无效或缺少 report.html（入口文件）" },
+        { status: 400 },
+      );
+    }
 
-  return Response.json({ ok: true, slug });
+    // 校验全部通过：临时目录转正
+    try {
+      await fs.rename(tmp, dir);
+    } catch {
+      await fs.rm(tmp, { recursive: true, force: true });
+      return Response.json({ error: "保存失败，请重试" }, { status: 500 });
+    }
+
+    try {
+      const minRow = await db.query<{ m: number }>(
+        `SELECT COALESCE(MIN(sort_order), 0) AS m FROM reports WHERE user_id = $1`,
+        [session.user.id],
+      );
+      const sortOrder = (minRow.rows[0]?.m ?? 0) - 1;
+
+      await db.query(
+        `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          randomUUID(),
+          session.user.id,
+          slug,
+          title,
+          date,
+          tag,
+          tagColor,
+          description,
+          keywords,
+          sortOrder,
+        ],
+      );
+    } catch (err) {
+      await fs.rm(dir, { recursive: true, force: true });
+      return Response.json(
+        { error: "保存失败，请重试" },
+        { status: 500 },
+      );
+    }
+
+    return Response.json({ ok: true, slug });
+  });
 }

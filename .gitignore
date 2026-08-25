@@ -60,3 +60,12 @@ reports/users/
 
 # 数据库备份（含用户数据，严禁提交）
 output/backup/
+
+# Docker / 运维产物（docker-compose.override.* 为本地覆盖配置，官方约定不入库）
+docker-compose.override.yml
+docker-compose.override.yaml
+.docker/
+pgdata/
+backups/
+*.pid
+*.log

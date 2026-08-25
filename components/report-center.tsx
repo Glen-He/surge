@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
+import { EmptyState } from "@/components/empty-state";
 import type { ReportCardView as Report } from "@/lib/report-cards";
 import { tagTextColor } from "@/lib/tag-colors";
 
@@ -12,17 +13,26 @@ export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
 
 export type SortOrQuery = { q: string; sort: SortKey };
 
-// 搜索工具栏：居中；回车提交、失焦提交（无需点按钮）；叉叉清除搜索
+// 搜索工具栏：居中；即时过滤（Spotlight 式，输入停顿 300ms 自动生效），
+// 回车立即提交；叉叉清除搜索
 export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
   const [draft, setDraft] = useState("");
+  const searchRef = useRef(onSearch);
+  searchRef.current = onSearch;
+
+  // 防抖即时搜索：数据全在客户端，300ms 停顿后自动过滤
+  useEffect(() => {
+    const t = setTimeout(() => searchRef.current(draft.trim()), 300);
+    return () => clearTimeout(t);
+  }, [draft]);
 
   function submit() {
-    onSearch(draft.trim());
+    searchRef.current(draft.trim());
   }
 
   function clear() {
     setDraft("");
-    onSearch("");
+    searchRef.current("");
   }
 
   return (
@@ -48,7 +58,6 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}
-            onBlur={submit}
             autoComplete="off"
             className="h-[50px] w-full rounded-full border border-[rgba(0,0,0,0.08)] bg-white pl-10 pr-10 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
           />
@@ -219,7 +228,7 @@ function DeleteIcon({ r }: { r: Report }) {
         onClick={showModal}
         aria-label={`删除 ${r.title}`}
         title="删除项目"
-        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(224,48,30,0.08)] hover:text-[#c0261c] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(255,59,48,0.08)] hover:text-[#ff3b30] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -281,7 +290,7 @@ function DeleteIcon({ r }: { r: Report }) {
           className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] tracking-[0.2em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}
-        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#e0301e]">{error}</p>
+        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
         <div className="mt-3 flex justify-end gap-2.5">
           <button
             type="button"
@@ -352,7 +361,7 @@ function ReportCard({
               {r.date}
             </span>
           </div>
-          <h2 className="mt-2.5 line-clamp-2 text-[17px] font-semibold leading-[1.3] tracking-tight text-[#1d1d1f]">
+          <h2 className="mt-2.5 line-clamp-2 text-[18px] font-semibold leading-[1.3] tracking-tight text-[#1d1d1f]">
             {r.title}
           </h2>
           <p className="mt-1.5 line-clamp-3 text-[13px] leading-normal text-[#6e6e73]">
@@ -363,8 +372,9 @@ function ReportCard({
           查看报告
         </div>
       </Link>
-      <ShareIcon r={r} />
+      {/* 源码顺序 = Tab 顺序，刻意与视觉从左到右一致（删除 → 分享 → 编辑） */}
       <DeleteIcon r={r} />
+      <ShareIcon r={r} />
       <Link
         href={`/edit/${r.slug}`}
         draggable={false}
@@ -483,17 +493,19 @@ export function ReportList({
   return (
     <div className="mt-16">
       {list.length === 0 && (
-        <div className="py-16 text-center text-[#6e6e73]">
-          <div className="mb-2.5 text-4xl">🔎</div>
-          没有找到匹配的报告，试试其他关键词或分类
-        </div>
+        <EmptyState
+          icon="search"
+          title="没有找到匹配的报告"
+          hint="试试其他关键词或分类"
+        />
       )}
 
       {groups.map((m) => (
         <section key={m.key} className="mb-10">
-          <h3 className="mb-10 flex items-center gap-3 text-[18px] font-semibold text-[#1d1d1f]">
+          {/* 月份分组标题：小字次级色（苹果日历模式——分组标题弱于内容标题） */}
+          <h3 className="mb-10 flex items-center gap-3 text-[15px] font-medium text-[#6e6e73]">
             {monthLabel(m.key)}
-            <span className="text-[13px] font-medium text-[#6e6e73]">
+            <span className="text-[13px] font-medium text-[#a1a1a6]">
               {m.days.reduce((n, d) => n + d.items.length, 0)} 份
             </span>
             <span className="h-px flex-1 bg-[rgba(0,0,0,0.08)]" />
