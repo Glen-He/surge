@@ -1,4 +1,10 @@
-import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from "crypto";
+import {
+  createHash,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+  timingSafeEqual,
+} from "crypto";
 
 // ── 报告 capability（/r/<cap>/ 虚拟目录的访问凭证）──
 //
@@ -17,6 +23,11 @@ import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from "crypto";
 // payload 带版本前缀（v1），格式变更时升 v2 即可平滑淘汰旧 token。
 
 const CAP_TTL_SEC = 6 * 60 * 60; // 6h：资源集中在初始加载，无需长 TTL
+// 签发时间按小时取整：同一报告在同一时间窗内返回/重载时
+// 获得稳定 URL，浏览器才能复用已验证的私有资源缓存。实际寿命
+// 仍被限制在 5–6 小时，更换报告文件或撤销分享会轮换 URL 中的
+// revision/epoch，不会命中旧资源。
+const CAP_BUCKET_SEC = 60 * 60;
 const VERSION = "v1";
 const SCOPE = "read";
 
@@ -68,12 +79,48 @@ export function issueCapability(
   epoch: number,
   maxExpiresSec?: number,
 ): string {
-  let expires = Math.floor(Date.now() / 1000) + CAP_TTL_SEC;
+  const now = Math.floor(Date.now() / 1000);
+  let expires = Math.floor(now / CAP_BUCKET_SEC) * CAP_BUCKET_SEC + CAP_TTL_SEC;
   if (maxExpiresSec !== undefined) {
     expires = Math.min(expires, maxExpiresSec);
   }
   const payload = `${VERSION}.${SCOPE}.${reportId}.${revisionId}.${epoch}.${expires}`;
   return `${Buffer.from(payload).toString("base64url")}.${capHmac(payload)}`;
+}
+
+/**
+ * 报告子资源的强 ETag。revision 保证应用内更换文件时必然变化；
+ * size/mtime 让平台内置资源在发布替换后也不会误返 304。哈希避免
+ * 在响应头里暴露磁盘路径或 revision 原值。
+ */
+export function reportResourceEtag(
+  revisionId: string,
+  relativePath: string,
+  size: number,
+  mtimeMs: number,
+): string {
+  const digest = createHash("sha256")
+    .update(revisionId)
+    .update("\0")
+    .update(relativePath)
+    .update("\0")
+    .update(String(size))
+    .update("\0")
+    .update(String(Math.trunc(mtimeMs)))
+    .digest("base64url");
+  return `"${digest}"`;
+}
+
+/** If-None-Match 可包含多个值或弱校验器；GET 重验证时均可命中。 */
+export function requestMatchesEtag(
+  ifNoneMatch: string | null,
+  etag: string,
+): boolean {
+  if (!ifNoneMatch) return false;
+  return ifNoneMatch.split(",").some((candidate) => {
+    const value = candidate.trim();
+    return value === "*" || value === etag || value === `W/${etag}`;
+  });
 }
 
 export type CapabilityGrant = {

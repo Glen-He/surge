@@ -28,13 +28,19 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
   <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
   图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
 
-四、设计
-整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，图片内联或放文件夹里相对引用。配色、布局、信息组织方式由你决定，充分发挥。
+四、图片与性能
+1. 照片、界面截图等优先转为 WebP（建议质量 80–85），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
+2. 首屏主图可设 fetchpriority="high"；首屏以外的图片使用 loading="lazy" decoding="async"，并写明 width/height 或 aspect-ratio，避免解码时反复重排。
+3. 图片切换/轮播默认只加载当前图；首屏完成后只预加载前后相邻图片，切换前等待 img.decode()，不要一次性预加载所有大图。
+4. 大图保持独立文件并用相对路径引用，不要把大图转为 base64/data URI 塞进 HTML 或 data.js。
 
-五、内容
+五、设计
+整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，小型图标可用内联 SVG，位图放文件夹里相对引用。配色、布局、信息组织方式由你决定，充分发挥。
+
+六、内容
 汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
 
-六、交付
+七、交付
 生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。`;
 
 const ICON_BACK = (
@@ -271,6 +277,10 @@ function GuideContent() {
           <NoteRow icon="info">
             上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
           </NoteRow>
+          <NoteRow icon="info">
+            多图页优先使用 WebP 并按展示尺寸缩放；首屏外图片设置 loading=&quot;lazy&quot;
+            和 decoding=&quot;async&quot;，切换画廊只预加载相邻图，不要一次载入全部大图。
+          </NoteRow>
           <NoteRow icon="lock">
             不要引用文件夹外部或网络上的资源（CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
           </NoteRow>
@@ -310,7 +320,7 @@ function GuideContent() {
             />
             <FaqTile
               q="图片能放吗？"
-              a="能。文件夹里的图片文件（相对路径引用）和内联 SVG、data URI 都能正常显示；只有文件夹外部和网络上的图片不会加载。"
+              a="能。文件夹里的图片用相对路径引用；照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。文件夹外部和网络图片不会加载。"
             />
             <FaqTile
               q="生成效果不满意？"
