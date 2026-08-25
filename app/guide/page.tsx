@@ -29,7 +29,7 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
   图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
 
 四、图片与性能
-1. 照片、界面截图等优先转为 WebP（建议质量 80–85），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
+1. 照片、界面截图等优先转为 WebP（建议质量 90–95），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
 2. 首屏主图可设 fetchpriority="high"；首屏以外的图片使用 loading="lazy" decoding="async"，并写明 width/height 或 aspect-ratio，避免解码时反复重排。
 3. 图片切换/轮播默认只加载当前图；首屏完成后只预加载前后相邻图片，切换前等待 img.decode()，不要一次性预加载所有大图。
 4. 大图保持独立文件并用相对路径引用，不要把大图转为 base64/data URI 塞进 HTML 或 data.js。
@@ -41,7 +41,8 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
 
 七、交付
-生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。`;
+生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。
+平台上传上限：压缩包或单 HTML 不超过 50MB、解压后全部文件总大小不超过 100MB、文件总数不超过 50 个、目录深度不超过 5 层；所有项目合计存储上限 2GB。`;
 
 const ICON_BACK = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[15px] w-[15px]">
@@ -76,28 +77,28 @@ function NoteRow({
   const icons = {
     // 信息
     info: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[15px] w-[15px] shrink-0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[13px] w-[13px] shrink-0 translate-y-[3px]">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8h.01M12 12v4" />
       </svg>
     ),
     // 上传
     upload: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px] shrink-0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[13px] w-[13px] shrink-0 translate-y-[3px]">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <path d="m7 10 5-5 5 5M12 5v10" />
       </svg>
     ),
     // 锁
     lock: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px] shrink-0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[13px] w-[13px] shrink-0 translate-y-[3px]">
         <rect x="4" y="11" width="16" height="10" rx="2" />
         <path d="M8 11V7a4 4 0 0 1 8 0v4" />
       </svg>
     ),
   } as const;
   return (
-    <div className="mt-3 flex items-start gap-2.5 text-[13px] leading-[1.65] text-[#6e6e73]">
+    <div className="mt-3 flex items-start gap-2.5 text-[13px] leading-[19px] text-[#6e6e73]">
       {icons[icon]}
       <span>{children}</span>
     </div>
@@ -148,30 +149,58 @@ function CopyButton() {
 /** 流程节点 */
 function FlowNode({ t, d }: { t: string; d: string }) {
   return (
-    <div className="flex flex-col rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-[18px]">
+    <div className="flex flex-col rounded-lg bg-[#f7f7f7] px-5 py-[18px] shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
       <div className="text-[14px] font-[650] text-[#1d1d1f]">{t}</div>
       <div className="mt-[5px] text-[12.5px] leading-[1.6] text-[#6e6e73]">{d}</div>
     </div>
   );
 }
 
-/** 上传之后 / 使用方式的功能块 */
+/** 使用节点：上传之后的 2x2 子卡 */
 function UsageNode({ t, d }: { t: string; d: string }) {
   return (
-    <div className="rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
+    <div className="rounded-lg bg-[#f7f7f7] px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
       <div className="text-[14px] font-[650] text-[#1d1d1f]">{t}</div>
       <div className="mt-[5px] text-[12.5px] leading-[1.7] text-[#6e6e73]">{d}</div>
     </div>
   );
 }
 
-/** 问答块：问题一行 + 答案独立段落，浅色底块分隔（不用分割线） */
-function FaqTile({ q, a }: { q: string; a: React.ReactNode }) {
+/** FAQ：点击问题展开/收起答案（原生 details/summary，零 JS，兼容无脚本）。
+ *  不用卡片包裹，整节靠条目间距分隔，符合"不加分割线、用留白"的全站规则。
+ *  左侧序号与问题同色，右对齐占两位数字宽（最多 2 位数），与问题文字
+ *  仅隔 6px；箭头紧跟问题文字（间距 8px），展开时向下旋转 90°；
+ *  summary 禁用 marker（自定义箭头），Safari/iOS 下需要明确 list-style: none。
+ */
+function FaqTile({ no, q, a }: { no: number; q: string; a: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
-      <p className="m-0 text-[14px] font-[650] text-[#1d1d1f]">{q}</p>
-      <p className="m-0 mt-1.5 text-[13px] leading-[1.7] text-[#6e6e73]">{a}</p>
-    </div>
+    <details className="group block">
+      <summary
+        className="flex cursor-pointer list-none items-center gap-2.5 py-4 text-[14px] font-[600] leading-[1.5] text-[#1d1d1f] [&::-webkit-details-marker]:hidden"
+        style={{ listStyle: "none" }}
+      >
+        <span className="w-[18px] shrink-0 text-right tabular-nums">
+          {no}.
+        </span>
+        <span>{q}</span>
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="ml-1 h-[13px] w-[13px] shrink-0 text-[#86868b] transition-transform duration-200 ease-out group-open:rotate-90"
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </summary>
+      {/* 答案缩进 = 序号槽 18px + 间距 10px（gap-2.5），与问题文字精确对齐 */}
+      <div className="pb-5 pl-[28px] text-[13px] leading-[1.75] text-[#6e6e73]">
+        {a}
+      </div>
+    </details>
   );
 }
 
@@ -209,7 +238,7 @@ function GuideContent() {
         </div>
 
         {/* 1 制作流程 */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+        <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={1}>制作流程</SectionTitle>
           <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-[1fr_28px_1fr_28px_1fr] md:gap-0">
             <FlowNode t="① 发模板给 AI" d="复制下方模板发给任意 AI：聊天 AI 可在结尾接上你的素材；办公 AI 直接发即可" />
@@ -221,14 +250,14 @@ function GuideContent() {
         </section>
 
         {/* 2 Prompt */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+        <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={2}>Prompt</SectionTitle>
           {/* 两个用法卡间距与到下方模板的间距一致（均 24px） */}
           <div className="-mt-3 mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
             <UsageNode t="在聊天 AI 里用" d="复制模板，在结尾接上你的工作素材一起发送" />
             <UsageNode t="在办公 AI 里用" d="直接把模板发给它，它已经掌握你的工作文档，无需再贴材料" />
           </div>
-          <div className="overflow-hidden rounded-xl border border-[#e8e8ed] bg-[#f9f9fb]">
+          <div className="overflow-hidden rounded-lg bg-[#f7f7f7] shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
             <div className="flex items-center justify-between px-5 py-3">
               <span className="text-[12.5px] font-semibold text-[#6e6e73]">汇报页生成模板</span>
               <CopyButton />
@@ -246,7 +275,7 @@ function GuideContent() {
         </section>
 
         {/* 3 文件结构与上传 */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+        <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={3}>文件结构与上传</SectionTitle>
           <p className="-mt-3 mb-6 text-[13px] leading-[1.7] text-[#6e6e73]">
             AI 生成的是一个文件夹，主文件是 report.html，可能还带 data.js、图片等辅助文件。上传支持两种方式，按产物选择即可：
@@ -259,7 +288,7 @@ function GuideContent() {
             （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录；
             echarts.min.js 不用压进去，平台已有内置版本）。
           </p>
-          <div className="rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
+          <div className="rounded-lg bg-[#f7f7f7] px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
             <pre className="m-0 overflow-x-auto font-mono text-[12.5px] leading-[2] whitespace-pre text-[#1d1d1f]">
 {`汇报文件夹
 ├── `}
@@ -271,15 +300,8 @@ function GuideContent() {
 └── …              ← 可选：包内文件用相对路径随意引用，都会正常加载`}
             </pre>
           </div>
-          <NoteRow icon="upload">
-            压缩包里不要包含 echarts.min.js——平台已内置，压进去会白白占用上传配额。
-          </NoteRow>
           <NoteRow icon="info">
             上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
-          </NoteRow>
-          <NoteRow icon="info">
-            多图页优先使用 WebP 并按展示尺寸缩放；首屏外图片设置 loading=&quot;lazy&quot;
-            和 decoding=&quot;async&quot;，切换画廊只预加载相邻图，不要一次载入全部大图。
           </NoteRow>
           <NoteRow icon="lock">
             不要引用文件夹外部或网络上的资源（CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
@@ -287,7 +309,7 @@ function GuideContent() {
         </section>
 
         {/* 4 上传之后 */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+        <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={4}>上传之后</SectionTitle>
           {/* grid-auto-rows:1fr 四卡等高，自动适配内容最多的那张 */}
           <div className="grid grid-auto-rows-[1fr] grid-cols-1 gap-4 md:grid-cols-2">
@@ -311,24 +333,51 @@ function GuideContent() {
         </section>
 
         {/* 5 常见问题 */}
-        <section className="rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+        <section className="rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={5}>常见问题</SectionTitle>
-          <div className="flex flex-col gap-3">
+          {/* overflow-anchor:none：把 FAQ 列表排除出浏览器滚动锚定候选。
+              否则展开某条时，下方条目被选作锚点又被推下，浏览器为保持
+              锚点不动会自动下滚，导致被点击的条目向上跳动 */}
+          <div className="flex flex-col [overflow-anchor:none]">
             <FaqTile
+              no={1}
               q="图表怎么画？"
               a="简单图形让 AI 用内联 SVG 或 HTML + CSS 画；折线、柱状、饼图等数据图表用 ECharts，模板里已写好两行 script 的引入方式。"
             />
             <FaqTile
+              no={2}
               q="图片能放吗？"
               a="能。文件夹里的图片用相对路径引用；照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。文件夹外部和网络图片不会加载。"
             />
             <FaqTile
+              no={3}
               q="生成效果不满意？"
               a="直接在对话里继续提要求让 AI 改（「卡片间距大一点」「换一种图表」），改到满意再上传最终版；在项目编辑页可以随时更换文件。"
             />
             <FaqTile
+              no={4}
               q="上传后页面空白？"
-              a="zip 上传优先检查 report.html 是否在压缩包根目录、文件名是否正确；再检查辅助文件的相对路径引用是否有效。"
+              a="zip 上传优先检查 report.html 是否在压缩包根目录、文件名是否正确；再检查辅助文件的相对路径引用是否有效。如果打 zip 时把整个文件夹包了一层（report.html 变成 文件名/report.html），就会出现空白。"
+            />
+            <FaqTile
+              no={5}
+              q="单文件上传 HTML 后，图片 / 数据文件全裂了？"
+              a="单 HTML 上传只适合脚本、样式、图片全部内联在 HTML 里的独立页面。如果页面还引用了 data.js、images/ 等外部子文件，就必须选中所有文件打包成 zip 一起上传。"
+            />
+            <FaqTile
+              no={6}
+              q="新建项目时名称 / 关键词 / 简介被提示「xx 字内」，计数规则是什么？"
+              a="按「汉字计 1、半角字母数字和英文标点数 0.5」，这样 20 字上限能放 20 个汉字或 40 个半角字符。标签按纯字数计数（汉字和字母都算 1）。输入超限不会被截断，但提交会被拦截，实时提示里会显示错误。"
+            />
+            <FaqTile
+              no={7}
+              q="上传提示「容量不足」？"
+              a="单次压缩包上限 50MB、解压后 100MB、50 个文件；每个用户所有项目合计存储上限 2GB。超限后先在首页删除不再需要的旧报告即可释放空间。"
+            />
+            <FaqTile
+              no={8}
+              q="图片裂了，本地预览正常但上传后有几张加载不出来？"
+              a="检查路径写法：用 ./images/a.png 这种相对路径，不要以 / 开头（会被解析到平台根目录而非你报告文件夹下）；文件名不要包含中文以外的特殊字符；文件夹外和网络外链图片不会加载。"
             />
           </div>
         </section>

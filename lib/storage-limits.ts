@@ -8,7 +8,7 @@ export const MAX_FILES = 50;
 /** 目录深度上限 */
 export const MAX_DEPTH = 5;
 /** 单用户总存储上限 */
-export const MAX_USER_TOTAL_BYTES = 200 * 1024 * 1024;
+export const MAX_USER_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
 /** 全站所有用户文件总存储上限：达到即暂停上传 */
 export const SITE_TOTAL_CAP_BYTES = 10 * 1024 * 1024 * 1024;
 /** 全站预警线：达到即记录后台警告 */
