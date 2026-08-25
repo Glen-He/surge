@@ -14,7 +14,7 @@ import { logger } from "@/lib/logger";
  * secret 轮换、代理改写等），只记录 cookie 名，绝不打印值。
  *
  * 注意：仅供页面/RSC 使用（redirect 对 API 路由无意义）；
- * API 路由请自行 `auth.api.getSession` 判空后返回 401。
+ * API 路由统一使用 `getApiSession()` 并在判空后返回 401。
  */
 export async function requireSession() {
   const hs = await headers();

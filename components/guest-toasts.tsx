@@ -121,6 +121,8 @@ export function GuestToasts() {
   const [showExpired, setShowExpired] = useState(false);
 
   useEffect(() => {
+    let nextWelcome: number | null = null;
+    let nextExpired = false;
     // 欢迎卡：游客登录成功整页跳转前落的标记，落到 /home 后展示。
     // 只在 /home 路径下展示：Safari cookie 时序下跳转可能被 307 弹回登录页，
     // 此时静默丢弃标记，避免「提示登录成功人却还在登录页」的误导。
@@ -130,7 +132,7 @@ export function GuestToasts() {
         sessionStorage.removeItem(WELCOME_KEY);
         if (window.location.pathname.startsWith("/home")) {
           const n = Number(raw);
-          setWelcomeTtl(Number.isFinite(n) && n > 0 ? n : 60);
+          nextWelcome = Number.isFinite(n) && n > 0 ? n : 60;
         }
       }
     } catch {
@@ -146,8 +148,13 @@ export function GuestToasts() {
         "",
         `${window.location.pathname}${rest ? `?${rest}` : ""}`,
       );
-      setShowExpired(true);
+      nextExpired = true;
     }
+    const timer = window.setTimeout(() => {
+      if (nextWelcome !== null) setWelcomeTtl(nextWelcome);
+      if (nextExpired) setShowExpired(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -214,6 +221,8 @@ export function GuestSessionWatcher({ expiresAt }: { expiresAt: string }) {
       } catch {
         /* 网络失败也照样跳，服务端页面级拦截会兜底 */
       }
+      // A full request makes the server observe the cleared guest cookie.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/?guestExpired=1");
     }
 

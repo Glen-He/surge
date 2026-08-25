@@ -1,14 +1,11 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { getReportsByUser, reorderReports } from "@/lib/reports-db";
 
 export const dynamic = "force-dynamic";
 
 // 拖拽调序持久化：{ slugs: string[] } 为该用户全部项目的完整顺序
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

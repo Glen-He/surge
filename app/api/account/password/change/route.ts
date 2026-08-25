@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { passwordPolicyError } from "@/lib/password-policy";
 import {
   consumeChangeToken,
-  getChangeToken,
   logSecurity,
 } from "@/lib/account";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // 设置新密码：必须携带 password_change_token
 // 成功后撤销其他设备的会话（当前设备保持登录）
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
@@ -29,8 +29,9 @@ export async function POST(req: Request) {
     return Response.json({ error: pwdError }, { status: 400 });
   }
 
-  const change = await getChangeToken(token, session.user.id, "password_change");
-  if (!change) {
+  // Claim before mutating credentials: concurrent retries cannot reuse the same
+  // identity proof. A downstream failure requires re-verification by design.
+  if (!(await consumeChangeToken(token, session.user.id))) {
     return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
   }
 
@@ -38,9 +39,6 @@ export async function POST(req: Request) {
   const context = await auth.$context;
   const passwordHash = await context.password.hash(newPassword);
   await context.internalAdapter.updatePassword(session.user.id, passwordHash);
-
-  // 一次性 token 立即作废
-  await consumeChangeToken(token, session.user.id);
 
   // 其他设备会话失效，当前设备保持登录
   try {

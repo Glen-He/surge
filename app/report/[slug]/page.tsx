@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getReportBySlug } from "@/lib/reports-db";
 import { requireSession } from "@/lib/session";
+import { issueCapability } from "@/lib/report-capability";
 import { ReportShareButton } from "@/components/report-share-button";
 import { ReportFrame } from "@/components/report-frame";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
@@ -9,9 +10,10 @@ import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 
 export const dynamic = "force-dynamic";
 
-// 报告查看器（登录态）：只负责系统头（标题/分享/返回），
-// 报告本体统一由 /api/reports/[slug]/page 以完整文档返回，
-// 在 sandbox iframe（opaque origin）内渲染——用户 HTML 绝不进入主站 DOM。
+// 报告查看器（登录态）：只负责系统头（标题/分享/返回）+ 签发 capability。
+// 报告本体经 /r/<cap>/ 虚拟目录原样输出（capability 即 iframe 及其子资源
+// 的访问凭证，见 lib/report-capability.ts），在 sandbox iframe
+// （opaque origin）内渲染——用户 HTML 绝不进入主站 DOM。
 export default async function ReportPage({
   params,
 }: {
@@ -54,7 +56,10 @@ export default async function ReportPage({
         文档响应另带 CSP（sandbox allow-scripts 等）作为第二道防线。
         iframe 随报告内容自适应高度，本页整体滚动（头部随内容一起滚走）。
       */}
-      <ReportFrame src={`/api/reports/${slug}/page`} title={report.title} />
+      <ReportFrame
+        src={`/r/${issueCapability(report.id, report.revision_id, report.capability_epoch)}/report.html`}
+        title={report.title}
+      />
       {guestExpiry && (
         <GuestSessionWatcher expiresAt={guestExpiry.toISOString()} />
       )}

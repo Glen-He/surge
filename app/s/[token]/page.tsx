@@ -1,14 +1,19 @@
-import { cookies } from "next/headers";
-import { findValidShare, unlockProof } from "@/lib/shares";
+import { cookies, headers } from "next/headers";
+import { findValidShare, unlockProof, shouldCountView, incrementShareView } from "@/lib/shares";
+import { clientIp } from "@/lib/client-ip";
+import { issueCapability } from "@/lib/report-capability";
 import { SharePasswordGate } from "./password-gate";
 import { ReportFrame } from "@/components/report-frame";
+import { after } from "next/server";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 // 分享落地页（无需登录）：
 // - token 无效 / 已撤销 / 已过期 → 失效提示页
 // - 有密码且未解锁 → 密码门（客户端组件）
-// - 其余 → 标题栏 + sandbox iframe（报告脚本在隔离源执行，见安全注释）
+// - 其余 → 验证通过后签发 capability，iframe 指向 /r/<cap>/report.html
+//   （runtime 只认 capability，不知道访问者是谁）
 export default async function SharePage({
   params,
 }: {
@@ -44,6 +49,16 @@ export default async function SharePage({
     }
   }
 
+  // 浏览量统计（密码通过后）：同 IP 同 token 1 小时内只计 1 次（防刷）
+  const ip = clientIp(await headers());
+  if (shouldCountView(token, ip)) {
+    after(async () => {
+      await incrementShareView(token).catch((error) => {
+        logger.warn("share-view", "浏览量记录失败", error as Error);
+      });
+    });
+  }
+
   return (
     <>
       {/* 系统级报告头：与登录态查看页（/report/[slug]）完全一致的 1280px 头部，
@@ -63,7 +78,19 @@ export default async function SharePage({
         读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
         文档响应另带 CSP（connect-src 'none' 等）作为第二道防线。
       */}
-      <ReportFrame src={`/api/share/${token}/page`} title={found.reportTitle} />
+      {/* capability 到期时间 clamp 到分享自身截止时间：分享 18:00 到期时，
+          17:59 签出的 capability 不会活过 18:00 */}
+      <ReportFrame
+        src={`/r/${issueCapability(
+          found.reportId,
+          found.revisionId,
+          found.capabilityEpoch,
+          found.share.expires_at
+            ? Math.floor(found.share.expires_at.getTime() / 1000)
+            : undefined,
+        )}/report.html`}
+        title={found.reportTitle}
+      />
     </>
   );
 }

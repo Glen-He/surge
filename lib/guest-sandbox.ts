@@ -3,12 +3,19 @@ import { promises as fs } from "fs";
 import path from "node:path";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
+import { newRevisionId } from "./report-capability";
+import {
+  REPORT_DEMO_TEMPLATES_DIR,
+  dirSizeBytes,
+  userReportsDir,
+} from "./report-storage";
+import { deleteUserPermanently } from "./account-deletion";
+import { logger } from "./logger";
 
 export const GUEST_EMAIL_DOMAIN = "demo.surge";
 export const GUEST_TTL_MINUTES = 60;
 
-const DEMO_TEMPLATES_DIR = path.join(process.cwd(), "reports", "demo-templates");
-const USERS_DIR = path.join(process.cwd(), "reports", "users");
+const DEMO_TEMPLATES_DIR = REPORT_DEMO_TEMPLATES_DIR;
 
 export interface DemoTemplate {
   tplDir: string; // tpl-01..05 under reports/demo-templates
@@ -90,7 +97,7 @@ export function guestOtpResponse(email: string, code: string, ttlSec = 600) {
 
 export async function seedDemoReports(userId: string): Promise<void> {
   await ensureOtpMigration();
-  const userDir = path.join(USERS_DIR, userId);
+  const userDir = userReportsDir(userId);
   await fs.mkdir(userDir, { recursive: true });
 
   // 按照 sort_order 顺序灌入（日期倒序 + 同一日期按 DEMO_TEMPLATES 顺序），与其他真实用户一致。
@@ -113,12 +120,13 @@ export async function seedDemoReports(userId: string): Promise<void> {
     }
     try {
       await db.query(
-        `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           randomUUID(),
           userId,
           slug,
+          newRevisionId(),
           t.title,
           t.date,
           t.tag,
@@ -148,52 +156,33 @@ export async function createGuestSessionRecord(userId: string, ttlMinutes = GUES
 }
 
 export async function destroyGuestUser(userId: string): Promise<void> {
-  // 删除用户（CASCADE 会连带 session / reports / account_changes / otp_codes / guest_sessions）
-  try {
-    await db.query(`DELETE FROM "user" WHERE id = $1`, [userId]);
-  } catch (_) { /* user 可能已被级联删 */ }
-
-  // 清理磁盘沙箱目录（reports/users/{userId}）
-  const dir = path.join(USERS_DIR, userId);
-  try {
-    await fs.rm(dir, { recursive: true, force: true, maxRetries: 2 });
-  } catch (_) { /* ignore */ }
+  await deleteUserPermanently(userId, "guest");
 }
 
 export async function purgeStaleGuests(): Promise<{ removed: number }> {
   await ensureOtpMigration();
   const stale = await db.query<{ user_id: string }>(
-    `SELECT user_id FROM guest_sessions WHERE expires_at < NOW() FOR UPDATE SKIP LOCKED`,
+    `SELECT user_id FROM guest_sessions
+     WHERE expires_at < NOW()
+     ORDER BY expires_at ASC
+     LIMIT 100`,
   );
   if (!stale.rows.length) return { removed: 0 };
+  let removed = 0;
   for (const r of stale.rows) {
-    await destroyGuestUser(r.user_id);
-  }
-  return { removed: stale.rows.length };
-}
-
-// ── 工具：递归统计目录字节数（用户容量配额共用）──
-
-export async function dirSizeBytes(dir: string): Promise<number> {
-  try {
-    const stack = [dir];
-    let total = 0;
-    while (stack.length) {
-      const cur = stack.pop()!;
-      const entries = await fs.readdir(cur, { withFileTypes: true });
-      for (const ent of entries) {
-        const p = path.join(cur, ent.name);
-        if (ent.isDirectory()) stack.push(p);
-        else {
-          try { total += (await fs.stat(p)).size; } catch { /* ignore */ }
-        }
-      }
+    try {
+      await destroyGuestUser(r.user_id);
+      removed += 1;
+    } catch (error) {
+      logger.error("guest-cleanup", "清理过期访客失败，继续处理其他访客", error as Error, {
+        userId: r.user_id,
+      });
     }
-    return total;
-  } catch {
-    return 0;
   }
+  return { removed };
 }
+
+export { dirSizeBytes };
 
 // ── 工具：判断访客会话是否已过期（创建起 60 分钟，不续期）──
 
