@@ -99,7 +99,7 @@ function monthLabel(key: string): string {
   return `${y} 年 ${parseInt(m, 10)} 月`;
 }
 
-// 新建项目圆形按钮：52px 蓝圆白＋（SVG 双线 24px stroke 2.5），
+// 新建项目圆形按钮：52px 苹果黑圆白＋（SVG 双线 24px stroke 2.5），
 // hover 放大 1.03 + ＋ 旋转 90° + 轻阴影（200ms ease-out），按压缩到 0.96；
 // 胶囊 Tooltip 在按钮下方（白底深字 + 细边框轻阴影），延迟 60ms 滤掉
 // 快速划过、随后 150ms 淡入；移出立即消失
@@ -109,7 +109,7 @@ function NewProjectButton() {
       <Link
         href="/new-report"
         aria-label="新建项目"
-        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[#0071e3] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] active:scale-[0.96]"
+        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[#1d1d1f] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.16)] active:scale-[0.96]"
       >
         <svg
           viewBox="0 0 24 24"
