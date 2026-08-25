@@ -75,7 +75,7 @@ export function renderReportDoc(html: string): string {
   const injectStyle =
     '<style>html{scrollbar-width:none}html::-webkit-scrollbar{display:none}</style>';
   const injectScript =
-    '<script>(function(){function send(){var d=document.documentElement,b=document.body;var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);if(!h)return;try{if(window.parent!==window)window.parent.postMessage({__surgeReportHeight:h},"*")}catch(e){}}send();window.addEventListener("load",send);window.addEventListener("resize",send);if(window.ResizeObserver&&document.documentElement){try{new ResizeObserver(send).observe(document.documentElement)}catch(e){}}setTimeout(send,300);setTimeout(send,1500)})();</script>';
+    '<script>(function(){var queued=false,last=0;function measure(){queued=false;var d=document.documentElement,b=document.body;var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);if(!h||h===last)return;last=h;try{if(window.parent!==window)window.parent.postMessage({__surgeReportHeight:h},"*")}catch(e){}}function send(){if(queued)return;queued=true;if(window.requestAnimationFrame)requestAnimationFrame(measure);else setTimeout(measure,16)}send();window.addEventListener("load",send);window.addEventListener("resize",send);if(window.ResizeObserver&&document.documentElement){try{new ResizeObserver(send).observe(document.documentElement)}catch(e){}}setTimeout(send,300);setTimeout(send,1500)})();</script>';
   if (/<head[^>]*>/i.test(html)) {
     html = html.replace(/<head[^>]*>/i, (m) => m + injectStyle);
   } else {
