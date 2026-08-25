@@ -268,7 +268,7 @@ function GuideContent() {
             压缩包里不要包含 echarts.min.js——平台已内置，压进去会白白占用上传配额。
           </NoteRow>
           <NoteRow icon="info">
-            上限：上传文件 5MB（HTML 或 zip）、解压后 10MB、50 个文件、目录 5 层。
+            上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
           </NoteRow>
           <NoteRow icon="lock">
             不要引用文件夹外部或网络上的资源（CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。

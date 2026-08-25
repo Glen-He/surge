@@ -116,7 +116,7 @@ export default async function ApiUsagePage() {
             {[
               { f: "title", req: true, d: "汇报名称，最长 20 字（汉字算 1、字母算 0.5）" },
               { f: "date", req: true, d: "汇报日期，格式 YYYY-MM-DD" },
-              { f: "file", req: true, d: "report.html 或 zip 压缩包，最大 5MB；zip 解压后 ≤10MB、≤50 个文件、≤5 层目录" },
+              { f: "file", req: true, d: "report.html 或 zip 压缩包，最大 50MB；zip 解压后 ≤100MB、≤50 个文件、≤5 层目录" },
               { f: "tag", req: false, d: "标签，最长 6 字" },
               { f: "tagColor", req: false, d: "标签颜色（色板值，可选）" },
               { f: "description", req: false, d: "简介，最长 200 字" },

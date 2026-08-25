@@ -68,7 +68,7 @@ export function isHtmlUpload(file: { name: string; type: string }): boolean {
 }
 
 function assertFileSize(buf: Buffer): string | null {
-  if (buf.byteLength > MAX_ZIP_BYTES) return "文件超过 5MB 上限";
+  if (buf.byteLength > MAX_ZIP_BYTES) return "文件超过 50MB 上限";
   return null;
 }
 

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // 认证：Authorization: Bearer sgk_xxx（账号设置页创建）
 // 请求：multipart 表单，字段与网页上传一致
 //   title*(≤20字) date*(YYYY-MM-DD) tag(≤6字) tagColor(色板值)
-//   description(≤200字) keywords(≤50字) file*(HTML 或 zip，≤5MB)
+//   description(≤200字) keywords(≤50字) file*(HTML 或 zip，≤50MB)
 // 响应：{ ok: true, slug }；错误 { error } + 状态码
 //
 // 上传业务与网页端共用 lib/report-upload.ts（同一套校验/配额/锁）
