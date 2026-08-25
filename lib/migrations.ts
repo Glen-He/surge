@@ -118,7 +118,54 @@ const BASELINE: Migration = {
   ],
 };
 
-const MIGRATIONS: Migration[] = [BASELINE];
+// ── v2：api_tokens（程序化上传 API 的个人访问令牌）──
+// 令牌明文仅创建瞬间展示一次，库里只存 scrypt 哈希；
+// 撤销用 revoked_at 软删除；last_used_at 供用户在设置页查看
+const API_TOKENS: Migration = {
+  version: 2,
+  name: "api-tokens",
+  statements: [
+    `CREATE TABLE IF NOT EXISTS api_tokens (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL DEFAULT '',
+      token_hash   TEXT NOT NULL UNIQUE,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at   TIMESTAMPTZ
+    )`,
+    `CREATE INDEX IF NOT EXISTS api_tokens_user
+      ON api_tokens (user_id) WHERE revoked_at IS NULL`,
+  ],
+};
+
+const MIGRATIONS: Migration[] = [BASELINE, API_TOKENS];
+
+// ── v3：令牌改为可再次查看（AES-GCM 加密存储）──
+// token_hash 是单向 scrypt，无法还原明文 → 加 token_enc 列存密文；
+// 存量哈希令牌（本功能刚上线，仅测试数据）直接作废
+const API_TOKEN_ENC: Migration = {
+  version: 3,
+  name: "api-token-enc",
+  statements: [
+    `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_enc TEXT`,
+    `UPDATE api_tokens SET token_enc = '', revoked_at = NOW()
+      WHERE token_enc IS NULL`,
+    `ALTER TABLE api_tokens ALTER COLUMN token_enc SET NOT NULL`,
+  ],
+};
+
+MIGRATIONS.push(API_TOKEN_ENC);
+
+// ── v4：删除废弃的 token_hash 列（v2 遗留，NOT NULL + UNIQUE，
+// 与空串占位冲突且已无用途——令牌改存 token_enc）──
+const API_TOKEN_DROP_HASH: Migration = {
+  version: 4,
+  name: "api-token-drop-hash",
+  statements: [`ALTER TABLE api_tokens DROP COLUMN IF EXISTS token_hash`],
+};
+
+MIGRATIONS.push(API_TOKEN_DROP_HASH);
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;

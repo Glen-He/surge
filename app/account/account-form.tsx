@@ -8,6 +8,7 @@ import { EmailChangeModal } from "./email-change-modal";
 import { PasswordChangeModal } from "./password-change-modal";
 import { SignOutModal } from "./sign-out-modal";
 import { DeleteAccountModal } from "./delete-account-modal";
+import { ApiTokensCard } from "./api-tokens-card";
 
 /** 访客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
 function GuestCountdown({ expiresAt }: { expiresAt: string }) {
@@ -271,6 +272,9 @@ export function AccountForm({
             </div>
           </div>
         </section>
+
+        {/* ── API 令牌（程序化上传）── */}
+        <ApiTokensCard isGuest={Boolean(guestExpiresAt)} />
       </div>
 
       {/* 弹窗：所有敏感操作在当前页面完成 */}

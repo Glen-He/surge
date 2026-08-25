@@ -21,7 +21,7 @@ export class UnzipLimitError extends Error {}
 
 const DEFAULT_LIMITS: UnzipLimits = {
   maxFiles: 50,
-  maxTotalBytes: 10 * 1024 * 1024,
+  maxTotalBytes: 100 * 1024 * 1024,
   maxDepth: 5,
 };
 

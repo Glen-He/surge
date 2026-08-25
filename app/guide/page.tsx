@@ -22,13 +22,19 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 
 三、图表（二选一）
 · 简单图形：用内联 SVG 或 HTML + CSS 直接画在页面里；
-· 数据图表（折线、柱状、饼图等）：用平台内置的 ECharts——在 <head> 里写 <script src="../../lib/echarts.min.js"></script>（路径原样保留，平台自动解析），图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
+· 数据图表（折线、柱状、饼图等）：用 ECharts。在 <head> 里按顺序写这两行，并把 echarts.min.js 放进同一文件夹：
+  <script src="../../lib/echarts.min.js"></script>
+  <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
+  图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
 
 四、设计
 整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，图片内联或放文件夹里相对引用。配色、布局、信息组织方式由你决定，充分发挥。
 
 五、内容
-汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。`;
+汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
+
+六、交付
+生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。`;
 
 const ICON_BACK = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[15px] w-[15px]">
@@ -48,15 +54,45 @@ function SectionTitle({ no, children }: { no: number; children: React.ReactNode 
   );
 }
 
-/** 高亮提示块：普通圆角矩形 + 浅色底（蓝=说明 / 橙=注意），只用于关键信息 */
-function Callout({ tone, children }: { tone: "blue" | "amber"; children: React.ReactNode }) {
-  const styles = {
-    blue: "bg-[rgba(0,122,255,0.07)] text-[#0066cc]",
-    amber: "bg-[#fff9ef] text-[#5f470f]",
-  }[tone];
+/**
+ * 提示行：统一灰色小图标 + 统一灰色文字，无底色无边框。
+ * 注意：图标、正文一律灰色（#6e6e73）单一语言，重点词用深色加粗——
+ * 不再出现彩色图标与黑色正文混排。
+ */
+function NoteRow({
+  icon,
+  children,
+}: {
+  icon: "info" | "upload" | "lock";
+  children: React.ReactNode;
+}) {
+  const icons = {
+    // 信息
+    info: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-[15px] w-[15px] shrink-0">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8h.01M12 12v4" />
+      </svg>
+    ),
+    // 上传
+    upload: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px] shrink-0">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="m7 10 5-5 5 5M12 5v10" />
+      </svg>
+    ),
+    // 锁
+    lock: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px] shrink-0">
+        <rect x="4" y="11" width="16" height="10" rx="2" />
+        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      </svg>
+    ),
+  } as const;
   return (
-    <div className={`mt-5 rounded-[10px] px-4 py-2.5 text-[13px] leading-[1.6] ${styles}`}>
-      {children}
+    <div className="mt-3 flex items-start gap-2.5 text-[13px] leading-[1.65] text-[#6e6e73]">
+      {icons[icon]}
+      <span>{children}</span>
     </div>
   );
 }
@@ -194,13 +230,12 @@ function GuideContent() {
               {PROMPT}
             </pre>
           </div>
-          <p className="mt-[22px] text-[12px] text-[#6e6e73]">
+          <p className="mt-[22px] text-[13px] text-[#6e6e73]">
             「页面约定」是平台的格式要求，建议保留原样；其余部分按你的需要随意增删修改。
           </p>
-          <Callout tone="blue">
-            <strong className="font-[650]">重要数据务必亲自核对：</strong>
-            AI 只能基于它拿到的材料写内容，材料之外的数据会被编造。
-          </Callout>
+          <NoteRow icon="info">
+            重要数据务必亲自核对：AI 只能基于它拿到的材料写内容，材料之外的数据会被编造。
+          </NoteRow>
         </section>
 
         {/* 3 文件结构与上传 */}
@@ -214,7 +249,8 @@ function GuideContent() {
             <br />
             <strong className="font-[650] text-[#1d1d1f]">带辅助文件</strong>
             ——选中文件夹里的全部文件压缩成一个 zip
-            （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录）。
+            （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录；
+            echarts.min.js 不用压进去，平台已有内置版本）。
           </p>
           <div className="rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
             <pre className="m-0 overflow-x-auto font-mono text-[12.5px] leading-[2] whitespace-pre text-[#1d1d1f]">
@@ -228,13 +264,15 @@ function GuideContent() {
 └── …              ← 可选：包内文件用相对路径随意引用，都会正常加载`}
             </pre>
           </div>
-          <Callout tone="blue">
-            上限：上传文件 5MB（HTML 或 zip）、解压后 10MB、50 个文件、目录 5 层。
-          </Callout>
-          <Callout tone="amber">
-            <strong className="font-[650]">唯一的限制：不要引用文件夹外部或网络上的资源</strong>
-            （CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
-          </Callout>
+          <NoteRow icon="upload">
+            压缩包里不要包含 echarts.min.js——平台已内置，压进去会白白占用上传配额。
+          </NoteRow>
+          <NoteRow icon="info">
+            上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
+          </NoteRow>
+          <NoteRow icon="lock">
+            不要引用文件夹外部或网络上的资源（CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
+          </NoteRow>
         </section>
 
         {/* 4 上传之后 */}
@@ -267,7 +305,7 @@ function GuideContent() {
           <div className="flex flex-col gap-3">
             <FaqTile
               q="图表怎么画？"
-              a="简单图形让 AI 用内联 SVG 或 HTML + CSS 画；折线、柱状、饼图等数据图表直接用平台内置的 ECharts，模板里已写好用法，生成的图表更精致。"
+              a="简单图形让 AI 用内联 SVG 或 HTML + CSS 画；折线、柱状、饼图等数据图表用 ECharts，模板里已写好两行 script 的引入方式。"
             />
             <FaqTile
               q="图片能放吗？"

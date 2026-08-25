@@ -1,8 +1,8 @@
 // 全站上传容量策略（所有用户统一，不限制文件类型与单文件大小）
 /** 单次上传的 zip 压缩包大小上限 */
-export const MAX_ZIP_BYTES = 5 * 1024 * 1024;
+export const MAX_ZIP_BYTES = 50 * 1024 * 1024;
 /** 项目解压后总大小上限 */
-export const MAX_PROJECT_BYTES = 10 * 1024 * 1024;
+export const MAX_PROJECT_BYTES = 100 * 1024 * 1024;
 /** 压缩包内文件数量上限 */
 export const MAX_FILES = 50;
 /** 目录深度上限 */
