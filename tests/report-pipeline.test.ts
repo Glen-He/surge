@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reportDocCsp, requestOrigin, renderReportDoc } from "@/lib/report-pipeline";
-import { issueCapability, verifyCapability } from "@/lib/report-capability";
+import {
+  issueCapability,
+  reportResourceEtag,
+  requestMatchesEtag,
+  verifyCapability,
+} from "@/lib/report-capability";
 import { createHmac } from "crypto";
 
 describe("reportDocCsp", () => {
@@ -62,6 +67,16 @@ describe("report capability", () => {
     expect(cap).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 
+  it("同一小时窗内签发稳定 URL，便于返回时复用私有缓存", () => {
+    const hour = 1_800_000_000 * 1000;
+    const spy = vi.spyOn(Date, "now").mockReturnValue(hour + 5 * 60 * 1000);
+    const first = issueCapability("r-123", "rev-abc", 0);
+    spy.mockReturnValue(hour + 55 * 60 * 1000);
+    expect(issueCapability("r-123", "rev-abc", 0)).toBe(first);
+    spy.mockReturnValue(hour + 65 * 60 * 1000);
+    expect(issueCapability("r-123", "rev-abc", 0)).not.toBe(first);
+  });
+
   it("到期上限 clamp：capability 不活过分享截止时间", () => {
     const soon = Math.floor(Date.now() / 1000) + 60;
     const cap = issueCapability("r-123", "rev-abc", 0, soon);
@@ -111,6 +126,24 @@ describe("report capability", () => {
   });
 });
 
+describe("报告资源私有缓存", () => {
+  it("ETag 对同一资源稳定，内容世代或文件信息变化时轮换", () => {
+    const etag = reportResourceEtag("rev-a", "images/a.webp", 123, 456);
+    expect(reportResourceEtag("rev-a", "images/a.webp", 123, 456)).toBe(etag);
+    expect(reportResourceEtag("rev-b", "images/a.webp", 123, 456)).not.toBe(etag);
+    expect(reportResourceEtag("rev-a", "images/a.webp", 124, 456)).not.toBe(etag);
+    expect(etag).toMatch(/^"[A-Za-z0-9_-]+"$/);
+  });
+
+  it("识别 If-None-Match 列表、弱校验器与通配符", () => {
+    const etag = reportResourceEtag("rev-a", "images/a.webp", 123, 456);
+    expect(requestMatchesEtag(null, etag)).toBe(false);
+    expect(requestMatchesEtag(`"other", ${etag}`, etag)).toBe(true);
+    expect(requestMatchesEtag(`W/${etag}`, etag)).toBe(true);
+    expect(requestMatchesEtag("*", etag)).toBe(true);
+  });
+});
+
 describe("renderReportDoc", () => {
   const base = `<!DOCTYPE html><html><head><title>t</title></head><body><header class="rpt-head"><h1>标题</h1></header>%s</body></html>`;
   const run = (inner: string) => renderReportDoc(base.replace("%s", inner));
@@ -149,6 +182,8 @@ describe("renderReportDoc", () => {
     expect(stylePos).toBeLessThan(out.indexOf("</head>"));
     expect(scriptPos).toBeGreaterThan(0);
     expect(scriptPos).toBeLessThan(bodyPos);
+    expect(out).toContain("requestAnimationFrame(measure)");
+    expect(out).toContain("h===last");
   });
 });
 

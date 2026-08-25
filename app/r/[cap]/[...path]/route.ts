@@ -1,8 +1,13 @@
-import { promises as fs } from "fs";
+import { createReadStream, promises as fs } from "fs";
 import path from "path";
+import { Readable } from "stream";
 import { db } from "@/lib/db";
 import { ensureOtpMigration } from "@/lib/schema";
-import { verifyCapability } from "@/lib/report-capability";
+import {
+  reportResourceEtag,
+  requestMatchesEtag,
+  verifyCapability,
+} from "@/lib/report-capability";
 import { renderReportDoc, reportDocCsp, requestOrigin } from "@/lib/report-pipeline";
 import {
   REPORT_SHARED_DIR,
@@ -119,19 +124,24 @@ export async function GET(
     return notFound();
   }
 
-  let content: Buffer;
+  let realFile: string;
+  let stat: Awaited<ReturnType<typeof fs.stat>>;
   try {
     // realpath closes the read-time symlink escape for legacy/on-disk data as
     // well as archives accepted by older application versions.
-    const [realRoot, realFile] = await Promise.all([
+    const [realRoot, resolvedFile] = await Promise.all([
       fs.realpath(allowedRoot),
       fs.realpath(filePath),
     ]);
-    if (realFile !== realRoot && !realFile.startsWith(realRoot + path.sep)) {
+    if (
+      resolvedFile !== realRoot &&
+      !resolvedFile.startsWith(realRoot + path.sep)
+    ) {
       return notFound();
     }
-    // Runtime data is mounted separately and must never be copied into a build trace.
-    content = await fs.readFile(/* turbopackIgnore: true */ realFile);
+    realFile = resolvedFile;
+    stat = await fs.stat(/* turbopackIgnore: true */ realFile);
+    if (!stat.isFile()) return notFound();
   } catch {
     return notFound();
   }
@@ -146,14 +156,25 @@ export async function GET(
     // ES Module 等 CORS-required 加载在 opaque origin 下必需
     "Access-Control-Allow-Origin": "*",
     "Referrer-Policy": "no-referrer",
-    // capability 出现在 URL 里，严禁公共缓存；文档不缓存（替换后立即失效）
-    "Cache-Control": "private, no-store",
+    // 入口 HTML 含 capability 且会被动态注入，继续 no-store。
+    // 静态子资源只允许浏览器私有缓存，并要求每次复用前回源
+    // 验权；ETag 命中返 304，避免重复传输大图，同时保留撤销即时性。
+    "Cache-Control": isEntryDoc
+      ? "private, no-store"
+      : "private, no-cache, must-revalidate",
   };
 
   if (isEntryDoc) {
     // 入口文档：确定性后处理（内置库路径映射 / 剥报告头 / 注入高度脚本）+
     // 完整文档 CSP——资源 source 收紧到本 capability 虚拟目录前缀
     // （脚本可在沙箱内跑图表，connect-src 'none' 断网络外发）
+    let content: Buffer;
+    try {
+      // Runtime data is mounted separately and must never be copied into a build trace.
+      content = await fs.readFile(/* turbopackIgnore: true */ realFile);
+    } catch {
+      return notFound();
+    }
     return new Response(renderReportDoc(content.toString("utf-8")), {
       headers: {
         ...headers,
@@ -163,6 +184,21 @@ export async function GET(
         ),
       },
     });
+  }
+
+  const etag = reportResourceEtag(
+    row.revision_id,
+    rel,
+    stat.size,
+    stat.mtimeMs,
+  );
+  headers.ETag = etag;
+  headers["Last-Modified"] = stat.mtime.toUTCString();
+
+  // 先完成 capability + DB 世代/纪元 + 真实路径校验，才允许
+  // 304。因此报告替换、删除或撤销分享仍然会立即拒绝旧 URL。
+  if (requestMatchesEtag(req.headers.get("if-none-match"), etag)) {
+    return new Response(null, { status: 304, headers });
   }
 
   // 可导航类型防同源脚本执行（纵深防御）：
@@ -179,5 +215,11 @@ export async function GET(
     headers["Content-Disposition"] = "attachment";
   }
 
-  return new Response(Uint8Array.from(content), { headers });
+  headers["Content-Length"] = String(stat.size);
+  // 非 HTML 资源直接流式输出，避免多张大图同时请求时把整个
+  // 文件全部读入 Node.js 内存，也能更早开始向浏览器传输。
+  const body = Readable.toWeb(
+    createReadStream(/* turbopackIgnore: true */ realFile),
+  ) as ReadableStream<Uint8Array>;
+  return new Response(body, { headers });
 }
