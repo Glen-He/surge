@@ -1,9 +1,14 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { auth } from "./auth";
-import { db } from "./db";
-import { ensureSchemaVersioned } from "./migrations";
+import { withStorageLocks } from "./db";
 import { logger } from "./logger";
+import { newRevisionId } from "./report-capability";
+import {
+  REPORT_SHARED_DIR,
+  REPORT_TEMPLATES_DIR,
+  reportDir,
+} from "./report-storage";
 
 // 默认管理员账号从环境变量读取（.env.local / 部署环境的 .env）：
 // 首次部署时配置 SEED_USER_EMAIL + SEED_USER_PASSWORD，启动会自动创建该用户；
@@ -42,9 +47,8 @@ const LEGACY_REPORTS = [
   },
 ];
 
-const TEMPLATES_DIR = path.join(process.cwd(), "reports", "templates");
-const USERS_DIR = path.join(process.cwd(), "reports", "users");
-const SHARED_DIR = path.join(process.cwd(), "reports", "_shared");
+const TEMPLATES_DIR = REPORT_TEMPLATES_DIR;
+const SHARED_DIR = REPORT_SHARED_DIR;
 
 export async function seedDefaultUser() {
   if (!DEFAULT_EMAIL || !DEFAULT_PASSWORD) {
@@ -52,21 +56,15 @@ export async function seedDefaultUser() {
     return;
   }
   try {
-    // 0. 先让 better-auth 初始化并创建自己的表（user/session/account/verification），
-    //    否则业务表 reports 的 REFERENCES "user"(id) 会因 user 表不存在而失败
+    // instrumentation 已在服务 ready 前完成 auth + 业务迁移；
+    // 这里只负责可选的初始数据。
     const context = await auth.$context;
-    await context.runMigrations();
-
-    // 1. 建业务表（版本化迁移，见 lib/migrations.ts）
-    await ensureSchemaVersioned();
-
-    // 2. 确保默认用户存在
+    // 确保默认用户存在
     const adapter = context.internalAdapter;
 
     const found = await adapter.findUserByEmail(DEFAULT_EMAIL);
     let user = found?.user ?? null;
     if (!user) {
-      const hash = await context.password.hash(DEFAULT_PASSWORD);
       const created = await adapter.createUser({
         email: DEFAULT_EMAIL,
         name: `user_${crypto.randomUUID()}`,
@@ -76,14 +74,24 @@ export async function seedDefaultUser() {
         logger.error("seed", "默认用户创建失败");
         return;
       }
-      await adapter.linkAccount({
-        userId: created.id,
-        providerId: "credential",
-        accountId: created.id,
-        password: hash,
-      });
       user = created;
       logger.info("seed", "默认用户已创建", { email: DEFAULT_EMAIL });
+    }
+
+    // Repair a previous partial seed (user committed, credential link failed)
+    // without resetting the password of an already configured account.
+    const credential = await adapter.findAccountByProviderId(
+      user.id,
+      "credential",
+    );
+    if (!credential) {
+      const hash = await context.password.hash(DEFAULT_PASSWORD);
+      await adapter.linkAccount({
+        userId: user.id,
+        providerId: "credential",
+        accountId: user.id,
+        password: hash,
+      });
     }
 
     // 3. 公共资源（echarts）放到 _shared（模板不包含 echarts，从已存在的共享目录保持）
@@ -99,41 +107,49 @@ export async function seedDefaultUser() {
     }
 
     if (templatesExist) {
-      for (const legacy of LEGACY_REPORTS) {
-        const existing = await db.query(
-          "SELECT id FROM reports WHERE user_id = $1 AND slug = $2",
-          [user.id, legacy.slug],
-        );
-        if ((existing.rowCount ?? 0) > 0) continue;
+      await withStorageLocks(user.id, async (client) => {
+        for (const legacy of LEGACY_REPORTS) {
+          const existing = await client.query(
+            "SELECT id FROM reports WHERE user_id = $1 AND slug = $2",
+            [user.id, legacy.slug],
+          );
+          if ((existing.rowCount ?? 0) > 0) continue;
 
-        // 复制模板文件到用户目录
-        const userDir = path.join(USERS_DIR, user.id, legacy.slug);
-        await fs.mkdir(userDir, { recursive: true });
-        const srcDir = path.join(TEMPLATES_DIR, legacy.slug);
-        await fs.cp(srcDir, userDir, { recursive: true });
-
-        // 写数据库
-        await db.query(
-          `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [
-            crypto.randomUUID(),
-            user.id,
+          const userDir = reportDir(user.id, legacy.slug);
+          await fs.mkdir(userDir, { recursive: true });
+          const srcDir = path.join(
+            /* turbopackIgnore: true */ TEMPLATES_DIR,
             legacy.slug,
-            legacy.title,
-            legacy.date,
-            legacy.tag,
-            legacy.tagColor,
-            legacy.desc,
-            legacy.keywords,
-          ],
-        );
-        logger.info("seed", "默认报告已创建", { slug: legacy.slug, userId: user.id });
-      }
+          );
+          await fs.cp(srcDir, userDir, { recursive: true });
+
+          await client.query(
+            `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              crypto.randomUUID(),
+              user.id,
+              legacy.slug,
+              newRevisionId(),
+              legacy.title,
+              legacy.date,
+              legacy.tag,
+              legacy.tagColor,
+              legacy.desc,
+              legacy.keywords,
+            ],
+          );
+          logger.info("seed", "默认报告已创建", {
+            slug: legacy.slug,
+            userId: user.id,
+          });
+        }
+      });
     } else {
       logger.info("seed", "无默认报告模板（reports/templates 不存在），跳过");
     }
   } catch (err) {
     logger.error("seed", "初始化失败", err as Error);
+    throw err;
   }
 }

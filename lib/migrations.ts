@@ -167,6 +167,104 @@ const API_TOKEN_DROP_HASH: Migration = {
 
 MIGRATIONS.push(API_TOKEN_DROP_HASH);
 
+// ── v5：报告内容世代（report capability 架构）──
+// 一个报告只保留一份当前文件目录；revision_id 是该内容世代的标识，
+// 每次替换文件时轮换。capability（/r/<cap>/ 虚拟目录的访问凭证）绑定
+// reportId + revisionId，报告更新后旧 capability 整体失效（404），
+// 不保存任何历史版本。存量行回填随机值即可（旧 capability 不存在）。
+const REPORT_REVISION: Migration = {
+  version: 5,
+  name: "report-revision",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS revision_id TEXT`,
+    `UPDATE reports SET revision_id = md5(random()::text || id)
+      WHERE revision_id IS NULL`,
+    `ALTER TABLE reports ALTER COLUMN revision_id SET NOT NULL`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_REVISION);
+
+// ── v6：报告 capability 纪元（撤销语义）──
+// capability 只绑 reportId+revisionId 时，撤销分享后已签发的 capability
+// 在 TTL 内仍有效（权限在父页签发时裁决，runtime 无法追溯）。epoch 是
+// 报告级吊销开关：撤销分享等权限变化时 +1，runtime 要求 cap.epoch 与
+// DB 当前值一致，旧 capability 立即整体失效（副作用：该报告所有 cap
+// 失效，刷新父页即重新签发，属可接受的简单化）。
+const REPORT_CAP_EPOCH: Migration = {
+  version: 6,
+  name: "report-capability-epoch",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS capability_epoch
+       INTEGER NOT NULL DEFAULT 0`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_CAP_EPOCH);
+
+// ── v7：API 令牌可索引指纹 ──
+// 认证不再加载并解密全部令牌；token_lookup 是高熵令牌的
+// SHA-256 指纹，只用于等值定位。存量密文由启动任务解密后回填。
+const API_TOKEN_LOOKUP: Migration = {
+  version: 7,
+  name: "api-token-lookup",
+  statements: [
+    `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_lookup TEXT`,
+    // Older builds intended one active token but enforced it with count-then-
+    // insert. Repair any race-created duplicates before adding the DB invariant.
+    `WITH ranked AS (
+       SELECT id,
+              ROW_NUMBER() OVER (
+                PARTITION BY user_id ORDER BY created_at DESC, id DESC
+              ) AS rn
+       FROM api_tokens
+       WHERE revoked_at IS NULL
+     )
+     UPDATE api_tokens t SET revoked_at = NOW()
+     FROM ranked r WHERE t.id = r.id AND r.rn > 1`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_lookup_active
+       ON api_tokens (token_lookup) WHERE revoked_at IS NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_one_active_per_user
+       ON api_tokens (user_id) WHERE revoked_at IS NULL`,
+  ],
+};
+
+MIGRATIONS.push(API_TOKEN_LOOKUP);
+
+// ── v8：OTP 脱敏存储 ──
+// 6 位码不得明文落库。存量 OTP 最长仅 5 分钟，部署时直接作废，
+// 避免在迁移中需要短暂接触明文或依赖应用密钥。
+const OTP_HASH: Migration = {
+  version: 8,
+  name: "otp-hash",
+  statements: [
+    `ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS code_hash TEXT`,
+    `DELETE FROM otp_codes`,
+    `ALTER TABLE otp_codes ALTER COLUMN code_hash SET NOT NULL`,
+    `ALTER TABLE otp_codes DROP COLUMN IF EXISTS code`,
+  ],
+};
+
+MIGRATIONS.push(OTP_HASH);
+
+// ── v9：多实例共享的安全失败限流 ──
+const SECURITY_RATE_LIMITS: Migration = {
+  version: 9,
+  name: "security-rate-limits",
+  statements: [
+    `CREATE TABLE IF NOT EXISTS security_rate_limits (
+       key        TEXT PRIMARY KEY,
+       attempts   INTEGER NOT NULL,
+       reset_at   TIMESTAMPTZ NOT NULL,
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS security_rate_limits_reset
+       ON security_rate_limits (reset_at)`,
+  ],
+};
+
+MIGRATIONS.push(SECURITY_RATE_LIMITS);
+
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;
 

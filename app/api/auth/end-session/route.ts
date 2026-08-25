@@ -54,7 +54,7 @@ export async function POST() {
   try {
     signOutResp = await auth.handler(signOutReq as Request);
     await signOutResp.text(); // consume body
-  } catch (_) {
+  } catch {
     signOutResp = new Response(null, { status: 204 });
   }
 

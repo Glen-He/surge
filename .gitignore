@@ -51,6 +51,7 @@ tmp/
 # 运行时用户数据（部署后由上传生成，不进 git）
 reports/users/
 !reports/_shared/
+.runtime/
 
 # 本地笔记
 查看当前项目_*.md

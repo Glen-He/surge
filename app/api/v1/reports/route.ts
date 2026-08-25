@@ -2,6 +2,7 @@ import { authenticateApiToken } from "@/lib/api-tokens";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { createReport, metaFromForm } from "@/lib/report-upload";
+import { readUploadForm } from "@/lib/upload-request";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,10 @@ const REQ_LIMIT = 30;
 const REQ_WINDOW_MS = 60 * 1000;
 
 export async function POST(req: Request) {
-  if (!rateLimit(`api-v1:${clientIp(req.headers)}`, REQ_LIMIT, REQ_WINDOW_MS)) {
-    return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
-  }
-
+  const ip = clientIp(req.headers);
   const user = await authenticateApiToken(
     req.headers.get("authorization"),
-    clientIp(req.headers),
+    ip,
   );
   if (!user) {
     return Response.json(
@@ -33,13 +31,13 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
-
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    return Response.json({ error: "请求体必须是 multipart 表单" }, { status: 400 });
+  if (!rateLimit(`api-v1:${user.id}`, REQ_LIMIT, REQ_WINDOW_MS)) {
+    return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
+
+  const parsed = await readUploadForm(req);
+  if (!parsed.ok) return parsed.response;
+  const form = parsed.form;
 
   const file = form.get("file");
   if (!file || typeof file === "string") {

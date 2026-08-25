@@ -1,7 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "crypto";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
-import { rateLimit } from "./rate-limit";
+import {
+  clearSecurityFailures,
+  isSecurityRateLimited,
+  recordSecurityFailure,
+} from "./db-rate-limit";
 import { isGuestEmail } from "./guest-sandbox";
 import { logger } from "./logger";
 
@@ -12,14 +16,12 @@ import { logger } from "./logger";
 // 安全设计：
 // - 明文 sgk_ + 43 位 base64url（32 字节 CSPRNG，≈256bit 熵），不可枚举
 // - 库里存 AES-256-GCM 密文——数据库泄露没有 API_TOKEN_SECRET 也解不出
-// - 认证用 timingSafeEqual 恒时比较；失败按 IP 限速防暴力猜解
+// - 认证用 timingSafeEqual 恒时比较；只有失败才按 IP 限速
 // - 更换（rotate）立即失效旧值；撤销即时生效；访客禁止使用
 
-/** 每用户最多持有的有效令牌数（密钥面板模式：一个） */
-export const MAX_TOKENS_PER_USER = 1;
 /** 令牌认证失败限速：同 IP 20 次 / 10 分钟 */
 const AUTH_FAIL_LIMIT = 20;
-const AUTH_FAIL_WINDOW_MS = 10 * 60 * 1000;
+const AUTH_FAIL_WINDOW_SEC = 10 * 60;
 
 // ── AES-256-GCM 加解密 ──
 // 密钥解析：API_TOKEN_SECRET → SHARE_SECRET → DATABASE_URL（与分享密钥同回退链）
@@ -57,6 +59,10 @@ function decryptToken(stored: string): string | null {
   } catch {
     return null; // 密钥更换或密文损坏
   }
+}
+
+function tokenLookup(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 export function generateApiToken(): string {
@@ -120,21 +126,29 @@ export async function createApiToken(
     return { error: "访客模式不支持 API 令牌，注册正式账号后可用" };
   }
   await ensureOtpMigration();
-  const { rows } = await db.query<{ n: string }>(
-    `SELECT count(*)::text AS n FROM api_tokens
-     WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId],
-  );
-  if (Number(rows[0]?.n ?? 0) >= MAX_TOKENS_PER_USER) {
-    return { error: "已有令牌（每账号一个），可更换或撤销后重建" };
-  }
   const token = generateApiToken();
-  const { rows: ins } = await db.query<{ id: string; created_at: Date }>(
-    `INSERT INTO api_tokens (id, user_id, name, token_enc)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, created_at`,
-    [randomBytes(16).toString("hex"), userId, name, encryptToken(token)],
-  );
+  let ins: { id: string; created_at: Date }[];
+  try {
+    ({ rows: ins } = await db.query<{ id: string; created_at: Date }>(
+      `INSERT INTO api_tokens (id, user_id, name, token_enc, token_lookup)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, created_at`,
+      [
+        randomBytes(16).toString("hex"),
+        userId,
+        name,
+        encryptToken(token),
+        tokenLookup(token),
+      ],
+    ));
+  } catch (error) {
+    // The partial unique index is the concurrency-safe source of truth. Two
+    // simultaneous create requests cannot both pass across instances.
+    if ((error as { code?: string }).code === "23505") {
+      return { error: "已有令牌（每账号一个），可更换或撤销后重建" };
+    }
+    throw error;
+  }
   logger.info("api-token", "创建 API 令牌", { userId });
   return {
     token: {
@@ -160,19 +174,23 @@ export async function rotateApiToken(
   }
   await ensureOtpMigration();
   const token = generateApiToken();
-  const { rows } = await db.query<{ id: string; created_at: Date }>(
+  const { rows } = await db.query<{
+    id: string;
+    name: string;
+    created_at: Date;
+  }>(
     `UPDATE api_tokens
-     SET token_enc = $1, created_at = NOW(), last_used_at = NULL
-     WHERE user_id = $2 AND revoked_at IS NULL
-     RETURNING id, created_at`,
-    [encryptToken(token), userId],
+     SET token_enc = $1, token_lookup = $2, created_at = NOW(), last_used_at = NULL
+     WHERE user_id = $3 AND revoked_at IS NULL
+     RETURNING id, name, created_at`,
+    [encryptToken(token), tokenLookup(token), userId],
   );
   if (rows[0]) {
     logger.info("api-token", "更换 API 令牌", { userId });
     return {
       token: {
         id: rows[0].id,
-        name: "",
+        name: rows[0].name,
         token,
         createdAt: rows[0].created_at,
         lastUsedAt: null,
@@ -210,19 +228,15 @@ export type TokenAuthUser = { id: string; email: string };
 
 /**
  * 校验 Bearer 令牌 → 用户。失败返回 null。
- * 按 IP 限制认证失败次数（防在线暴力猜解 256bit 令牌）。
+ * 先做索引查找再查失败桶：有效令牌始终可用，共享 IP 下的
+ * 攻击者不能通过制造失败把正常客户端锁死。
  */
 export async function authenticateApiToken(
   authHeader: string | null,
   clientIp: string,
 ): Promise<TokenAuthUser | null> {
-  const failKey = `api-token-auth:${clientIp}`;
   const bearer = authHeader?.match(/^Bearer\s+(sgk_\S+)$/i)?.[1];
   if (!bearer) return null;
-  if (!rateLimit(failKey, AUTH_FAIL_LIMIT, AUTH_FAIL_WINDOW_MS)) {
-    logger.warn("api-token", "认证失败次数过多，已限流", { clientIp });
-    return null;
-  }
   await ensureOtpMigration();
   const { rows } = await db.query<{
     id: string;
@@ -232,25 +246,61 @@ export async function authenticateApiToken(
   }>(
     `SELECT t.id, t.user_id, u.email, t.token_enc
      FROM api_tokens t JOIN "user" u ON u.id = t.user_id
-     WHERE t.revoked_at IS NULL`,
+     WHERE t.revoked_at IS NULL AND t.token_lookup = $1
+     LIMIT 1`,
+    [tokenLookup(bearer)],
+  );
+  const row = rows[0];
+  const plain = row ? decryptToken(row.token_enc) : null;
+  if (
+    row &&
+    plain &&
+    plain.length === bearer.length &&
+    timingSafeEqual(Buffer.from(plain), Buffer.from(bearer)) &&
+    !isGuestEmail(row.email)
+  ) {
+    await clearSecurityFailures("api-token-auth", clientIp);
+    void db
+      .query(`UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1`, [row.id])
+      .catch(() => {});
+    return { id: row.user_id, email: row.email };
+  }
+  const blocked = await isSecurityRateLimited(
+    "api-token-auth",
+    clientIp,
+    AUTH_FAIL_LIMIT,
+  );
+  if (blocked.limited) {
+    logger.warn("api-token", "认证失败次数过多，已限流", { clientIp });
+    return null;
+  }
+  await recordSecurityFailure(
+    "api-token-auth",
+    clientIp,
+    AUTH_FAIL_LIMIT,
+    AUTH_FAIL_WINDOW_SEC,
+  );
+  return null;
+}
+
+/** Backfill lookup fingerprints for encrypted tokens created before migration v7. */
+export async function backfillApiTokenLookups(): Promise<void> {
+  const { rows } = await db.query<{ id: string; token_enc: string }>(
+    `SELECT id, token_enc FROM api_tokens
+     WHERE revoked_at IS NULL AND token_lookup IS NULL`,
   );
   for (const row of rows) {
     const plain = decryptToken(row.token_enc);
-    if (
-      plain &&
-      plain.length === bearer.length &&
-      timingSafeEqual(Buffer.from(plain), Buffer.from(bearer))
-    ) {
-      // 访客账号令牌拒绝（理论上创建时已拦截，双保险）
-      if (isGuestEmail(row.email)) return null;
-      // 异步更新 last_used_at，不阻塞请求
-      void db
-        .query(`UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1`, [
-          row.id,
-        ])
-        .catch(() => {});
-      return { id: row.user_id, email: row.email };
+    if (!plain) {
+      await db.query(`UPDATE api_tokens SET revoked_at = NOW() WHERE id = $1`, [
+        row.id,
+      ]);
+      logger.warn("api-token", "无法解密存量令牌，已安全撤销", { tokenId: row.id });
+      continue;
     }
+    await db.query(`UPDATE api_tokens SET token_lookup = $1 WHERE id = $2`, [
+      tokenLookup(plain),
+      row.id,
+    ]);
   }
-  return null;
 }

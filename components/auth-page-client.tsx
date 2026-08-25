@@ -81,6 +81,9 @@ export function AuthPageClient() {
       setLoading(false);
       if (ready) {
         clearRelaunchIntent();
+        // A document navigation is intentional here: Safari may not expose a
+        // freshly committed session cookie to an App Router transition yet.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign("/home");
       } else {
         setError("会话同步较慢，请再点一次登录");

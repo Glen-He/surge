@@ -1,20 +1,22 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { cancelDeletion } from "@/lib/account-deletion";
 import { logSecurity } from "@/lib/account";
 
 export const dynamic = "force-dynamic";
 
 // 冷却期内取消删除申请
-export async function POST(req: Request) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export async function POST() {
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
 
-  await cancelDeletion(session.user.id);
+  if (!(await cancelDeletion(session.user.id))) {
+    return Response.json(
+      { error: "删除申请不存在或账号已发生变化" },
+      { status: 409 },
+    );
+  }
   await logSecurity({
     userId: session.user.id,
     email: session.user.email,

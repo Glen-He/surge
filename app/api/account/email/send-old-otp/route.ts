@@ -1,7 +1,5 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { renderOtpEmail } from "@/lib/email-templates";
-import { guestOtpResponse } from "@/lib/guest-sandbox";
 import {
   checkOtpRateLimit,
   generateAndStoreOtp,
@@ -15,7 +13,7 @@ export const dynamic = "force-dynamic";
 // 发送"修改邮箱"第一步：当前绑定邮箱验证码
 // 只能使用当前绑定邮箱验证码（不允许密码验证修改邮箱）
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

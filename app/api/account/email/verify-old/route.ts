@@ -1,5 +1,4 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import {
   createChangeToken,
   getUserVersion,
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 // 验证当前邮箱验证码 → 服务器签发一次性 email_change_token
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

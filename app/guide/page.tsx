@@ -18,12 +18,13 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 二、页面约定（展示平台的固定要求）
 1. 页面背景 #f5f5f7，内容区固定宽度 1280px、水平居中，内容放在白色圆角卡片里；
 2. 不要写页面大标题、页头、返回按钮、公司 Logo——平台会在页面上方统一展示标题和导航；
-3. 所有 JavaScript 用 IIFE 包裹，不要声明全局变量，不要操作页面标题。
+3. 所有 JavaScript 用 IIFE 包裹，不要声明全局变量，不要操作页面标题；
+4. 引用本地资源一律用相对路径（./images/a.png），不要用以 / 开头的路径。
 
 三、图表（二选一）
 · 简单图形：用内联 SVG 或 HTML + CSS 直接画在页面里；
 · 数据图表（折线、柱状、饼图等）：用 ECharts。在 <head> 里按顺序写这两行，并把 echarts.min.js 放进同一文件夹：
-  <script src="../../lib/echarts.min.js"></script>
+  <script src="./_platform/echarts.min.js"></script>
   <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
   图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
 

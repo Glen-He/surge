@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Runtime/customer report assets are data, not application source.
+    "reports/**",
   ]),
 ]);
 
