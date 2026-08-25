@@ -1,5 +1,5 @@
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import {
   createChangeToken,
   logSecurity,
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // 修改密码：验证身份（当前密码 或 邮箱验证码，二选一）
 // 验证成功后签发一次性 password_change_token
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

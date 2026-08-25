@@ -11,27 +11,32 @@ export const db = new Pool({
 });
 
 /**
- * 用户级存储配额锁：磁盘配额检查（目录统计）与写盘不是原子的，
- * 并行上传会各自读到旧存量而双双超额。用 PostgreSQL advisory lock
- * 串行化同一用户的「检查 + 写入」临界区（跨进程生效，重启不丢失）。
- * 锁在专用连接上持有，finally 中必然释放；连接异常断开时服务端
- * 会随连接自动回收锁。
+ * Serializes operations that affect the site-wide quota as well as one user's
+ * files. Every caller acquires locks in the same global -> user order and uses
+ * the lock-holding client for DB work, so DB_POOL_MAX=1 cannot self-deadlock.
  */
-export async function withUserStorageLock<T>(
+export async function withStorageLocks<T>(
   userId: string,
-  fn: () => Promise<T>,
+  fn: (client: import("pg").PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await db.connect();
-  const key = `storage-quota:${userId}`;
+  const globalKey = "storage-quota:global";
+  const userKey = `storage-quota:${userId}`;
   try {
-    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]);
-    return await fn();
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
+      globalKey,
+    ]);
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
+      userKey,
+    ]);
+    return await fn(client);
   } finally {
-    try {
-      await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]);
-    } catch {
-      // 连接已断开时锁由服务端回收，忽略解锁错误
-    }
+    await client
+      .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [userKey])
+      .catch(() => {});
+    await client
+      .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
+      .catch(() => {});
     client.release();
   }
 }

@@ -1,7 +1,13 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
+import { promisify } from "node:util";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
 import { rateLimit } from "./rate-limit";
+import {
+  clearSecurityFailures,
+  isSecurityRateLimited,
+  recordSecurityFailure,
+} from "./db-rate-limit";
 
 // ── 分享链接工具 ──
 // token 用 22 位 base62（≈131bit 熵），不可枚举；
@@ -28,19 +34,21 @@ export function generateShareId(): string {
   return randomBytes(16).toString("hex");
 }
 
-export function hashSharePassword(password: string): string {
+const scryptAsync = promisify(scrypt);
+
+export async function hashSharePassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 32).toString("hex");
+  const hash = (await scryptAsync(password, salt, 32) as Buffer).toString("hex");
   return `scrypt$${salt}$${hash}`;
 }
 
-export function verifySharePassword(
+export async function verifySharePassword(
   password: string,
   stored: string,
-): boolean {
+): Promise<boolean> {
   const [scheme, salt, hash] = stored.split("$");
   if (scheme !== "scrypt" || !salt || !hash) return false;
-  const calc = scryptSync(password, salt, 32);
+  const calc = await scryptAsync(password, salt, 32) as Buffer;
   const expect = Buffer.from(hash, "hex");
   return (
     calc.length === expect.length && timingSafeEqual(calc, expect)
@@ -132,6 +140,9 @@ export interface ValidShare {
   ownerId: string;
   ownerDir: string; // reports/users/<ownerId>/<slug>
   reportTitle: string;
+  reportId: string;
+  revisionId: string; // 报告内容世代（签发 capability 用）
+  capabilityEpoch: number; // capability 纪元（签发 capability 用）
 }
 
 /** token → 有效分享（存在 + 未撤销 + 未过期）；无效返回 null */
@@ -140,9 +151,16 @@ export async function findValidShare(
 ): Promise<ValidShare | null> {
   await ensureOtpMigration();
   const r = await db.query<
-    ShareRow & { owner_id: string; slug: string; report_title: string }
+    ShareRow & {
+      owner_id: string;
+      slug: string;
+      report_title: string;
+      revision_id: string;
+      capability_epoch: number;
+    }
   >(
-    `SELECT s.*, r.user_id AS owner_id, r.slug, r.title AS report_title
+    `SELECT s.*, r.user_id AS owner_id, r.slug, r.title AS report_title,
+            r.revision_id, r.capability_epoch
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
      WHERE s.token = $1 LIMIT 1`,
@@ -152,12 +170,22 @@ export async function findValidShare(
   if (!row) return null;
   if (row.revoked_at) return null;
   if (row.expires_at && row.expires_at.getTime() < Date.now()) return null;
-  const { owner_id, slug, report_title, ...share } = row;
+  const {
+    owner_id,
+    slug,
+    report_title,
+    revision_id,
+    capability_epoch,
+    ...share
+  } = row;
   return {
     share,
     ownerId: owner_id,
     ownerDir: `${owner_id}/${slug}`,
     reportTitle: report_title,
+    reportId: share.report_id,
+    revisionId: revision_id,
+    capabilityEpoch: capability_epoch,
   };
 }
 
@@ -184,26 +212,35 @@ export function shareStatus(row: {
   return "active";
 }
 
-// ── 解锁尝试限速（内存实现，单实例部署足够；窗口 10 分钟 10 次） ──
+// ── 解锁尝试限速（DB 共享，token + IP 分桶）──
 
-const attempts = new Map<string, { n: number; reset: number }>();
-const WINDOW_MS = 10 * 60 * 1000;
+const WINDOW_SEC = 10 * 60;
 const MAX_ATTEMPTS = 10;
 
-export function checkUnlockRate(token: string): { ok: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const rec = attempts.get(token);
-  if (!rec || rec.reset < now) {
-    attempts.set(token, { n: 1, reset: now + WINDOW_MS });
-    return { ok: true };
+export async function checkUnlockRate(
+  token: string,
+  ip: string,
+): Promise<{ ok: boolean; retryAfter?: number }> {
+  const subject = `${token}:${ip}`;
+  const current = await isSecurityRateLimited(
+    "share-unlock",
+    subject,
+    MAX_ATTEMPTS,
+  );
+  if (current.limited) {
+    return { ok: false, retryAfter: current.retryAfter };
   }
-  rec.n++;
-  if (rec.n > MAX_ATTEMPTS) {
-    return { ok: false, retryAfter: Math.ceil((rec.reset - now) / 1000) };
-  }
-  return { ok: true };
+  const recorded = await recordSecurityFailure(
+    "share-unlock",
+    subject,
+    MAX_ATTEMPTS,
+    WINDOW_SEC,
+  );
+  return recorded.limited
+    ? { ok: false, retryAfter: recorded.retryAfter }
+    : { ok: true };
 }
 
-export function clearUnlockRate(token: string): void {
-  attempts.delete(token);
+export async function clearUnlockRate(token: string, ip: string): Promise<void> {
+  await clearSecurityFailures("share-unlock", `${token}:${ip}`);
 }

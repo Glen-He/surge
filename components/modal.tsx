@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -50,12 +51,14 @@ export function Modal({
   } | null>(null);
 
   const stateRef = useRef({ busy, dirty, confirming, onClose });
-  stateRef.current = { busy, dirty, confirming, onClose };
-
-  // 关闭后重置确认态
   useEffect(() => {
-    if (!open) setConfirming(false);
-  }, [open]);
+    stateRef.current = { busy, dirty, confirming, onClose };
+  }, [busy, dirty, confirming, onClose]);
+
+  function closeNow() {
+    setConfirming(false);
+    stateRef.current.onClose();
+  }
 
   // 同步 visualViewport（键盘弹出 / 地址栏收起都会改变可见区）。
   // 桌面上 top=0、height=视口高，与 inset-0 等价，无副作用。
@@ -95,7 +98,7 @@ export function Modal({
       setConfirming(true);
       return;
     }
-    s.onClose();
+    closeNow();
   }
 
   // 焦点管理：trap + Esc + 关闭后恢复焦点
@@ -126,7 +129,7 @@ export function Modal({
         if (s.busy) return;
         if (s.confirming) setConfirming(false);
         else if (s.dirty) setConfirming(true);
-        else s.onClose();
+        else closeNow();
         return;
       }
       if (e.key === "Tab") {
@@ -164,8 +167,11 @@ export function Modal({
   // transform 祖先会把 fixed 定位基准劫持为该卡片，导致遮罩/弹窗错位。
   // 渲染到 body 下可脱离任何 transform/层叠上下文祖先。
   // SSR 安全：open 初始恒为 false（null），客户端交互后才挂载 portal。
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -230,7 +236,7 @@ export function Modal({
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={closeNow}
                   className="btn-danger-outline"
                 >
                   放弃

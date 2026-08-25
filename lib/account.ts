@@ -1,4 +1,9 @@
-import { randomInt, randomUUID } from "crypto";
+import {
+  createHmac,
+  randomInt,
+  randomUUID,
+  timingSafeEqual,
+} from "crypto";
 import { db } from "./db";
 import nodemailer from "nodemailer";
 import { ensureOtpMigration } from "./schema";
@@ -61,41 +66,77 @@ export async function checkOtpRateLimit(opts: {
   // 访客虽不消耗 SMTP 配额，但接口层同样不能只靠前端按钮挡连点；
   // 每个访客 email 唯一，频控互不影响。
   await ensureOtpMigration();
-
-  // 60 秒冷却（同一邮箱）
-  const last = await db.query<{ created_at: Date }>(
-    `SELECT created_at FROM security_logs
-     WHERE email = $1 AND action LIKE 'OTP_%'
-       AND created_at > NOW() - INTERVAL '60 seconds'
-     ORDER BY created_at DESC LIMIT 1`,
-    [email],
-  );
-  if (last.rows[0]) {
-    const wait = Math.ceil(
-      (last.rows[0].created_at.getTime() + 60_000 - Date.now()) / 1000,
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`otp-rate:${email}`],
     );
-    return { ok: false, reason: "cooldown", retryAfter: Math.max(wait, 1) };
-  }
+    // Keep only the current natural day's reservation rows for this address;
+    // long-term audit events use distinct actions and are retained.
+    await client.query(
+      `DELETE FROM security_logs
+       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
+         AND created_at < date_trunc('day', NOW())`,
+      [email],
+    );
+    const last = await client.query<{ created_at: Date }>(
+      `SELECT created_at FROM security_logs
+       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
+         AND created_at > NOW() - INTERVAL '60 seconds'
+       ORDER BY created_at DESC LIMIT 1`,
+      [email],
+    );
+    if (last.rows[0]) {
+      await client.query("COMMIT");
+      const wait = Math.ceil(
+        (last.rows[0].created_at.getTime() + 60_000 - Date.now()) / 1000,
+      );
+      return {
+        ok: false,
+        reason: "cooldown",
+        retryAfter: Math.max(wait, 1),
+      };
+    }
 
-  // 自然日 10 次（同一邮箱）
-  const r = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::int AS count FROM security_logs
-     WHERE email = $1 AND action LIKE 'OTP_%'
-       AND created_at >= date_trunc('day', NOW())`,
-    [email],
-  );
-  const todayCount = parseInt(r.rows[0]?.count ?? "0", 10);
-  if (todayCount >= 10) {
-    const tomorrow = new Date();
-    tomorrow.setHours(24, 0, 0, 0);
+    const r = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM security_logs
+       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
+         AND created_at >= date_trunc('day', NOW())`,
+      [email],
+    );
+    const todayCount = Number(r.rows[0]?.count ?? 0);
+    if (todayCount >= 10) {
+      await client.query("COMMIT");
+      const tomorrow = new Date();
+      tomorrow.setHours(24, 0, 0, 0);
+      return {
+        ok: false,
+        reason: "daily_limit",
+        retryAfter: Math.ceil((tomorrow.getTime() - Date.now()) / 1000),
+      };
+    }
+
+    // Reserve before SMTP. A failed send intentionally consumes the slot: fail
+    // closed against retry storms and provider outages.
+    await client.query(
+      `INSERT INTO security_logs (action, email)
+       VALUES ('OTP_RATE_RESERVED', $1)`,
+      [email],
+    );
+    await client.query("COMMIT");
     return {
-      ok: false,
-      reason: "daily_limit",
-      retryAfter: Math.ceil((tomorrow.getTime() - Date.now()) / 1000),
+      ok: true,
+      retryAfter: 60,
+      remainingToday: 9 - todayCount,
     };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
-
-  return { ok: true, retryAfter: 60, remainingToday: 10 - todayCount };
 }
 
 export async function recordOtpSent(email: string, action: string) {
@@ -110,21 +151,53 @@ export async function recordOtpSent(email: string, action: string) {
 const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 3;
 
+function otpSecret(): string {
+  const secret =
+    process.env.OTP_SECRET ??
+    process.env.BETTER_AUTH_SECRET ??
+    process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("缺少 OTP_SECRET 或 BETTER_AUTH_SECRET");
+  }
+  return secret ?? "surge-dev-otp-secret";
+}
+
+function hashOtp(email: string, purpose: string, code: string): string {
+  return createHmac("sha256", otpSecret())
+    .update(`${email}:${purpose}:${code}`)
+    .digest("hex");
+}
+
 export async function generateAndStoreOtp(opts: {
   email: string;
   purpose: string;
 }): Promise<string> {
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
-  // 同一邮箱同一用途只保留最新一个验证码
-  await db.query(
-    `DELETE FROM otp_codes WHERE email = $1 AND purpose = $2`,
-    [opts.email.toLowerCase().trim(), opts.purpose],
-  );
-  await db.query(
-    `INSERT INTO otp_codes (id, email, purpose, code, expires_at) VALUES ($1, $2, $3, $4, $5)`,
-    [randomUUID(), opts.email.toLowerCase().trim(), opts.purpose, code, expiresAt],
-  );
+  const email = opts.email.toLowerCase().trim();
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`otp-code:${email}:${opts.purpose}`],
+    );
+    await client.query(`DELETE FROM otp_codes WHERE email = $1 AND purpose = $2`, [
+      email,
+      opts.purpose,
+    ]);
+    await client.query(
+      `INSERT INTO otp_codes (id, email, purpose, code_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [randomUUID(), email, opts.purpose, hashOtp(email, opts.purpose, code), expiresAt],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
   return code;
 }
 
@@ -138,50 +211,63 @@ export async function verifyStoredOtp(opts: {
   code: string;
 }): Promise<OtpVerifyResult> {
   const email = opts.email.toLowerCase().trim();
-  const r = await db.query<{
-    id: string;
-    code: string;
-    attempts: number;
-    expires_at: Date;
-  }>(
-    `SELECT id, code, attempts, expires_at FROM otp_codes
-     WHERE email = $1 AND purpose = $2 AND consumed = FALSE
-     ORDER BY created_at DESC LIMIT 1`,
-    [email, opts.purpose],
-  );
-  const row = r.rows[0];
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const r = await client.query<{
+      id: string;
+      code_hash: string;
+      attempts: number;
+      expires_at: Date;
+    }>(
+      `SELECT id, code_hash, attempts, expires_at FROM otp_codes
+       WHERE email = $1 AND purpose = $2 AND consumed = FALSE
+       ORDER BY created_at DESC LIMIT 1
+       FOR UPDATE`,
+      [email, opts.purpose],
+    );
+    const row = r.rows[0];
 
-  if (!row) {
-    return { ok: false, error: "请先获取验证码", remaining: 0 };
-  }
-  if (row.expires_at.getTime() < Date.now()) {
-    await db.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
-    return { ok: false, error: "验证码已过期，请重新获取", remaining: 0 };
-  }
-  if (row.attempts >= OTP_MAX_ATTEMPTS) {
-    await db.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
-    return { ok: false, error: "验证码已失效，请重新获取", remaining: 0 };
-  }
-  if (row.code !== opts.code) {
-    const attempts = row.attempts + 1;
-    if (attempts >= OTP_MAX_ATTEMPTS) {
-      // 第三次错误：立即失效，必须重新获取
-      await db.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
+    if (!row) {
+      await client.query("COMMIT");
+      return { ok: false, error: "请先获取验证码", remaining: 0 };
+    }
+    if (row.expires_at.getTime() < Date.now() || row.attempts >= OTP_MAX_ATTEMPTS) {
+      await client.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
+      await client.query("COMMIT");
       return { ok: false, error: "验证码已失效，请重新获取", remaining: 0 };
     }
-    await db.query(`UPDATE otp_codes SET attempts = $1 WHERE id = $2`, [
-      attempts,
-      row.id,
-    ]);
-    return {
-      ok: false,
-      error: `验证码错误，还可尝试 ${OTP_MAX_ATTEMPTS - attempts} 次`,
-      remaining: OTP_MAX_ATTEMPTS - attempts,
-    };
+    const got = Buffer.from(hashOtp(email, opts.purpose, opts.code), "hex");
+    const expected = Buffer.from(row.code_hash, "hex");
+    const valid =
+      got.length === expected.length && timingSafeEqual(got, expected);
+    if (!valid) {
+      const attempts = row.attempts + 1;
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        await client.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
+        await client.query("COMMIT");
+        return { ok: false, error: "验证码已失效，请重新获取", remaining: 0 };
+      }
+      await client.query(`UPDATE otp_codes SET attempts = $1 WHERE id = $2`, [
+        attempts,
+        row.id,
+      ]);
+      await client.query("COMMIT");
+      return {
+        ok: false,
+        error: `验证码错误，还可尝试 ${OTP_MAX_ATTEMPTS - attempts} 次`,
+        remaining: OTP_MAX_ATTEMPTS - attempts,
+      };
+    }
+    await client.query(`UPDATE otp_codes SET consumed = TRUE WHERE id = $1`, [row.id]);
+    await client.query("COMMIT");
+    return { ok: true, remaining: OTP_MAX_ATTEMPTS };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
-  // 验证通过：一次性消费
-  await db.query(`UPDATE otp_codes SET consumed = TRUE WHERE id = $1`, [row.id]);
-  return { ok: true, remaining: OTP_MAX_ATTEMPTS };
 }
 
 export async function sendOtpMail(opts: {
@@ -217,17 +303,30 @@ export async function createChangeToken(opts: {
   const id = randomUUID();
   const ttl = opts.ttlMinutes ?? 10;
   const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
-  await db.query(
-    `INSERT INTO account_changes (id, user_id, type, target, payload, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-    [
-      id,
-      opts.userId,
-      opts.type,
-      opts.target ?? null,
-      JSON.stringify(opts.payload ?? {}),
-      expiresAt,
-    ],
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`account-change:${opts.userId}:${opts.type}`],
+    );
+    await client.query(
+      `UPDATE account_changes SET consumed = TRUE
+       WHERE user_id = $1 AND type = $2 AND consumed = FALSE`,
+      [opts.userId, opts.type],
+    );
+    await client.query(
+      `INSERT INTO account_changes (id, user_id, type, target, payload, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, opts.userId, opts.type, opts.target ?? null, JSON.stringify(opts.payload ?? {}), expiresAt],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
   return id;
 }
 
@@ -259,11 +358,13 @@ export async function getChangeToken(
   return row;
 }
 
-export async function consumeChangeToken(token: string, userId: string) {
-  await db.query(
-    `UPDATE account_changes SET consumed = TRUE WHERE id = $1 AND user_id = $2 AND consumed = FALSE`,
+export async function consumeChangeToken(token: string, userId: string): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE account_changes SET consumed = TRUE
+     WHERE id = $1 AND user_id = $2 AND consumed = FALSE AND expires_at > NOW()`,
     [token, userId],
   );
+  return result.rowCount === 1;
 }
 
 // 当前用户版本号（用于多设备并发修改邮箱）

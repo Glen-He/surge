@@ -14,6 +14,17 @@ export function DeleteAccountModal({
   onClose: () => void;
   onScheduled: () => void;
 }) {
+  if (!open) return null;
+  return <DeleteAccountDialog onClose={onClose} onScheduled={onScheduled} />;
+}
+
+function DeleteAccountDialog({
+  onClose,
+  onScheduled,
+}: {
+  onClose: () => void;
+  onScheduled: () => void;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [otp, setOtp] = useState("");
@@ -21,18 +32,6 @@ export function DeleteAccountModal({
   const [cooldown, setCooldown] = useState(0);
   // 每日上限：按钮静态禁用"明日再试"，不跑秒级倒计时
   const [dailyLimit, setDailyLimit] = useState(false);
-
-  // 关闭时重置，避免残留状态
-  useEffect(() => {
-    if (!open) {
-      setLoading(false);
-      setError("");
-      setOtp("");
-      setOtpSending(false);
-      setCooldown(0);
-      setDailyLimit(false);
-    }
-  }, [open]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -91,7 +90,7 @@ export function DeleteAccountModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="删除账号？" busy={loading} plainHeader>
+    <Modal open onClose={onClose} title="删除账号？" busy={loading} plainHeader>
       <p className="text-[14px] leading-[1.55] text-[#6e6e73]">
         申请后账号进入 15 天冷却期，期间可正常登录并随时取消；冷却期结束后，账号及名下全部报告与数据将被永久删除，无法恢复。请先完成邮箱验证。
       </p>

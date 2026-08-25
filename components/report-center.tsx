@@ -18,7 +18,9 @@ export type SortOrQuery = { q: string; sort: SortKey };
 export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
   const [draft, setDraft] = useState("");
   const searchRef = useRef(onSearch);
-  searchRef.current = onSearch;
+  useEffect(() => {
+    searchRef.current = onSearch;
+  }, [onSearch]);
 
   // 防抖即时搜索：数据全在客户端，300ms 停顿后自动过滤
   useEffect(() => {
@@ -405,22 +407,20 @@ export function ReportList({
   reports: Report[];
   q: string;
 }): ReactNode {
+  const identity = reports.map((report) => report.slug).join("\0");
+  return <ReportListState key={identity} reports={reports} q={q} />;
+}
+
+function ReportListState({
+  reports,
+  q,
+}: {
+  reports: Report[];
+  q: string;
+}): ReactNode {
   // 手动顺序（slug 序列）：服务端顺序为初始值，拖拽后本地即时更新
   const [order, setOrder] = useState<string[]>(() => reports.map((r) => r.slug));
   const [dragSlug, setDragSlug] = useState<string | null>(null);
-  const orderRef = useRef(order);
-  orderRef.current = order;
-
-  // 服务端数据变化时：项目集合不变则保留用户顺序，变了（新建/删除）才重置
-  useEffect(() => {
-    setOrder((prev) => {
-      const slugs = reports.map((r) => r.slug);
-      const prevSet = new Set(prev);
-      const same =
-        prev.length === slugs.length && slugs.every((s) => prevSet.has(s));
-      return same ? prev : slugs;
-    });
-  }, [reports]);
 
   const bySlug = useMemo(
     () => new Map(reports.map((r) => [r.slug, r] as const)),
@@ -458,7 +458,7 @@ export function ReportList({
       void fetch("/api/reports/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slugs: orderRef.current }),
+        body: JSON.stringify({ slugs: order }),
       });
     }
     setDragSlug(null);

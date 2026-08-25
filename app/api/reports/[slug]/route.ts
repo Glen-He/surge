@@ -1,16 +1,13 @@
-import { promises as fs } from "fs";
-import path from "path";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getApiSession } from "@/lib/api-session";
 import { getReportBySlug } from "@/lib/reports-db";
 import {
+  deleteReport,
   metaFromForm,
   replaceReportFile,
   updateReportMeta,
   validateReportMeta,
-  USERS_DIR,
 } from "@/lib/report-upload";
+import { readUploadForm } from "@/lib/upload-request";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +17,7 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
@@ -33,7 +28,9 @@ export async function PATCH(
     return Response.json({ error: "项目不存在" }, { status: 404 });
   }
 
-  const form = await req.formData();
+  const parsed = await readUploadForm(req);
+  if (!parsed.ok) return parsed.response;
+  const form = parsed.form;
   const meta = metaFromForm(form);
   const file = form.get("file");
 
@@ -49,10 +46,11 @@ export async function PATCH(
       name: file.name,
       type: file.type,
       buf: Buffer.from(await file.arrayBuffer()),
-    });
+    }, meta);
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
     }
+    return Response.json({ ok: true });
   }
 
   const result = await updateReportMeta(session.user.id, slug, meta);
@@ -67,9 +65,7 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
@@ -80,18 +76,9 @@ export async function DELETE(
     return Response.json({ error: "项目不存在" }, { status: 404 });
   }
 
-  const userDir = path.join(USERS_DIR, session.user.id);
-  try {
-    await db.query(`DELETE FROM reports WHERE user_id = $1 AND slug = $2`, [
-      session.user.id,
-      slug,
-    ]);
-    await fs.rm(path.join(userDir, slug), { recursive: true, force: true });
-    await fs.rm(path.join(userDir, `${slug}.tmp`), { recursive: true, force: true });
-    await fs.rm(path.join(userDir, `${slug}.old`), { recursive: true, force: true });
-  } catch {
-    return Response.json({ error: "删除失败，请重试" }, { status: 500 });
+  const result = await deleteReport(session.user.id, slug);
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: result.status });
   }
-
   return Response.json({ ok: true });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 const OTP_LENGTH = 6;
 
@@ -20,7 +20,6 @@ export function OTPInput({
   error?: boolean;
 }) {
   const refs = useRef<Array<HTMLInputElement | null>>([]);
-  const [shaking, setShaking] = useState(false);
 
   const digits = value
     .split("")
@@ -30,14 +29,6 @@ export function OTPInput({
   useEffect(() => {
     if (autoFocus) refs.current[0]?.focus();
   }, [autoFocus]);
-
-  // error 变为 true 时触发一次 shake
-  useEffect(() => {
-    if (!error) return;
-    setShaking(true);
-    const t = setTimeout(() => setShaking(false), 320);
-    return () => clearTimeout(t);
-  }, [error]);
 
   function handleChange(i: number, raw: string) {
     const d = raw.replace(/\D/g, "").slice(-1);
@@ -66,7 +57,7 @@ export function OTPInput({
   }
 
   return (
-    <div className={`otp-shell ${shaking ? "animate-shake" : ""}`}>
+    <div className={`otp-shell ${error ? "animate-shake" : ""}`}>
       {Array.from({ length: OTP_LENGTH }).map((_, i) => (
         <input
           key={i}

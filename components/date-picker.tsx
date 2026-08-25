@@ -39,13 +39,14 @@ export function DatePicker({
     m: initial.getMonth(),
   });
 
-  // 打开时同步到当前值所在月份，并回到日期视图
-  useEffect(() => {
-    if (!open) return;
-    const d = parseYMD(value) ?? new Date();
-    setView({ y: d.getFullYear(), m: d.getMonth() });
-    setPicker("days");
-  }, [open, value]);
+  function toggleOpen() {
+    if (!open) {
+      const d = parseYMD(value) ?? new Date();
+      setView({ y: d.getFullYear(), m: d.getMonth() });
+      setPicker("days");
+    }
+    setOpen((current) => !current);
+  }
 
   // 点击外部 / Esc 关闭
   useEffect(() => {
@@ -93,7 +94,7 @@ export function DatePicker({
     <div className="relative" ref={rootRef}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         className={`project-input date-trigger ${error ? "project-input-error" : ""}`}

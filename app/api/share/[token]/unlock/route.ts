@@ -1,4 +1,5 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { clientIp } from "@/lib/client-ip";
 import {
   checkUnlockRate,
   clearUnlockRate,
@@ -27,7 +28,8 @@ export async function POST(
   }
 
   // 限速：每 token 10 分钟窗口 10 次
-  const rl = checkUnlockRate(token);
+  const ip = clientIp(await headers());
+  const rl = await checkUnlockRate(token, ip);
   if (!rl.ok) {
     return Response.json(
       { error: `尝试次数过多，请 ${rl.retryAfter} 秒后再试` },
@@ -37,11 +39,14 @@ export async function POST(
 
   const body = await req.json().catch(() => ({}));
   const password = typeof body.password === "string" ? body.password : "";
-  if (!password || !verifySharePassword(password, found.share.password_hash)) {
+  if (
+    !password ||
+    !(await verifySharePassword(password, found.share.password_hash))
+  ) {
     return Response.json({ error: "密码不正确" }, { status: 401 });
   }
 
-  clearUnlockRate(token);
+  await clearUnlockRate(token, ip);
   const jar = await cookies();
   jar.set(unlockCookieName(token), unlockProof(token), {
     httpOnly: true,

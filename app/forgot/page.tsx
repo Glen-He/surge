@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">
                 检测到 <span className="font-medium text-zinc-700">访客模式</span>，无需接收邮件：
                 <br />
-                页面顶部会以 <span className="font-medium text-[#0066CC]">弹窗</span> 形式直接显示"访客验证码"。
+                页面顶部会以 <span className="font-medium text-[#0066CC]">弹窗</span> 形式直接显示“访客验证码”。
               </p>
             ) : (
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">

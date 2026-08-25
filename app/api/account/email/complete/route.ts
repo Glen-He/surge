@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "@/lib/guest-sandbox";
 import {
   consumeChangeToken,
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 // 完成修改邮箱：验证新邮箱验证码 → 多设备并发安全 UPDATE → 撤销其他会话
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }
@@ -66,6 +67,10 @@ export async function POST(req: Request) {
     return Response.json({ error: res.error }, { status: 400 });
   }
 
+  if (!(await consumeChangeToken(token, session.user.id))) {
+    return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
+  }
+
   // 多设备并发安全：仅当当前邮箱仍等于 originalEmail 且 version 未变化才更新
   const ok = await updateEmailWithVersion({
     userId: session.user.id,
@@ -76,9 +81,6 @@ export async function POST(req: Request) {
   if (!ok) {
     return Response.json({ error: "账号信息已经发生变化，请重新验证后再试" }, { status: 409 });
   }
-
-  // 消费一次性 token
-  await consumeChangeToken(token, session.user.id);
 
   // 撤销其他设备的会话（当前设备保持登录）
   try {

@@ -1,25 +1,30 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  reportDocCsp,
-  requestOrigin,
-  rewriteReportHtml,
-  signedAssetUrl,
-  verifyAssetSig,
-} from "@/lib/report-pipeline";
-
-const OPTS = { assetUrl: (p: string) => `/asset?p=${encodeURIComponent(p)}` };
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { reportDocCsp, requestOrigin, renderReportDoc } from "@/lib/report-pipeline";
+import { issueCapability, verifyCapability } from "@/lib/report-capability";
+import { createHmac } from "crypto";
 
 describe("reportDocCsp", () => {
-  it("包含沙箱与断网指令，资源仅限指定 origin", () => {
-    const csp = reportDocCsp("https://surge.example");
+  it("包含沙箱、断网与 base-uri/worker 禁用，资源仅限 capability 前缀", () => {
+    const csp = reportDocCsp("https://surge.example/r/CAP123");
     expect(csp).toContain("sandbox allow-scripts");
     expect(csp).toContain("connect-src 'none'");
-    expect(csp).toContain("script-src 'unsafe-inline' https://surge.example");
-    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'none'");
+    expect(csp).toContain("worker-src 'none'");
+    expect(csp).toContain(
+      "script-src 'unsafe-inline' https://surge.example/r/CAP123/",
+    );
+    // 不允许整站 origin（收紧到 /r/<cap>/ 命名空间）
+    expect(csp).not.toContain("img-src https://surge.example ");
+    expect(csp).toContain("img-src https://surge.example/r/CAP123/ data: blob:");
   });
 });
 
 describe("requestOrigin", () => {
+  beforeEach(() => {
+    vi.stubEnv("BETTER_AUTH_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+  });
+
   it("优先 x-forwarded-host + proto", () => {
     const req = new Request("http://x/", {
       headers: { "x-forwarded-host": "surge.example", "x-forwarded-proto": "https" },
@@ -31,90 +36,101 @@ describe("requestOrigin", () => {
     const req = new Request("http://x/", { headers: { host: "localhost:3000" } });
     expect(requestOrigin(req)).toBe("http://localhost:3000");
   });
+
+  it("部署固定 origin 优先于可伪造请求头", () => {
+    vi.stubEnv("BETTER_AUTH_URL", "https://reports.example/app");
+    const req = new Request("http://x/", {
+      headers: { "x-forwarded-host": "evil.example" },
+    });
+    expect(requestOrigin(req)).toBe("https://reports.example");
+  });
 });
 
-describe("资产 URL 签名", () => {
-  it("签名-验签往返", () => {
-    const url = signedAssetUrl("demo/data.js", "user1");
-    const u = new URL(`http://x${url}`);
-    expect(
-      verifyAssetSig(
-        u.searchParams.get("p")!,
-        u.searchParams.get("u")!,
-        Number(u.searchParams.get("e")),
-        u.searchParams.get("t")!,
-      ),
-    ).toBe(true);
+describe("report capability", () => {
+  it("签发-验证往返，携带报告、世代与纪元", () => {
+    const cap = issueCapability("r-123", "rev-abc", 3);
+    const grant = verifyCapability(cap);
+    expect(grant).not.toBeNull();
+    expect(grant!.reportId).toBe("r-123");
+    expect(grant!.revisionId).toBe("rev-abc");
+    expect(grant!.epoch).toBe(3);
+    expect(grant!.expiresAt).toBeGreaterThan(Date.now() / 1000);
   });
 
-  it("篡改路径验签失败", () => {
-    const url = signedAssetUrl("demo/data.js", "user1");
-    const u = new URL(`http://x${url}`);
-    expect(
-      verifyAssetSig(
-        "other/file.js",
-        u.searchParams.get("u")!,
-        Number(u.searchParams.get("e")),
-        u.searchParams.get("t")!,
-      ),
-    ).toBe(false);
+  it("capability URL 安全（可直接作路径段）", () => {
+    const cap = issueCapability("r-123", "rev-abc", 0);
+    expect(cap).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 
-  it("过期签名失败", () => {
-    const url = signedAssetUrl("demo/data.js", "user1");
-    const u = new URL(`http://x${url}`);
-    const spy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 25 * 60 * 60 * 1000);
-    expect(
-      verifyAssetSig(
-        u.searchParams.get("p")!,
-        u.searchParams.get("u")!,
-        Number(u.searchParams.get("e")),
-        u.searchParams.get("t")!,
-      ),
-    ).toBe(false);
+  it("到期上限 clamp：capability 不活过分享截止时间", () => {
+    const soon = Math.floor(Date.now() / 1000) + 60;
+    const cap = issueCapability("r-123", "rev-abc", 0, soon);
+    expect(verifyCapability(cap)!.expiresAt).toBe(soon);
+  });
+
+  it("篡改签名验证失败", () => {
+    const cap = issueCapability("r-123", "rev-abc", 0);
+    expect(verifyCapability(cap + "x")).toBeNull();
+    expect(verifyCapability("x" + cap)).toBeNull();
+    expect(verifyCapability("")).toBeNull();
+    expect(verifyCapability("onlypayload")).toBeNull();
+  });
+
+  it("过期 capability 验证失败", () => {
+    const cap = issueCapability("r-123", "rev-abc", 0);
+    const spy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 7 * 60 * 60 * 1000);
+    expect(verifyCapability(cap)).toBeNull();
     spy.mockRestore();
   });
 
-  it("缺参验签失败", () => {
-    expect(verifyAssetSig("", "u", 1, "t")).toBe(false);
-    expect(verifyAssetSig("p", "", 1, "t")).toBe(false);
-    expect(verifyAssetSig("p", "u", NaN, "t")).toBe(false);
+  it("伪造 payload（换报告 ID / 换纪元）验证失败", () => {
+    const cap = issueCapability("r-123", "rev-abc", 5);
+    const dot = cap.indexOf(".");
+    for (const payload of [
+      "v1.read.r-456.rev-abc.5.9999999999",
+      "v1.read.r-123.rev-abc.6.9999999999",
+    ]) {
+      const forged =
+        Buffer.from(payload).toString("base64url") + cap.slice(dot);
+      expect(verifyCapability(forged)).toBeNull();
+    }
+  });
+
+  it("密钥隔离：派生密钥不同于主密钥直接签名", () => {
+    const cap = issueCapability("r-123", "rev-abc", 0);
+    const payload =
+      "v1.read.r-123.rev-abc.0." +
+      verifyCapability(cap)!.expiresAt;
+    const directSig = createHmac(
+      "sha256",
+      process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET ?? "surge-dev-asset-secret",
+    )
+      .update(payload)
+      .digest("base64url");
+    expect(cap.endsWith(directSig)).toBe(false);
   });
 });
 
-describe("rewriteReportHtml", () => {
+describe("renderReportDoc", () => {
   const base = `<!DOCTYPE html><html><head><title>t</title></head><body><header class="rpt-head"><h1>标题</h1></header>%s</body></html>`;
-  const run = (inner: string) =>
-    rewriteReportHtml(base.replace("%s", inner), "demo", OPTS);
+  const run = (inner: string) => renderReportDoc(base.replace("%s", inner));
 
-  it("公共库 ../../lib/ → _shared/ 资产端点", () => {
-    const out = run(`<script src="../../lib/echarts.min.js"></script>`);
-    expect(out).toContain(`/asset?p=${encodeURIComponent("_shared/echarts.min.js")}`);
-  });
-
-  it("项目内相对 .js 重写到 slug 前缀", () => {
-    const out = run(`<script src="data.js"></script>`);
-    expect(out).toContain(`/asset?p=${encodeURIComponent("demo/data.js")}`);
-  });
-
-  it("绝对路径与外链脚本不重写", () => {
-    const out = run(`<script src="/abs/a.js"></script><script src="https://cdn.x/a.js"></script>`);
-    expect(out).toContain('src="/abs/a.js"');
-    expect(out).toContain('src="https://cdn.x/a.js"');
-  });
-
-  it("静态资源（img/link）统一重写到资产端点", () => {
-    const out = run(`<img src="chart.png"><link href="style.css" rel="stylesheet">`);
-    expect(out).toContain(`/asset?p=${encodeURIComponent("demo/chart.png")}`);
-    expect(out).toContain(`/asset?p=${encodeURIComponent("demo/style.css")}`);
-  });
-
-  it("<style> 块内 url()/@import 重写，正文文本不误伤", () => {
-    const out = run(
-      `<style>body{background:url(bg.png)}@import "x.css";</style><p>url(no.png)</p>`,
+  it("旧约定公共库路径映射到 ./_platform/", () => {
+    expect(run(`<script src="../../lib/echarts.min.js"></script>`)).toContain(
+      `src="./_platform/echarts.min.js"`,
     );
-    expect(out).toContain(`/asset?p=${encodeURIComponent("demo/bg.png")}`);
-    expect(out).toContain(`<p>url(no.png)</p>`);
+    expect(run(`<script src="../lib/echarts.min.js"></script>`)).toContain(
+      `src="./_platform/echarts.min.js"`,
+    );
+  });
+
+  it("其余相对引用原样保留（浏览器原生解析）", () => {
+    const out = run(
+      `<script src="data.js"></script><img src="images/a.png"><link href="style.css" rel="stylesheet">`,
+    );
+    expect(out).toContain(`src="data.js"`);
+    expect(out).toContain(`src="images/a.png"`);
+    expect(out).toContain(`href="style.css"`);
   });
 
   it("剥离 rpt-head 头部", () => {
@@ -138,4 +154,5 @@ describe("rewriteReportHtml", () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });

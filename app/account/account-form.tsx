@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { CardHead } from "@/components/card-head";
 import { EmailChangeModal } from "./email-change-modal";
 import { PasswordChangeModal } from "./password-change-modal";

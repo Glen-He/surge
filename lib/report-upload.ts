@@ -1,14 +1,27 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import { db, withUserStorageLock } from "./db";
+import { db, withStorageLocks } from "./db";
 import { unzipStream, UnzipLimitError } from "./zip";
-import { dirSizeBytes, isGuestEmail } from "./guest-sandbox";
+import { isGuestEmail } from "./guest-sandbox";
 import { logger } from "./logger";
+import {
+  dirSizeBytes,
+  moveReportDirToTrash,
+  removeTrashedDir,
+  reportDir,
+  REPORT_USERS_DIR,
+  restoreTrashedDir,
+  userReportsDir,
+} from "./report-storage";
 import { LIMITS, charWeight } from "./char-limit";
+import { newRevisionId } from "./report-capability";
 import { DEFAULT_TAG_COLOR, isTagColor } from "./tag-colors";
 import {
   MAX_ZIP_BYTES,
+  MAX_PROJECT_BYTES,
+  MAX_FILES,
+  MAX_DEPTH,
   MAX_USER_TOTAL_BYTES,
   SITE_TOTAL_CAP_BYTES,
   SITE_TOTAL_WARN_BYTES,
@@ -19,7 +32,7 @@ import {
 // 共用这一份业务实现：字段校验、配额、advisory lock 串行化、
 // 临时目录转正/原子替换。任何规则改动只改这里。
 
-export const USERS_DIR = path.join(process.cwd(), "reports", "users");
+export const USERS_DIR = REPORT_USERS_DIR;
 
 export type ReportMeta = {
   title: string;
@@ -35,6 +48,8 @@ export type UploadFile = { name: string; type: string; buf: Buffer };
 export type UploadResult =
   | { ok: true; slug: string }
   | { ok: false; error: string; status: number };
+
+class SiteCapacityError extends Error {}
 
 /** 字段校验（两套端点同一规则） */
 export function validateReportMeta(meta: ReportMeta): string | null {
@@ -72,10 +87,10 @@ function assertFileSize(buf: Buffer): string | null {
   return null;
 }
 
-/** 全站总量闸门：≥10GB 暂停上传；≥8GB 预警（调用方需已持有用户级锁） */
-async function checkSiteCap(): Promise<string | null> {
-  const siteTotal = await dirSizeBytes(USERS_DIR);
-  if (siteTotal >= SITE_TOTAL_CAP_BYTES) {
+/** 全站总量闸门（调用方必须持有全站存储锁）。 */
+async function checkSiteCap(projectedTotal?: number): Promise<string | null> {
+  const siteTotal = projectedTotal ?? (await dirSizeBytes(USERS_DIR));
+  if (siteTotal > SITE_TOTAL_CAP_BYTES) {
     return "服务器存储已达上限，上传暂停，请联系管理员";
   }
   if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
@@ -103,34 +118,29 @@ export async function createReport(
   const sizeErr = assertFileSize(file.buf);
   if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
 
-  // 访客限传：沙箱内最多保留 1 个自己上传的项目（示例报告 demo_ 前缀不计入）
-  if (isGuestEmail(email)) {
-    const own = await db.query<{ n: string }>(
-      `SELECT count(*)::text AS n FROM reports
-       WHERE user_id = $1 AND slug LIKE 'r\\_%'`,
-      [userId],
-    );
-    if (Number(own.rows[0]?.n ?? 0) >= 1) {
-      return {
-        ok: false,
-        error: "访客模式最多上传 1 个项目，删除后可再次上传",
-        status: 403,
-      };
-    }
-  }
-
-  const userDir = path.join(USERS_DIR, userId);
+  const userDir = userReportsDir(userId);
   const isHtmlFile = isHtmlUpload(file);
 
-  // 配额检查 + 写盘临界区：advisory lock 串行化同一用户的并发上传
-  return withUserStorageLock(userId, async (): Promise<UploadResult> => {
-    const capErr = await checkSiteCap();
-    if (capErr) return { ok: false, error: capErr, status: 503 };
-
+  // 全站 + 用户锁：不同用户也不能并发突破站点硬顶。
+  return withStorageLocks(userId, async (client): Promise<UploadResult> => {
+    if (isGuestEmail(email)) {
+      const own = await client.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM reports
+         WHERE user_id = $1 AND slug LIKE 'r\\_%'`,
+        [userId],
+      );
+      if (Number(own.rows[0]?.n ?? 0) >= 1) {
+        return {
+          ok: false,
+          error: "访客模式最多上传 1 个项目，删除后可再次上传",
+          status: 403,
+        };
+      }
+    }
     const used = await dirSizeBytes(userDir);
 
     const slug = `r_${randomUUID().slice(0, 8)}`;
-    const dir = path.join(userDir, slug);
+    const dir = reportDir(userId, slug);
     // 先解压到随机临时目录，全部校验通过后再转正
     const tmp = path.join(userDir, `${slug}.tmp`);
     await fs.rm(tmp, { recursive: true, force: true });
@@ -142,7 +152,11 @@ export async function createReport(
         await fs.writeFile(path.join(tmp, "report.html"), file.buf);
         projectBytes = file.buf.byteLength;
       } else {
-        const result = await unzipStream(file.buf, tmp);
+        const result = await unzipStream(file.buf, tmp, {
+          maxFiles: MAX_FILES,
+          maxTotalBytes: MAX_PROJECT_BYTES,
+          maxDepth: MAX_DEPTH,
+        });
         projectBytes = result.totalBytes;
         await fs.access(path.join(tmp, "report.html"));
       }
@@ -151,10 +165,15 @@ export async function createReport(
           `个人存储上限 200MB（已用 ${Math.round(used / 1024 / 1024)}MB），请先删除一些报告再上传`,
         );
       }
+      const capErr = await checkSiteCap(); // tmp 已包含在投影总量中
+      if (capErr) throw new SiteCapacityError(capErr);
     } catch (err) {
       await fs.rm(tmp, { recursive: true, force: true });
       if (err instanceof UnzipLimitError) {
         return { ok: false, error: err.message, status: 400 };
+      }
+      if (err instanceof SiteCapacityError) {
+        return { ok: false, error: err.message, status: 503 };
       }
       return {
         ok: false,
@@ -171,18 +190,19 @@ export async function createReport(
     }
 
     try {
-      const minRow = await db.query<{ m: number }>(
+      const minRow = await client.query<{ m: number }>(
         `SELECT COALESCE(MIN(sort_order), 0) AS m FROM reports WHERE user_id = $1`,
         [userId],
       );
       const sortOrder = (minRow.rows[0]?.m ?? 0) - 1;
-      await db.query(
-        `INSERT INTO reports (id, user_id, slug, title, date, tag, tag_color, description, keywords, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      await client.query(
+        `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           randomUUID(),
           userId,
           slug,
+          newRevisionId(),
           meta.title,
           meta.date,
           meta.tag,
@@ -209,21 +229,24 @@ export async function replaceReportFile(
   userId: string,
   slug: string,
   file: UploadFile,
+  meta?: ReportMeta,
 ): Promise<UploadResult> {
   const sizeErr = assertFileSize(file.buf);
   if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
 
-  const userDir = path.join(USERS_DIR, userId);
-  const dir = path.join(userDir, slug);
+  const userDir = userReportsDir(userId);
+  let dir: string;
+  try {
+    dir = reportDir(userId, slug);
+  } catch {
+    return { ok: false, error: "项目不存在", status: 404 };
+  }
   const tmp = path.join(userDir, `${slug}.tmp`);
   const old = path.join(userDir, `${slug}.old`);
   const isHtmlFile = isHtmlUpload(file);
 
   // 与上传共用同一把用户级锁：替换场景的存量扣减同样需要串行化
-  return withUserStorageLock(userId, async (): Promise<UploadResult> => {
-    const capErr = await checkSiteCap();
-    if (capErr) return { ok: false, error: capErr, status: 503 };
-
+  return withStorageLocks(userId, async (client): Promise<UploadResult> => {
     // 清理上次失败可能残留的 tmp（避免污染配额计算）
     await fs.rm(tmp, { recursive: true, force: true });
 
@@ -242,7 +265,11 @@ export async function replaceReportFile(
           );
         }
       } else {
-        const result = await unzipStream(file.buf, tmp);
+        const result = await unzipStream(file.buf, tmp, {
+          maxFiles: MAX_FILES,
+          maxTotalBytes: MAX_PROJECT_BYTES,
+          maxDepth: MAX_DEPTH,
+        });
         if (usedBefore - oldSize + result.totalBytes > MAX_USER_TOTAL_BYTES) {
           throw new UnzipLimitError(
             `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / (1024 * 1024))}MB，请先删除一些报告再上传`,
@@ -250,10 +277,17 @@ export async function replaceReportFile(
         }
         await fs.access(path.join(tmp, "report.html"));
       }
+      // 当前站点总量包含 old + tmp；替换完成后 old 会移除。
+      const projectedSiteTotal = (await dirSizeBytes(USERS_DIR)) - oldSize;
+      const capErr = await checkSiteCap(projectedSiteTotal);
+      if (capErr) throw new SiteCapacityError(capErr);
     } catch (err) {
       await fs.rm(tmp, { recursive: true, force: true });
       if (err instanceof UnzipLimitError) {
         return { ok: false, error: err.message, status: 403 };
+      }
+      if (err instanceof SiteCapacityError) {
+        return { ok: false, error: err.message, status: 503 };
       }
       return {
         ok: false,
@@ -266,7 +300,6 @@ export async function replaceReportFile(
       await fs.rm(old, { recursive: true, force: true });
       await fs.rename(dir, old);
       await fs.rename(tmp, dir);
-      await fs.rm(old, { recursive: true, force: true });
     } catch {
       // 替换失败时尽力恢复原目录
       try {
@@ -279,6 +312,135 @@ export async function replaceReportFile(
       return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
     }
 
+    // 内容世代轮换。必须 fail closed：旧 capability 绑定旧 revision，
+    // 若磁盘已是新内容而 DB 仍指旧 revision，旧 capability 持有者会读到
+    // 未被授权的新内容（如撤销分享后上传的敏感数据）——capability 的
+    // 安全不变量被破坏。因此 DB 更新失败时回滚目录到旧内容；连回滚都
+    // 失败则报告目录缺失，runtime 对该报告整体 404（拒绝服务好于越权）。
+    try {
+      const updated = meta
+        ? await client.query(
+            `UPDATE reports
+             SET revision_id = $1, title = $2, date = $3, tag = $4,
+                 tag_color = $5, description = $6, keywords = $7
+             WHERE user_id = $8 AND slug = $9`,
+            [
+              newRevisionId(),
+              meta.title,
+              meta.date,
+              meta.tag,
+              meta.tagColor,
+              meta.description,
+              meta.keywords,
+              userId,
+              slug,
+            ],
+          )
+        : await client.query(
+            `UPDATE reports SET revision_id = $1 WHERE user_id = $2 AND slug = $3`,
+            [newRevisionId(), userId, slug],
+          );
+      if (updated.rowCount !== 1) {
+        throw new Error("report disappeared while rotating revision");
+      }
+    } catch (err) {
+      logger.error("upload", "轮换 revision 失败，回滚报告目录", err as Error);
+      try {
+        await fs.rm(dir, { recursive: true, force: true });
+        await fs.rename(old, dir); // old 尚未删除，恢复原内容
+      } catch (restoreErr) {
+        logger.error(
+          "upload",
+          "回滚报告目录失败，报告暂不可用（fail closed）",
+          restoreErr as Error,
+        );
+      }
+      return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
+    }
+    await fs.rm(old, { recursive: true, force: true }).catch((error) => {
+      logger.warn("upload", "旧报告目录将在下次替换时重试清理", error as Error, {
+        userId,
+        slug,
+      });
+    });
+
+    return { ok: true, slug };
+  });
+}
+
+/**
+ * Delete a report with a compensating filesystem transaction. The live
+ * directory is renamed out of reach first; a failed DB delete restores it.
+ * Once the DB commit succeeds, stale capabilities fail before physical cleanup.
+ */
+export async function deleteReport(
+  userId: string,
+  slug: string,
+): Promise<UploadResult> {
+  return withStorageLocks(userId, async (client) => {
+    const userDir = userReportsDir(userId);
+    try {
+      reportDir(userId, slug);
+    } catch {
+      return { ok: false, error: "项目不存在", status: 404 };
+    }
+    const tmp = path.join(userDir, `${slug}.tmp`);
+    const old = path.join(userDir, `${slug}.old`);
+    let moved: Awaited<ReturnType<typeof moveReportDirToTrash>>;
+    try {
+      moved = await moveReportDirToTrash(userId, slug);
+    } catch (error) {
+      logger.error("report-delete", "报告目录移入回收区失败", error as Error, {
+        userId,
+        slug,
+      });
+      return { ok: false, error: "删除失败，请重试", status: 500 };
+    }
+
+    try {
+      const result = await client.query(
+        `DELETE FROM reports WHERE user_id = $1 AND slug = $2`,
+        [userId, slug],
+      );
+      if (result.rowCount !== 1) {
+        await restoreTrashedDir(
+          moved.original,
+          moved.trashed,
+          moved.manifest,
+        );
+        return { ok: false, error: "项目不存在", status: 404 };
+      }
+    } catch (error) {
+      await restoreTrashedDir(
+        moved.original,
+        moved.trashed,
+        moved.manifest,
+      ).catch((restoreError) => {
+        logger.error(
+          "report-delete",
+          "数据库删除失败且目录恢复失败",
+          restoreError as Error,
+          { userId, slug },
+        );
+      });
+      logger.error("report-delete", "数据库删除失败", error as Error, {
+        userId,
+        slug,
+      });
+      return { ok: false, error: "删除失败，请重试", status: 500 };
+    }
+
+    // DB 已成功，物理清理失败时留在 .trash，由启动清理重试。
+    await Promise.all([
+      removeTrashedDir(moved.trashed, moved.manifest),
+      fs.rm(tmp, { recursive: true, force: true, maxRetries: 3 }),
+      fs.rm(old, { recursive: true, force: true, maxRetries: 3 }),
+    ]).catch((error) => {
+      logger.warn("report-delete", "延迟清理报告回收区", error as Error, {
+        userId,
+        slug,
+      });
+    });
     return { ok: true, slug };
   });
 }

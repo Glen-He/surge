@@ -135,6 +135,19 @@ export function PasswordChangeModal({
   onClose: () => void;
   currentEmail: string;
 }) {
+  if (!open) return null;
+  return (
+    <PasswordChangeDialog onClose={onClose} currentEmail={currentEmail} />
+  );
+}
+
+function PasswordChangeDialog({
+  onClose,
+  currentEmail,
+}: {
+  onClose: () => void;
+  currentEmail: string;
+}) {
   const [mode, setMode] = useState<Mode>("select");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,9 +156,7 @@ export function PasswordChangeModal({
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
 
-  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   // 每日上限（自然日 10 次）：按钮静态禁用显示"明日再试"，不跑秒级倒计时
@@ -166,30 +177,12 @@ export function PasswordChangeModal({
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // 关闭时重置全部状态
-  useEffect(() => {
-    if (!open) {
-      setMode("select");
-      setMsg(null);
-      setLoading(false);
-      setCurrentPassword("");
-      setShowPassword(false);
-      setPasswordError("");
-      setOtpSent(false);
-      setOtp("");
-      setOtpError(false);
-      setOtpSending(false);
-      setCooldown(0);
-      setDailyLimit(false);
-      setNewPassword("");
-      setConfirmPassword("");
-      setNewShow(false);
-      setConfirmShow(false);
-      setNewPasswordError("");
-      setPasswordChangeToken("");
+  useEffect(
+    () => () => {
       if (closeTimer.current) window.clearTimeout(closeTimer.current);
-    }
-  }, [open]);
+    },
+    [],
+  );
 
   // ── 发送邮箱验证码 ──
   async function sendOtp() {
@@ -215,7 +208,6 @@ export function PasswordChangeModal({
         return;
       }
       setCooldown(typeof data.retryAfter === "number" && data.retryAfter > 0 ? data.retryAfter : 60);
-      setOtpSent(true);
       // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
@@ -269,7 +261,6 @@ export function PasswordChangeModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setOtpError(true);
         setOtp("");
         setMsg({ ok: false, text: data.error ?? "验证失败" });
         return;
@@ -322,12 +313,9 @@ export function PasswordChangeModal({
   const dirty =
     mode !== "success" && (newPassword !== "" || confirmPassword !== "");
 
-  const stepCurrent =
-    mode === "new-password" ? 1 : mode === "success" ? STEPS.length : 0;
-
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title="修改密码"
       busy={busy}
@@ -445,7 +433,6 @@ export function PasswordChangeModal({
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setOtp(v);
-                setOtpError(false);
                 setMsg(null);
                 if (v.length === 6) void verifyByOtp(v);
               }}

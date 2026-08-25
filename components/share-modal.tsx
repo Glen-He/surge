@@ -45,8 +45,21 @@ export function ShareModal({
   slug: string;
   title: string;
 }) {
+  if (!open) return null;
+  return <ShareDialog onClose={onClose} slug={slug} title={title} />;
+}
+
+function ShareDialog({
+  onClose,
+  slug,
+  title,
+}: {
+  onClose: () => void;
+  slug: string;
+  title: string;
+}) {
   const [shares, setShares] = useState<ShareView[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
@@ -70,8 +83,22 @@ export function ShareModal({
   }, [slug]);
 
   useEffect(() => {
-    if (open) void refresh();
-  }, [open, refresh]);
+    let active = true;
+    void fetch(`/api/reports/${slug}/shares`)
+      .then(async (response) => ({
+        ok: response.ok,
+        data: await response.json().catch(() => null),
+      }))
+      .then(({ ok, data }) => {
+        if (active && ok && data?.shares) setShares(data.shares);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug]);
 
   async function create() {
     if (creating) return;
@@ -136,7 +163,7 @@ export function ShareModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`分享 · ${title}`} plainHeader>
+    <Modal open onClose={onClose} title={`分享 · ${title}`} plainHeader>
       <div className="space-y-5">
         {/* 创建区 */}
         <div className="rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">

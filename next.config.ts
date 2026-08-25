@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
+          { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
           {
             key: "Strict-Transport-Security",
             value: "max-age=15552000; includeSubDomains",
@@ -25,6 +32,16 @@ const nextConfig: NextConfig = {
         // X-Robots-Tag 对收到链接的爬虫也生效）
         source: "/s/:token*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        // Capability URLs are bearer credentials and must not be indexed or
+        // leak through a Referer header. Route handlers repeat these headers
+        // so the invariant also holds outside this Next.js config.
+        source: "/r/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
       },
     ];
   },

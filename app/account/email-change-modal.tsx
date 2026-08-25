@@ -50,14 +50,23 @@ export function EmailChangeModal({
   onClose: () => void;
   currentEmail: string;
 }) {
+  if (!open) return null;
+  return <EmailChangeDialog onClose={onClose} currentEmail={currentEmail} />;
+}
+
+function EmailChangeDialog({
+  onClose,
+  currentEmail,
+}: {
+  onClose: () => void;
+  currentEmail: string;
+}) {
   const [step, setStep] = useState<Step>("verify-current");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Step1 当前邮箱验证码
-  const [oldSent, setOldSent] = useState(false);
   const [oldOtp, setOldOtp] = useState("");
-  const [oldOtpError, setOldOtpError] = useState(false);
   const [oldSending, setOldSending] = useState(false);
   const [oldCooldown, setOldCooldown] = useState(0);
   // 每日上限：按钮静态禁用"明日再试"，不跑秒级倒计时
@@ -71,7 +80,6 @@ export function EmailChangeModal({
   const [newCooldown, setNewCooldown] = useState(0);
   const [newDailyLimit, setNewDailyLimit] = useState(false);
   const [newOtp, setNewOtp] = useState("");
-  const [newOtpError, setNewOtpError] = useState(false);
 
   const [emailChangeToken, setEmailChangeToken] = useState("");
   const [successEmail, setSuccessEmail] = useState("");
@@ -88,31 +96,12 @@ export function EmailChangeModal({
     return () => clearTimeout(t);
   }, [newCooldown]);
 
-  // 关闭时重置全部状态
-  useEffect(() => {
-    if (!open) {
-      setStep("verify-current");
-      setMsg(null);
-      setLoading(false);
-      setOldSent(false);
-      setOldOtp("");
-      setOldOtpError(false);
-      setOldSending(false);
-      setOldCooldown(0);
-      setOldDailyLimit(false);
-      setNewEmail("");
-      setNewEmailError("");
-      setNewSent(false);
-      setNewSending(false);
-      setNewCooldown(0);
-      setNewDailyLimit(false);
-      setNewOtp("");
-      setNewOtpError(false);
-      setEmailChangeToken("");
-      setSuccessEmail("");
+  useEffect(
+    () => () => {
       if (closeTimer.current) window.clearTimeout(closeTimer.current);
-    }
-  }, [open]);
+    },
+    [],
+  );
 
   // ── 发送当前邮箱验证码 ──
   async function sendOldOtp() {
@@ -137,7 +126,6 @@ export function EmailChangeModal({
         return;
       }
       if (typeof data.retryAfter === "number") setOldCooldown(data.retryAfter);
-      setOldSent(true);
       // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
@@ -158,7 +146,6 @@ export function EmailChangeModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setOldOtpError(true);
         setOldOtp("");
         setMsg({ ok: false, text: data.error ?? "验证失败" });
         return;
@@ -227,7 +214,6 @@ export function EmailChangeModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNewOtpError(true);
         setNewOtp("");
         setMsg({ ok: false, text: data.error ?? "修改失败" });
         return;
@@ -249,7 +235,7 @@ export function EmailChangeModal({
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title="修改登录邮箱"
       busy={busy}
@@ -282,7 +268,6 @@ export function EmailChangeModal({
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setOldOtp(v);
-                setOldOtpError(false);
                 setMsg(null);
                 if (v.length === 6) void verifyOldOtp(v);
               }}
@@ -354,7 +339,6 @@ export function EmailChangeModal({
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setNewOtp(v);
-                setNewOtpError(false);
                 setMsg(null);
                 if (v.length === 6) void completeEmailChange(v);
               }}

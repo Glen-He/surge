@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { db } from "@/lib/db";
 import { renderOtpEmail } from "@/lib/email-templates";
-import { isGuestEmail, GUEST_EMAIL_DOMAIN, guestOtpResponse } from "@/lib/guest-sandbox";
+import { isGuestEmail, GUEST_EMAIL_DOMAIN } from "@/lib/guest-sandbox";
 import {
   checkOtpRateLimit,
   generateAndStoreOtp,
@@ -15,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 // 发送"新邮箱"验证码：必须携带 email_change_token
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

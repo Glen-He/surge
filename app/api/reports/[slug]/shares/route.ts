@@ -1,6 +1,4 @@
-import { randomUUID } from "crypto";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { db } from "@/lib/db";
 import { ensureOtpMigration } from "@/lib/schema";
 import { isGuestEmail } from "@/lib/guest-sandbox";
@@ -22,7 +20,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const { slug } = await params;
@@ -44,7 +42,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   // 访客报告随沙箱销毁，禁止分享（避免死链与演示数据外泄）
@@ -74,6 +72,9 @@ export async function POST(
   }
   const expiresAt =
     days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
+  // scrypt is intentionally expensive and synchronous; compute it before the
+  // transaction so it does not hold the report row lock or a DB connection.
+  const passwordHash = password ? await hashSharePassword(password) : null;
 
   // 上限 5 条/报告：count + insert 放进同一事务并锁报告行（FOR UPDATE），
   // 并发创建会在锁上排队，杜绝「多个请求同时通过检查、插入第 6 条」的竞态。
@@ -109,7 +110,7 @@ export async function POST(
     await client.query(
       `INSERT INTO report_shares (id, report_id, token, password_hash, expires_at)
        VALUES ($1, $2, $3, $4, $5)`,
-      [id, reportId, token, password ? hashSharePassword(password) : null, expiresAt],
+      [id, reportId, token, passwordHash, expiresAt],
     );
     await client.query("COMMIT");
   } catch (e) {

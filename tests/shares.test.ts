@@ -30,26 +30,30 @@ describe("generateShareId", () => {
 });
 
 describe("分享密码 scrypt 哈希", () => {
-  it("哈希-验证往返", () => {
-    const stored = hashSharePassword("s3cret!");
+  it("哈希-验证往返", async () => {
+    const stored = await hashSharePassword("s3cret!");
     expect(stored.startsWith("scrypt$")).toBe(true);
-    expect(verifySharePassword("s3cret!", stored)).toBe(true);
+    await expect(verifySharePassword("s3cret!", stored)).resolves.toBe(true);
   });
 
-  it("错误密码不通过", () => {
-    const stored = hashSharePassword("s3cret!");
-    expect(verifySharePassword("s3cret", stored)).toBe(false);
-    expect(verifySharePassword("", stored)).toBe(false);
+  it("错误密码不通过", async () => {
+    const stored = await hashSharePassword("s3cret!");
+    await expect(verifySharePassword("s3cret", stored)).resolves.toBe(false);
+    await expect(verifySharePassword("", stored)).resolves.toBe(false);
   });
 
-  it("同一密码两次哈希盐不同（存储值不同）", () => {
-    expect(hashSharePassword("abc")).not.toBe(hashSharePassword("abc"));
+  it("同一密码两次哈希盐不同（存储值不同）", async () => {
+    const [a, b] = await Promise.all([
+      hashSharePassword("abc"),
+      hashSharePassword("abc"),
+    ]);
+    expect(a).not.toBe(b);
   });
 
-  it("畸形存储值返回 false 而非抛错", () => {
-    expect(verifySharePassword("abc", "")).toBe(false);
-    expect(verifySharePassword("abc", "plain")).toBe(false);
-    expect(verifySharePassword("abc", "scrypt$only")).toBe(false);
+  it("畸形存储值返回 false 而非抛错", async () => {
+    await expect(verifySharePassword("abc", "")).resolves.toBe(false);
+    await expect(verifySharePassword("abc", "plain")).resolves.toBe(false);
+    await expect(verifySharePassword("abc", "scrypt$only")).resolves.toBe(false);
   });
 });
 

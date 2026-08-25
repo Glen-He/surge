@@ -1,5 +1,4 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { renderOtpEmail } from "@/lib/email-templates";
 import { guestOtpResponse } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
@@ -15,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 // 发送"删除账号"用的邮箱验证码（当前绑定邮箱）
 export async function POST() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getApiSession();
   if (!session) {
     return Response.json({ error: "未登录" }, { status: 401 });
   }

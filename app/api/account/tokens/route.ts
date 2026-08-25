@@ -1,5 +1,4 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getApiSession } from "@/lib/api-session";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
@@ -19,8 +18,7 @@ export const dynamic = "force-dynamic";
 // DELETE → 撤销（?id=）
 
 async function sessionUser() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session ?? null;
+  return (await getApiSession()) ?? null;
 }
 
 function guard(

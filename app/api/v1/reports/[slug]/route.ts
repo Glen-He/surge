@@ -8,6 +8,7 @@ import {
   updateReportMeta,
   validateReportMeta,
 } from "@/lib/report-upload";
+import { readUploadForm } from "@/lib/upload-request";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +24,19 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ) {
-  if (!rateLimit(`api-v1:${clientIp(req.headers)}`, REQ_LIMIT, REQ_WINDOW_MS)) {
-    return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
-  }
-
+  const ip = clientIp(req.headers);
   const user = await authenticateApiToken(
     req.headers.get("authorization"),
-    clientIp(req.headers),
+    ip,
   );
   if (!user) {
     return Response.json(
       { error: "无效的 API 令牌（在账号设置页创建或检查）" },
       { status: 401 },
     );
+  }
+  if (!rateLimit(`api-v1:${user.id}`, REQ_LIMIT, REQ_WINDOW_MS)) {
+    return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   const { slug } = await ctx.params;
@@ -44,12 +45,9 @@ export async function PATCH(
     return Response.json({ error: "项目不存在" }, { status: 404 });
   }
 
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    return Response.json({ error: "请求体必须是 multipart 表单" }, { status: 400 });
-  }
+  const parsed = await readUploadForm(req);
+  if (!parsed.ok) return parsed.response;
+  const form = parsed.form;
 
   const meta = metaFromForm(form);
   const metaInvalid = validateReportMeta(meta);
@@ -63,10 +61,11 @@ export async function PATCH(
       name: file.name,
       type: file.type,
       buf: Buffer.from(await file.arrayBuffer()),
-    });
+    }, meta);
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
     }
+    return Response.json({ ok: true });
   }
 
   const result = await updateReportMeta(user.id, slug, meta);
