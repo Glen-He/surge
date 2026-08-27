@@ -41,6 +41,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".xhtml": "application/xhtml+xml; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".pdf": "application/pdf",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -212,6 +213,16 @@ export async function GET(
     headers["Content-Security-Policy"] =
       "default-src 'none'; style-src 'unsafe-inline'";
   } else if (!(ext in CONTENT_TYPES)) {
+    headers["Content-Disposition"] = "attachment";
+  }
+
+  // PDF 双模式：iframe 嵌入（Sec-Fetch-Dest: iframe）inline 渲染预览；
+  // 文档导航（<a> 点击 / 新标签页，Sec-Fetch-Dest: document）转 attachment
+  // 触发下载。报告文档在沙箱内是 opaque origin，<a download> 的 download
+  // 属性因跨源被浏览器忽略、退化为 iframe 自身导航——attachment 把这次
+  // 导航落成下载，报告页面本身不被替换。Fetch Metadata 头由浏览器设置，
+  // 页面脚本不可伪造；缺失时（老浏览器）按 inline 兜底。
+  if (ext === ".pdf" && req.headers.get("sec-fetch-dest") === "document") {
     headers["Content-Disposition"] = "attachment";
   }
 

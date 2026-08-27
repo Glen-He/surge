@@ -29,12 +29,16 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  // sandbox 补充：
+  // - allow-downloads：放行报告内 <a download> 下载（如参考文献 PDF）
+  // - allow-popups + escape：放行 target="_blank" 外链（DOI/PMID 等），
+  //   新标签页脱离沙箱以正常加载外部站点（不回授报告脚本任何权限）
   return (
     <iframe
       ref={iframeRef}
       src={src}
       title={title}
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox"
       className="block w-full shrink-0 border-0 bg-transparent"
       style={{
         height: height !== null ? `${height}px` : "calc(100vh - 118px)",

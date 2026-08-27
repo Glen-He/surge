@@ -25,6 +25,8 @@ export function reportDocCsp(capBase: string): string {
     `style-src 'unsafe-inline' ${capBase}/`,
     `img-src ${capBase}/ data: blob:`,
     `font-src ${capBase}/ data:`,
+    // 嵌入式 PDF 预览等场景：允许报告内嵌 <iframe> 指向 capability 目录
+    `frame-src ${capBase}/`,
     "connect-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
