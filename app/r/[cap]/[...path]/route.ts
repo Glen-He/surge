@@ -13,6 +13,7 @@ import {
   REPORT_SHARED_DIR,
   reportDir,
 } from "@/lib/report-storage";
+import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
 
 export const dynamic = "force-dynamic";
 
@@ -216,13 +217,13 @@ export async function GET(
     headers["Content-Disposition"] = "attachment";
   }
 
-  // PDF 双模式：iframe 嵌入（Sec-Fetch-Dest: iframe）inline 渲染预览；
-  // 文档导航（<a> 点击 / 新标签页，Sec-Fetch-Dest: document）转 attachment
-  // 触发下载。报告文档在沙箱内是 opaque origin，<a download> 的 download
-  // 属性因跨源被浏览器忽略、退化为 iframe 自身导航——attachment 把这次
-  // 导航落成下载，报告页面本身不被替换。Fetch Metadata 头由浏览器设置，
-  // 页面脚本不可伪造；缺失时（老浏览器）按 inline 兜底。
-  if (ext === ".pdf" && req.headers.get("sec-fetch-dest") === "document") {
+  // PDF 下载必须由可信父页显式加平台参数。不能依赖 Sec-Fetch-Dest：报告
+  // 自身就在 iframe 内，无论点击下载链接还是嵌套预览，请求目的通常都是
+  // iframe。显式参数让下载稳定返回 attachment，普通 PDF 请求保持 inline。
+  if (
+    ext === ".pdf" &&
+    new URL(req.url).searchParams.get(REPORT_PDF_DOWNLOAD_PARAM) === "1"
+  ) {
     headers["Content-Disposition"] = "attachment";
   }
 

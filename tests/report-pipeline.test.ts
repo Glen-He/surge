@@ -21,6 +21,7 @@ describe("reportDocCsp", () => {
     // 不允许整站 origin（收紧到 /r/<cap>/ 命名空间）
     expect(csp).not.toContain("img-src https://surge.example ");
     expect(csp).toContain("img-src https://surge.example/r/CAP123/ data: blob:");
+    expect(csp).toContain("frame-src https://surge.example/r/CAP123/");
   });
 });
 
@@ -184,6 +185,17 @@ describe("renderReportDoc", () => {
     expect(scriptPos).toBeLessThan(bodyPos);
     expect(out).toContain("requestAnimationFrame(measure)");
     expect(out).toContain("h===last");
+  });
+
+  it("在报告脚本之前注入 PDF 桥接，拦截下载链接与 iframe 预览", () => {
+    const marker = '<script id="report-script"></script>';
+    const out = run(marker);
+    const bridgePos = out.indexOf("__surgeReportPdf");
+    expect(bridgePos).toBeGreaterThan(out.indexOf("<head>"));
+    expect(bridgePos).toBeLessThan(out.indexOf(marker));
+    expect(out).toContain('link.hasAttribute("download")');
+    expect(out).toContain("target instanceof HTMLIFrameElement");
+    expect(out).toContain('frame.setAttribute("src","about:blank")');
   });
 });
 
