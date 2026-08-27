@@ -633,6 +633,20 @@ button {
   flex-direction: column;
 }
 
+.security-modal-wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.report-pdf-preview {
+  display: block;
+  width: 100%;
+  height: min(76vh, 820px);
+  min-height: 520px;
+  border: 0;
+  border-radius: 12px;
+  background: #525659;
+}
+
 .security-modal-overlay {
   background: rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(2px);
@@ -883,6 +897,15 @@ button {
     /* 同桌面：相对容器（= 可见视口），iOS 键盘弹出时 dvh 不收缩 */
     max-height: calc(100% - 24px);
     border-radius: 20px;
+  }
+
+  .security-modal-wide {
+    width: calc(100vw - 24px);
+  }
+
+  .report-pdf-preview {
+    height: 72vh;
+    min-height: 420px;
   }
 
   .security-modal-header {

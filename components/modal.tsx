@@ -27,6 +27,7 @@ export function Modal({
   busy = false,
   dirty = false,
   plainHeader = false,
+  wide = false,
   children,
 }: {
   open: boolean;
@@ -38,6 +39,8 @@ export function Modal({
   dirty?: boolean;
   /** 为 true 时标题下不显示分隔线 */
   plainHeader?: boolean;
+  /** 宽内容（如 PDF 阅读器）使用的大号布局 */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -193,7 +196,7 @@ export function Modal({
         ref={rootRef}
         role="document"
         tabIndex={-1}
-        className="security-modal animate-fade-up relative z-10 outline-none"
+        className={`security-modal ${wide ? "security-modal-wide" : ""} animate-fade-up relative z-10 outline-none`}
       >
         <header
           className={`security-modal-header ${plainHeader ? "security-modal-header-plain" : ""}`}

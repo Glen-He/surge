@@ -25,6 +25,8 @@ export function reportDocCsp(capBase: string): string {
     `style-src 'unsafe-inline' ${capBase}/`,
     `img-src ${capBase}/ data: blob:`,
     `font-src ${capBase}/ data:`,
+    // 嵌入式 PDF 预览等场景：允许报告内嵌 <iframe> 指向 capability 目录
+    `frame-src ${capBase}/`,
     "connect-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
@@ -32,6 +34,13 @@ export function reportDocCsp(capBase: string): string {
     "worker-src 'none'",
   ].join("; ");
 }
+
+// PDF 桥接：报告始终留在 opaque-origin sandbox 中，只把“用户要预览/下载
+// 哪个 PDF”通过 postMessage 告知可信父页。父页会再次校验 URL 必须位于当前
+// capability 目录内。这样无需 allow-same-origin，也不依赖各浏览器能否在
+// sandbox 内运行内置 PDF 阅读器。
+const reportPdfBridgeScript =
+  '<script>(function(){var lastGesture=0;function pdfUrl(value){if(!value)return"";try{var u=new URL(value,document.baseURI);return /\\.pdf$/i.test(u.pathname)?u.href:""}catch(e){return""}}function send(action,url,title){try{if(window.parent!==window)window.parent.postMessage({__surgeReportPdf:{action:action,url:url,title:title||"PDF 预览"}},"*")}catch(e){}}function frameTitle(frame){var fixed=frame.parentElement&&frame.parentElement.querySelector(".pdf-title");return fixed&&fixed.textContent&&fixed.textContent.trim()||frame.getAttribute("title")||document.title||"PDF 预览"}function hideSandboxViewer(frame){var node=frame;while(node&&node!==document.body){try{if(getComputedStyle(node).position==="fixed"){node.style.display="none";return}}catch(e){}node=node.parentElement}frame.style.display="none"}function interceptFrame(frame){if(!(frame instanceof HTMLIFrameElement)||Date.now()-lastGesture>1500)return;var url=pdfUrl(frame.getAttribute("src"));if(!url)return;frame.setAttribute("src","about:blank");hideSandboxViewer(frame);send("preview",url,frameTitle(frame))}document.addEventListener("click",function(event){lastGesture=Date.now();var target=event.target instanceof Element?event.target:null;var link=target&&target.closest("a[href]");if(!link||!link.hasAttribute("download"))return;var url=pdfUrl(link.getAttribute("href"));if(!url)return;event.preventDefault();send("download",url,link.getAttribute("download")||"")},true);new MutationObserver(function(records){for(var i=0;i<records.length;i++){var target=records[i].target;if(target instanceof HTMLIFrameElement)interceptFrame(target)}}).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:["src"]})})();</script>';
 
 // 从请求头构造站点 origin（优先反代头；本地开发 http）。用于上述 CSP 的显式 origin。
 export function requestOrigin(req: Request): string {
@@ -77,9 +86,14 @@ export function renderReportDoc(html: string): string {
   const injectScript =
     '<script>(function(){var queued=false,last=0;function measure(){queued=false;var d=document.documentElement,b=document.body;var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);if(!h||h===last)return;last=h;try{if(window.parent!==window)window.parent.postMessage({__surgeReportHeight:h},"*")}catch(e){}}function send(){if(queued)return;queued=true;if(window.requestAnimationFrame)requestAnimationFrame(measure);else setTimeout(measure,16)}send();window.addEventListener("load",send);window.addEventListener("resize",send);if(window.ResizeObserver&&document.documentElement){try{new ResizeObserver(send).observe(document.documentElement)}catch(e){}}setTimeout(send,300);setTimeout(send,1500)})();</script>';
   if (/<head[^>]*>/i.test(html)) {
-    html = html.replace(/<head[^>]*>/i, (m) => m + injectStyle);
+    // 桥接脚本放在 head 首位，确保报告自己的点击处理器设置 PDF iframe.src
+    // 时观察器已经就绪。
+    html = html.replace(
+      /<head[^>]*>/i,
+      (m) => m + injectStyle + reportPdfBridgeScript,
+    );
   } else {
-    html = injectStyle + html;
+    html = injectStyle + reportPdfBridgeScript + html;
   }
   if (/<\/body>/i.test(html)) {
     html = html.replace(/<\/body>/i, `${injectScript}</body>`);

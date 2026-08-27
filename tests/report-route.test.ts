@@ -40,6 +40,7 @@ describe("报告资源路由缓存", () => {
     mocked.reportRoot = root;
     await mkdir(path.join(root, "images"));
     await writeFile(path.join(root, "images", "a.webp"), Buffer.from("webp-data"));
+    await writeFile(path.join(root, "paper.pdf"), Buffer.from("pdf-data"));
     await writeFile(
       path.join(root, "report.html"),
       "<!doctype html><html><head></head><body>report</body></html>",
@@ -54,8 +55,9 @@ describe("报告资源路由缓存", () => {
     cap: string,
     segments: string[],
     headers?: HeadersInit,
+    search = "",
   ) {
-    return GET(new Request(`https://surge.example/r/${cap}/${segments.join("/")}`, { headers }), {
+    return GET(new Request(`https://surge.example/r/${cap}/${segments.join("/")}${search}`, { headers }), {
       params: Promise.resolve({ cap, path: segments }),
     });
   }
@@ -93,5 +95,33 @@ describe("报告资源路由缓存", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("etag")).toBeNull();
     expect(await response.text()).toContain("__surgeReportHeight");
+  });
+
+  it("PDF iframe 请求保持 inline，显式下载参数稳定返回 attachment", async () => {
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const preview = await request(cap, ["paper.pdf"], {
+      "Sec-Fetch-Dest": "iframe",
+    });
+    expect(preview.headers.get("content-type")).toBe("application/pdf");
+    expect(preview.headers.get("content-disposition")).toBeNull();
+    await preview.body?.cancel();
+
+    const download = await request(
+      cap,
+      ["paper.pdf"],
+      { "Sec-Fetch-Dest": "iframe" },
+      "?__surge_download=1",
+    );
+    expect(download.headers.get("content-disposition")).toBe("attachment");
+    await download.body?.cancel();
+  });
+
+  it("顶层打开 PDF 不会被误判成下载", async () => {
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const response = await request(cap, ["paper.pdf"], {
+      "Sec-Fetch-Dest": "document",
+    });
+    expect(response.headers.get("content-disposition")).toBeNull();
+    await response.body?.cancel();
   });
 });

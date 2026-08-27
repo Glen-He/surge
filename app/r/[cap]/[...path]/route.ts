@@ -13,6 +13,7 @@ import {
   REPORT_SHARED_DIR,
   reportDir,
 } from "@/lib/report-storage";
+import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".xhtml": "application/xhtml+xml; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".pdf": "application/pdf",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -212,6 +214,16 @@ export async function GET(
     headers["Content-Security-Policy"] =
       "default-src 'none'; style-src 'unsafe-inline'";
   } else if (!(ext in CONTENT_TYPES)) {
+    headers["Content-Disposition"] = "attachment";
+  }
+
+  // PDF 下载必须由可信父页显式加平台参数。不能依赖 Sec-Fetch-Dest：报告
+  // 自身就在 iframe 内，无论点击下载链接还是嵌套预览，请求目的通常都是
+  // iframe。显式参数让下载稳定返回 attachment，普通 PDF 请求保持 inline。
+  if (
+    ext === ".pdf" &&
+    new URL(req.url).searchParams.get(REPORT_PDF_DOWNLOAD_PARAM) === "1"
+  ) {
     headers["Content-Disposition"] = "attachment";
   }
 
