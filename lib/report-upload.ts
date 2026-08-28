@@ -224,18 +224,20 @@ export async function createReport(
       }
 
       try {
-        const minRow = await client.query<{ m: number }>(
-          `SELECT COALESCE(MIN(sort_order), 0) AS m FROM reports WHERE user_id = $1`,
-          [userId],
+        // 日期是第一排序键；新项目追加到同一天已有项目之后，之后可拖动调整。
+        const maxRow = await client.query<{ m: number }>(
+          `SELECT COALESCE(MAX(sort_order), -1) AS m
+           FROM reports WHERE user_id = $1 AND date = $2`,
+          [userId, meta.date],
         );
-        const sortOrder = (minRow.rows[0]?.m ?? 0) - 1;
+        const sortOrder = Number(maxRow.rows[0]?.m ?? -1) + 1;
         await client.query(
           `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             randomUUID(), userId, slug, newRevisionId(), meta.title, meta.date,
-            meta.tag, meta.tagColor, meta.description, meta.keywords, sortOrder,
-            staged.projectBytes,
+            meta.tag, meta.tagColor, meta.description, meta.keywords,
+            sortOrder, staged.projectBytes,
           ],
         );
       } catch {

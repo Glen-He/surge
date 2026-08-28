@@ -18,28 +18,36 @@ export type DbReport = {
   created_at: Date;
 };
 
-// 查某用户的所有报告（手动排序优先，其次日期倒序）
+// 查某用户的所有报告：日期永远是第一排序键；同一天才使用手动顺序。
 export async function getReportsByUser(userId: string): Promise<DbReport[]> {
   await ensureOtpMigration();
   const r = await db.query<DbReport>(
     `SELECT * FROM reports WHERE user_id = $1
-     ORDER BY sort_order ASC NULLS LAST, date DESC, created_at DESC`,
+     ORDER BY date DESC, sort_order ASC NULLS LAST, created_at DESC`,
     [userId],
   );
   return r.rows;
 }
 
-// 拖拽调序后持久化：slugs 为该用户全部项目的完整顺序
+export type ReportOrderItem = { slug: string; date: string };
+
+// 持久化完整展示顺序；跨日期拖动时同时更新日期。
 export async function reorderReports(
   userId: string,
-  slugs: string[],
+  items: ReportOrderItem[],
 ): Promise<void> {
   await db.query(
     `UPDATE reports AS r
-     SET sort_order = ordered.ordinality - 1
-     FROM unnest($2::text[]) WITH ORDINALITY AS ordered(slug, ordinality)
+     SET sort_order = ordered.ordinality - 1,
+         date = ordered.date
+     FROM unnest($2::text[], $3::text[])
+       WITH ORDINALITY AS ordered(slug, date, ordinality)
      WHERE r.user_id = $1 AND r.slug = ordered.slug`,
-    [userId, slugs],
+    [
+      userId,
+      items.map((item) => item.slug),
+      items.map((item) => item.date),
+    ],
   );
 }
 

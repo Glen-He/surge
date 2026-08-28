@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import { EmptyState } from "@/components/empty-state";
 import type { ReportCardView as Report } from "@/lib/report-cards";
+import { moveReportToTargetDate } from "@/lib/report-order";
 import { tagTextColor } from "@/lib/tag-colors";
 
 export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
@@ -321,24 +323,24 @@ function ReportCard({
   draggable,
   dragging,
   onDragStart,
-  onDragEnter,
   onDragOver,
+  onDrop,
   onDragEnd,
 }: {
   r: Report;
   draggable: boolean;
   dragging: boolean;
   onDragStart: (e: React.DragEvent) => void;
-  onDragEnter: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
   onDragEnd: (e: React.DragEvent) => void;
 }) {
   return (
     <div
       draggable={draggable}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
+      onDrop={onDrop}
       onDragEnd={onDragEnd}
       className={`group relative transition-transform duration-200 hover:-translate-y-0.5 ${
         dragging ? "opacity-40" : ""
@@ -399,7 +401,7 @@ function ReportCard({
   );
 }
 
-// 数据区组件：只渲染列表/空状态；显示顺序 = 手动顺序，支持同月内拖拽调序
+// 数据区组件：日期倒序；同一天内支持手动排序，也可跨日期拖动并自动改日期。
 export function ReportList({
   reports,
   q,
@@ -407,7 +409,9 @@ export function ReportList({
   reports: Report[];
   q: string;
 }): ReactNode {
-  const identity = reports.map((report) => report.slug).join("\0");
+  const identity = reports
+    .map((report) => `${report.slug}:${report.date}`)
+    .join("\0");
   return <ReportListState key={identity} reports={reports} q={q} />;
 }
 
@@ -418,55 +422,56 @@ function ReportListState({
   reports: Report[];
   q: string;
 }): ReactNode {
-  // 手动顺序（slug 序列）：服务端顺序为初始值，拖拽后本地即时更新
-  const [order, setOrder] = useState<string[]>(() => reports.map((r) => r.slug));
+  const [items, setItems] = useState<Report[]>(reports);
   const [dragSlug, setDragSlug] = useState<string | null>(null);
-
-  const bySlug = useMemo(
-    () => new Map(reports.map((r) => [r.slug, r] as const)),
-    [reports],
-  );
-  const ordered = useMemo(
-    () =>
-      order
-        .map((s) => bySlug.get(s))
-        .filter((r): r is Report => Boolean(r)),
-    [order, bySlug],
-  );
+  const itemsRef = useRef(items);
+  const dragStartRef = useRef<Report[] | null>(null);
+  const router = useRouter();
 
   const canDrag = q.trim() === "";
 
-  function handleDragEnter(target: string) {
-    if (!dragSlug || dragSlug === target) return;
-    const a = bySlug.get(dragSlug);
-    const b = bySlug.get(target);
-    // 仅允许同一天分组内调序
-    if (!a || !b || a.date.slice(0, 10) !== b.date.slice(0, 10)) return;
-    setOrder((prev) => {
-      const from = prev.indexOf(dragSlug);
-      const to = prev.indexOf(target);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      next.splice(from, 1);
-      next.splice(to, 0, dragSlug);
-      return next;
-    });
+  async function persistOrder(next: Report[], snapshot: Report[] | null) {
+    try {
+      const res = await fetch("/api/reports/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: next.map((item) => ({
+            slug: item.slug,
+            date: item.date.slice(0, 10),
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("reorder failed");
+      router.refresh();
+    } catch {
+      if (snapshot) {
+        itemsRef.current = snapshot;
+        setItems(snapshot);
+      }
+      toast.error("排序保存失败，请重试");
+    }
+  }
+
+  function handleDrop(target: string) {
+    if (!dragSlug) return;
+    const snapshot = dragStartRef.current;
+    const next = moveReportToTargetDate(itemsRef.current, dragSlug, target);
+    itemsRef.current = next;
+    setItems(next);
+    setDragSlug(null);
+    dragStartRef.current = null;
+    if (next !== snapshot) void persistOrder(next, snapshot);
   }
 
   function handleDragEnd() {
-    if (dragSlug) {
-      void fetch("/api/reports/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slugs: order }),
-      });
-    }
     setDragSlug(null);
+    dragStartRef.current = null;
   }
 
   const list = useMemo(
-    () => ordered.filter((r) => matches(r, q.trim().toLowerCase())),
-    [ordered, q],
+    () => items.filter((r) => matches(r, q.trim().toLowerCase())),
+    [items, q],
   );
 
   const groups = useMemo(() => {
@@ -528,13 +533,17 @@ function ReportListState({
                     draggable={canDrag}
                     dragging={dragSlug === r.slug}
                     onDragStart={(e) => {
+                      dragStartRef.current = itemsRef.current;
                       setDragSlug(r.slug);
                       e.dataTransfer.effectAllowed = "move";
                       e.dataTransfer.setData("text/plain", r.slug);
                     }}
-                    onDragEnter={() => handleDragEnter(r.slug)}
                     onDragOver={(e) => {
                       if (dragSlug) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDrop(r.slug);
                     }}
                     onDragEnd={handleDragEnd}
                   />
