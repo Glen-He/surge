@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import { findValidShare, unlockProof, shouldCountView, incrementShareView } from "@/lib/shares";
+import { findValidShare, verifyUnlockProof, shouldCountView, incrementShareView } from "@/lib/shares";
 import { clientIp } from "@/lib/client-ip";
 import { issueCapability } from "@/lib/report-capability";
 import { SharePasswordGate } from "./password-gate";
@@ -44,14 +44,15 @@ export default async function SharePage({
   if (found.share.password_hash) {
     const jar = await cookies();
     const proof = jar.get(`share_${token}`)?.value;
-    if (proof !== unlockProof(token)) {
+    if (!verifyUnlockProof(token, proof)) {
       return <SharePasswordGate token={token} title={found.reportTitle} />;
     }
   }
 
   // 浏览量统计（密码通过后）：同 IP 同 token 1 小时内只计 1 次（防刷）
   const ip = clientIp(await headers());
-  if (shouldCountView(token, ip)) {
+  // 浏览计数是旁路指标，限流存储短暂故障不能阻断报告本身。
+  if (await shouldCountView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementShareView(token).catch((error) => {
         logger.warn("share-view", "浏览量记录失败", error as Error);

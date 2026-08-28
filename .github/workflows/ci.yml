@@ -20,6 +20,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/surge_test
       BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters-long
       BETTER_AUTH_URL: http://127.0.0.1:3000
+      SHARE_SECRET: ci-only-share-secret-at-least-32-characters
+      SMTP_HOST: localhost
+      SMTP_PORT: 465
+      SMTP_USER: ci@example.test
+      SMTP_PASS: ci-only-password
       REPORTS_DATA_DIR: /tmp/surge-report-data
       SURGE_DB_INTEGRATION: "1"
     services:
@@ -49,3 +54,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:e2e

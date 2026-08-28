@@ -3,7 +3,7 @@
 //
 // 用法：
 //   logger.error("register", "sign-in/email-otp 失败", e);
-//   logger.warn("storage", "全站占用达预警线", { gb: 8.2 });
+//   logger.warn("storage", "全站占用达预警线", { gb: 16.2 });
 //   logger.info("seed", "默认用户已创建", { email });
 
 type Ctx = Record<string, unknown>;

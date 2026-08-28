@@ -17,20 +17,22 @@ export async function POST(req: Request) {
 
   const parsed = await readUploadForm(req);
   if (!parsed.ok) return parsed.response;
-  const form = parsed.form;
-  const file = form.get("file");
-  if (!file || typeof file === "string") {
-    return Response.json({ error: "请上传 ZIP 压缩包或 HTML 文件" }, { status: 400 });
+  const { form, file, cleanup } = parsed.value;
+  try {
+    if (!file) {
+      return Response.json({ error: "请上传 ZIP 压缩包或 HTML 文件" }, { status: 400 });
+    }
+    const result = await createReport(
+      session.user.id,
+      session.user.email,
+      metaFromForm(form),
+      file,
+    );
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return Response.json({ ok: true, slug: result.slug });
+  } finally {
+    await cleanup();
   }
-
-  const result = await createReport(
-    session.user.id,
-    session.user.email,
-    metaFromForm(form),
-    { name: file.name, type: file.type, buf: Buffer.from(await file.arrayBuffer()) },
-  );
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-  return Response.json({ ok: true, slug: result.slug });
 }

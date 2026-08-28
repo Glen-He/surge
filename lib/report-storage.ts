@@ -116,6 +116,38 @@ export async function dirSizeBytes(dir: string): Promise<number> {
   return total;
 }
 
+/**
+ * One-time compatibility backfill for reports created before size_bytes was
+ * introduced. Normal requests use the database value and never scan the full
+ * storage tree. A zero-sized/missing report is harmlessly retried next start.
+ */
+export async function reconcileReportSizes(): Promise<{ updated: number }> {
+  const { rows } = await db.query<{
+    id: string;
+    user_id: string;
+    slug: string;
+    size_bytes: string;
+  }>(`SELECT id, user_id, slug, size_bytes::text FROM reports WHERE size_bytes = 0`);
+  let updated = 0;
+  for (const row of rows) {
+    let dir: string;
+    try {
+      dir = reportDir(row.user_id, row.slug);
+    } catch {
+      continue;
+    }
+    const size = await dirSizeBytes(dir);
+    if (size <= 0) continue;
+    const result = await db.query(
+      `UPDATE reports SET size_bytes = $1 WHERE id = $2 AND size_bytes = 0`,
+      [size, row.id],
+    );
+    updated += result.rowCount ?? 0;
+  }
+  if (updated > 0) logger.info("storage", "已回填历史报告存储字节", { updated });
+  return { updated };
+}
+
 type TrashManifest = {
   version: 1;
   kind: "report" | "account" | "guest";

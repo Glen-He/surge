@@ -52,6 +52,9 @@ describe("readUploadForm", () => {
       }),
     );
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.form.get("title")).toBe("Weekly report");
+    if (result.ok) {
+      expect(result.value.form.get("title")).toBe("Weekly report");
+      await result.value.cleanup();
+    }
   });
 });

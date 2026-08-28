@@ -37,8 +37,7 @@ pnpm check  # 一次执行全部检查
 | `BETTER_AUTH_SECRET` | 会话与内部密钥派生的高熵根密钥 |
 | `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
 | `REPORTS_DATA_DIR` | 代码/镜像目录之外的持久卷，生产必填 |
-| `SHARE_SECRET` | 分享解锁凭证的签名密钥 |
-| `API_TOKEN_SECRET` | API token 的 AES-256-GCM 密钥，上线后不应更换 |
+| `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（生产必填） |
 | `OTP_SECRET` | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生 |
 | `TRUSTED_PROXIES` | 允许提供真实客户端 IP 的反向代理 IP/CIDR |
 
@@ -68,7 +67,7 @@ pnpm start
 - 给进程留出 10–30 秒 `SIGTERM` 优雅退出时间，使请求和 Next.js `after()` 任务完成。
 - PostgreSQL 连接上限需同时计入业务池和 Better Auth 池，再乘以实例数。
 
-上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 200 MiB，站点总量硬上限 10 GiB。限额检查和写入通过 PostgreSQL advisory lock 在多实例间串行化。
+上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 2 GiB，站点总量硬上限 20 GiB。文件流式落盘和解压，只在最终配额确认和原子转正时使用 PostgreSQL advisory lock。
 
 ## 安全边界
 

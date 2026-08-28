@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
 import {
@@ -11,55 +11,16 @@ import { logger } from "./logger";
 
 // ── 个人 API 访问令牌（PAT）──
 // 用于程序化上传（/api/v1/*）：脚本/AI 无法走浏览器会话，
-// 以 Bearer 令牌认证。密钥面板模式：每用户仅一个令牌，
-// 明文可再次查看（AES-256-GCM 加密存储，密钥在环境变量）。
+// 以 Bearer 令牌认证。每用户仅一个令牌，明文只在创建/更换响应中展示一次。
 // 安全设计：
 // - 明文 sgk_ + 43 位 base64url（32 字节 CSPRNG，≈256bit 熵），不可枚举
-// - 库里存 AES-256-GCM 密文——数据库泄露没有 API_TOKEN_SECRET 也解不出
-// - 认证用 timingSafeEqual 恒时比较；只有失败才按 IP 限速
+// - 库里只存 SHA-256 指纹，无法恢复明文
+// - 令牌具有 256-bit 随机性，指纹等值定位不受低熵密码猜解威胁
 // - 更换（rotate）立即失效旧值；撤销即时生效；访客禁止使用
 
 /** 令牌认证失败限速：同 IP 20 次 / 10 分钟 */
 const AUTH_FAIL_LIMIT = 20;
 const AUTH_FAIL_WINDOW_SEC = 10 * 60;
-
-// ── AES-256-GCM 加解密 ──
-// 密钥解析：API_TOKEN_SECRET → SHARE_SECRET → DATABASE_URL（与分享密钥同回退链）
-function encKey(): Buffer {
-  const raw =
-    process.env.API_TOKEN_SECRET ||
-    process.env.SHARE_SECRET ||
-    process.env.DATABASE_URL ||
-    "";
-  if (raw.length < 16) {
-    throw new Error("缺少 API_TOKEN_SECRET（或 SHARE_SECRET / DATABASE_URL）");
-  }
-  // 任意长度的机密 → sha256 派生 32 字节密钥
-  return createHash("sha256").update(raw).digest();
-}
-
-function encryptToken(plain: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encKey(), iv);
-  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `${iv.toString("base64url")}.${tag.toString("base64url")}.${enc.toString("base64url")}`;
-}
-
-function decryptToken(stored: string): string | null {
-  const [ivS, tagS, encS] = stored.split(".");
-  if (!ivS || !tagS || !encS) return null;
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", encKey(), Buffer.from(ivS, "base64url"));
-    decipher.setAuthTag(Buffer.from(tagS, "base64url"));
-    return Buffer.concat([
-      decipher.update(Buffer.from(encS, "base64url")),
-      decipher.final(),
-    ]).toString("utf8");
-  } catch {
-    return null; // 密钥更换或密文损坏
-  }
-}
 
 function tokenLookup(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -73,41 +34,37 @@ export function generateApiToken(): string {
 export type ApiTokenInfo = {
   id: string;
   name: string;
-  token: string;
+  prefix: string;
+  token?: string;
   createdAt: Date;
   lastUsedAt: Date | null;
 };
 
 /**
- * 读用户当前令牌（含解密明文）。
- * 无令牌返回 null；密文解不开返回 error（提示更换密钥配置）。
+ * 读用户当前令牌的非敏感元数据。明文不可恢复。
  */
 export async function getApiToken(
   userId: string,
-): Promise<ApiTokenInfo | { error: string } | null> {
+): Promise<ApiTokenInfo | null> {
   await ensureOtpMigration();
   const { rows } = await db.query<{
     id: string;
     name: string;
-    token_enc: string;
+    token_prefix: string;
     created_at: Date;
     last_used_at: Date | null;
   }>(
-    `SELECT id, name, token_enc, created_at, last_used_at
+    `SELECT id, name, token_prefix, created_at, last_used_at
      FROM api_tokens WHERE user_id = $1 AND revoked_at IS NULL
      ORDER BY created_at DESC LIMIT 1`,
     [userId],
   );
   const row = rows[0];
   if (!row) return null;
-  const token = decryptToken(row.token_enc);
-  if (!token) {
-    return { error: "令牌无法解密（服务器密钥可能已更换），请撤销后重新创建" };
-  }
   return {
     id: row.id,
     name: row.name,
-    token,
+    prefix: row.token_prefix,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
   };
@@ -130,15 +87,15 @@ export async function createApiToken(
   let ins: { id: string; created_at: Date }[];
   try {
     ({ rows: ins } = await db.query<{ id: string; created_at: Date }>(
-      `INSERT INTO api_tokens (id, user_id, name, token_enc, token_lookup)
+      `INSERT INTO api_tokens (id, user_id, name, token_lookup, token_prefix)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, created_at`,
       [
         randomBytes(16).toString("hex"),
         userId,
         name,
-        encryptToken(token),
         tokenLookup(token),
+        token.slice(0, 11),
       ],
     ));
   } catch (error) {
@@ -155,6 +112,7 @@ export async function createApiToken(
       id: ins[0].id,
       name,
       token,
+      prefix: token.slice(0, 11),
       createdAt: ins[0].created_at,
       lastUsedAt: null,
     },
@@ -180,10 +138,10 @@ export async function rotateApiToken(
     created_at: Date;
   }>(
     `UPDATE api_tokens
-     SET token_enc = $1, token_lookup = $2, created_at = NOW(), last_used_at = NULL
+     SET token_lookup = $1, token_prefix = $2, created_at = NOW(), last_used_at = NULL
      WHERE user_id = $3 AND revoked_at IS NULL
      RETURNING id, name, created_at`,
-    [encryptToken(token), tokenLookup(token), userId],
+    [tokenLookup(token), token.slice(0, 11), userId],
   );
   if (rows[0]) {
     logger.info("api-token", "更换 API 令牌", { userId });
@@ -192,6 +150,7 @@ export async function rotateApiToken(
         id: rows[0].id,
         name: rows[0].name,
         token,
+        prefix: token.slice(0, 11),
         createdAt: rows[0].created_at,
         lastUsedAt: null,
       },
@@ -242,23 +201,15 @@ export async function authenticateApiToken(
     id: string;
     user_id: string;
     email: string;
-    token_enc: string;
   }>(
-    `SELECT t.id, t.user_id, u.email, t.token_enc
+    `SELECT t.id, t.user_id, u.email
      FROM api_tokens t JOIN "user" u ON u.id = t.user_id
      WHERE t.revoked_at IS NULL AND t.token_lookup = $1
      LIMIT 1`,
     [tokenLookup(bearer)],
   );
   const row = rows[0];
-  const plain = row ? decryptToken(row.token_enc) : null;
-  if (
-    row &&
-    plain &&
-    plain.length === bearer.length &&
-    timingSafeEqual(Buffer.from(plain), Buffer.from(bearer)) &&
-    !isGuestEmail(row.email)
-  ) {
+  if (row && !isGuestEmail(row.email)) {
     await clearSecurityFailures("api-token-auth", clientIp);
     void db
       .query(`UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1`, [row.id])
@@ -281,26 +232,4 @@ export async function authenticateApiToken(
     AUTH_FAIL_WINDOW_SEC,
   );
   return null;
-}
-
-/** Backfill lookup fingerprints for encrypted tokens created before migration v7. */
-export async function backfillApiTokenLookups(): Promise<void> {
-  const { rows } = await db.query<{ id: string; token_enc: string }>(
-    `SELECT id, token_enc FROM api_tokens
-     WHERE revoked_at IS NULL AND token_lookup IS NULL`,
-  );
-  for (const row of rows) {
-    const plain = decryptToken(row.token_enc);
-    if (!plain) {
-      await db.query(`UPDATE api_tokens SET revoked_at = NOW() WHERE id = $1`, [
-        row.id,
-      ]);
-      logger.warn("api-token", "无法解密存量令牌，已安全撤销", { tokenId: row.id });
-      continue;
-    }
-    await db.query(`UPDATE api_tokens SET token_lookup = $1 WHERE id = $2`, [
-      tokenLookup(plain),
-      row.id,
-    ]);
-  }
 }

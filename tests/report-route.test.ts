@@ -124,4 +124,17 @@ describe("报告资源路由缓存", () => {
     expect(response.headers.get("content-disposition")).toBeNull();
     await response.body?.cancel();
   });
+
+  it("大文件支持单段 Range，并拒绝越界范围", async () => {
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const partial = await request(cap, ["paper.pdf"], { Range: "bytes=0-2" });
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("accept-ranges")).toBe("bytes");
+    expect(partial.headers.get("content-range")).toBe("bytes 0-2/8");
+    expect(await partial.text()).toBe("pdf");
+
+    const invalid = await request(cap, ["paper.pdf"], { Range: "bytes=99-100" });
+    expect(invalid.status).toBe(416);
+    expect(invalid.headers.get("content-range")).toBe("bytes */8");
+  });
 });

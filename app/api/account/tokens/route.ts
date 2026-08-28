@@ -1,6 +1,6 @@
 import { getApiSession } from "@/lib/api-session";
 import { clientIp } from "@/lib/client-ip";
-import { rateLimit } from "@/lib/rate-limit";
+import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import { logger } from "@/lib/logger";
 import {
   createApiToken,
@@ -12,7 +12,7 @@ import {
 export const dynamic = "force-dynamic";
 
 // API 令牌管理（会话认证）：单令牌密钥面板
-// GET    → 当前令牌（含明文，供显示/隐藏/复制）
+// GET    → 当前令牌元数据（明文只在创建/更换时返回一次）
 // POST   → 创建（无令牌时）
 // PATCH  → 更换（旧值立即失效，返回新明文）
 // DELETE → 撤销（?id=）
@@ -21,13 +21,19 @@ async function sessionUser() {
   return (await getApiSession()) ?? null;
 }
 
-function guard(
+async function guard(
   userId: string,
   ip: string,
   action: string,
-): Response | null {
+): Promise<Response | null> {
   // 同一用户 30 次变更 / 10 分钟（创建/更换/撤销共用）：正常使用打不满，仅防脚本滥用
-  if (!rateLimit(`api-token-mutate:${userId}`, 30, 10 * 60 * 1000)) {
+  const result = await consumeSharedRateLimit(
+    "api-token-mutate",
+    userId,
+    30,
+    10 * 60,
+  );
+  if (!result.allowed) {
     logger.warn("api-token", `${action} 过于频繁`, { userId, ip });
     return Response.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
@@ -40,13 +46,10 @@ export async function GET() {
 
   const result = await getApiToken(session.user.id);
   if (!result) return Response.json({ token: null });
-  if ("error" in result) {
-    return Response.json({ error: result.error }, { status: 500 });
-  }
   return Response.json({
     token: {
       id: result.id,
-      token: result.token,
+      prefix: result.prefix,
       createdAt: result.createdAt,
       lastUsedAt: result.lastUsedAt,
     },
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const ip = clientIp(req.headers);
-  const limited = guard(session.user.id, ip, "创建");
+  const limited = await guard(session.user.id, ip, "创建");
   if (limited) return limited;
 
   const result = await createApiToken(session.user.id, session.user.email);
@@ -70,6 +73,7 @@ export async function POST(req: Request) {
     token: {
       id: result.token.id,
       token: result.token.token,
+      prefix: result.token.prefix,
       createdAt: result.token.createdAt,
       lastUsedAt: null,
     },
@@ -81,7 +85,7 @@ export async function PATCH(req: Request) {
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const ip = clientIp(req.headers);
-  const limited = guard(session.user.id, ip, "更换");
+  const limited = await guard(session.user.id, ip, "更换");
   if (limited) return limited;
 
   const result = await rotateApiToken(session.user.id, session.user.email);
@@ -92,6 +96,7 @@ export async function PATCH(req: Request) {
     token: {
       id: result.token.id,
       token: result.token.token,
+      prefix: result.token.prefix,
       createdAt: result.token.createdAt,
       lastUsedAt: null,
     },
@@ -103,14 +108,14 @@ export async function DELETE(req: Request) {
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const ip = clientIp(req.headers);
-  const limited = guard(session.user.id, ip, "撤销");
+  const limited = await guard(session.user.id, ip, "撤销");
   if (limited) return limited;
 
   const id = new URL(req.url).searchParams.get("id") ?? "";
   if (!id) {
     // 未传 id：撤销当前令牌
     const cur = await getApiToken(session.user.id);
-    if (!cur || "error" in cur) {
+    if (!cur) {
       return Response.json({ error: "没有可撤销的令牌" }, { status: 404 });
     }
     await revokeApiToken(session.user.id, cur.id);

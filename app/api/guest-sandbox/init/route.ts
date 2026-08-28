@@ -3,13 +3,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { clientIp } from "@/lib/client-ip";
 import { logger } from "@/lib/logger";
-import { rateLimit } from "@/lib/rate-limit";
+import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import {
   createGuestSessionRecord,
   destroyGuestUser,
   getGuestExpiry,
   isGuestEmail,
-  purgeStaleGuests,
   seedDemoReports,
   GUEST_TTL_MINUTES,
 } from "@/lib/guest-sandbox";
@@ -30,15 +29,6 @@ export async function POST() {
   await ensureOtpMigration();
   const hs = await nextHeaders();
 
-  // IP 频控：初始化会灌 5 条报告 + 磁盘目录，同 IP 10 分钟最多 5 次
-  const ip = clientIp(hs);
-  if (!rateLimit(`guest-init:${ip}`, 5, 10 * 60 * 1000)) {
-    return NextResponse.json(
-      { error: "访客登录过于频繁，请稍后再试" },
-      { status: 429 },
-    );
-  }
-
   const session = await auth.api.getSession({ headers: hs });
   if (!session || !isGuestEmail(session.user.email)) {
     return NextResponse.json(
@@ -48,19 +38,23 @@ export async function POST() {
   }
   const userId = session.user.id;
 
-  // 幂等：已初始化过（如客户端重试）直接返回
-  if (await getGuestExpiry(userId)) {
-    return NextResponse.json({ ok: true, ttlMinutes: GUEST_TTL_MINUTES });
-  }
-
-  // 懒清理：顺手清掉所有已过期的访客沙箱（防 DB/磁盘垃圾堆积）
   try {
-    await purgeStaleGuests();
-  } catch (e) {
-    logger.warn("guest-init", "清理过期访客沙箱失败", e as Error);
-  }
+    // 幂等重试不重复占用 IP 配额，也绝不会把已完成的沙箱销毁。
+    if (await getGuestExpiry(userId)) {
+      return NextResponse.json({ ok: true, ttlMinutes: GUEST_TTL_MINUTES });
+    }
 
-  try {
+    // IP 频控：只有尚未初始化的新匿名账号会消耗额度。
+    const ip = clientIp(hs);
+    const guestRate = await consumeSharedRateLimit("guest-init", ip, 5, 10 * 60);
+    if (!guestRate.allowed) {
+      await destroyGuestUser(userId).catch(() => {});
+      return NextResponse.json(
+        { error: "访客登录过于频繁，请稍后再试" },
+        { status: 429 },
+      );
+    }
+
     await createGuestSessionRecord(userId, GUEST_TTL_MINUTES);
     await seedDemoReports(userId);
   } catch (e) {

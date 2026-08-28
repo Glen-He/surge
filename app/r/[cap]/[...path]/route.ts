@@ -14,6 +14,7 @@ import {
   reportDir,
 } from "@/lib/report-storage";
 import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
+import { parseByteRange } from "@/lib/http-range";
 
 export const dynamic = "force-dynamic";
 
@@ -196,6 +197,7 @@ export async function GET(
   );
   headers.ETag = etag;
   headers["Last-Modified"] = stat.mtime.toUTCString();
+  headers["Accept-Ranges"] = "bytes";
 
   // 先完成 capability + DB 世代/纪元 + 真实路径校验，才允许
   // 304。因此报告替换、删除或撤销分享仍然会立即拒绝旧 URL。
@@ -227,11 +229,28 @@ export async function GET(
     headers["Content-Disposition"] = "attachment";
   }
 
-  headers["Content-Length"] = String(stat.size);
+  const rangeHeader = req.headers.get("range");
+  const ifRange = req.headers.get("if-range");
+  const mayUseRange =
+    !ifRange || ifRange === etag || ifRange === headers["Last-Modified"];
+  const range = mayUseRange ? parseByteRange(rangeHeader, stat.size) : null;
+  if (rangeHeader && mayUseRange && !range) {
+    headers["Content-Range"] = `bytes */${stat.size}`;
+    return new Response(null, { status: 416, headers });
+  }
+  if (range) {
+    headers["Content-Range"] = `bytes ${range.start}-${range.end}/${stat.size}`;
+    headers["Content-Length"] = String(range.end - range.start + 1);
+  } else {
+    headers["Content-Length"] = String(stat.size);
+  }
   // 非 HTML 资源直接流式输出，避免多张大图同时请求时把整个
   // 文件全部读入 Node.js 内存，也能更早开始向浏览器传输。
   const body = Readable.toWeb(
-    createReadStream(/* turbopackIgnore: true */ realFile),
+    createReadStream(
+      /* turbopackIgnore: true */ realFile,
+      range ? { start: range.start, end: range.end } : undefined,
+    ),
   ) as ReadableStream<Uint8Array>;
-  return new Response(body, { headers });
+  return new Response(body, { status: range ? 206 : 200, headers });
 }

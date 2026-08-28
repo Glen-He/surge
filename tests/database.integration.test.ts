@@ -7,6 +7,7 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
   let userId = "";
   let database: typeof import("@/lib/db").db;
   let context: Awaited<typeof import("@/lib/auth").auth.$context>;
+  let createdApiToken = "";
 
   beforeAll(async () => {
     if (!process.env.REPORTS_DATA_DIR) {
@@ -53,7 +54,10 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('reports', 'revision_id'),
            ('otp_codes', 'code_hash'),
            ('otp_codes', 'code'),
-           ('api_tokens', 'token_lookup')
+           ('api_tokens', 'token_lookup'),
+           ('api_tokens', 'token_prefix'),
+           ('api_tokens', 'token_enc'),
+           ('reports', 'size_bytes')
          )`,
     );
     const columns = new Map(
@@ -63,6 +67,9 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.get("otp_codes.code_hash")).toBe("NO");
     expect(columns.has("otp_codes.code")).toBe(false);
     expect(columns.has("api_tokens.token_lookup")).toBe(true);
+    expect(columns.has("api_tokens.token_prefix")).toBe(true);
+    expect(columns.has("api_tokens.token_enc")).toBe(false);
+    expect(columns.get("reports.size_bytes")).toBe("NO");
   });
 
   it("并发核销同一 OTP 时只有一次成功", async () => {
@@ -98,21 +105,40 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
       createApiToken(userId, email, "first"),
       createApiToken(userId, email, "second"),
     ]);
-    expect(results.filter((result) => "token" in result)).toHaveLength(1);
+    const successes = results.filter((result) => "token" in result);
+    expect(successes).toHaveLength(1);
     expect(results.filter((result) => "error" in result)).toHaveLength(1);
+    if ("token" in successes[0]) createdApiToken = successes[0].token.token!;
   });
 
   it("同 IP 的大量有效 API token 请求不会被失败限流误伤", async () => {
-    const { authenticateApiToken, getApiToken } = await import("@/lib/api-tokens");
-    const stored = await getApiToken(userId);
-    expect(stored && !("error" in stored)).toBeTruthy();
-    if (!stored || "error" in stored) throw new Error("integration token missing");
+    const { authenticateApiToken } = await import("@/lib/api-tokens");
+    expect(createdApiToken).toMatch(/^sgk_/);
     const results = await Promise.all(
       Array.from({ length: 25 }, () =>
-        authenticateApiToken(`Bearer ${stored.token}`, "203.0.113.10"),
+        authenticateApiToken(`Bearer ${createdApiToken}`, "203.0.113.10"),
       ),
     );
     expect(results.every((result) => result?.id === userId)).toBe(true);
+  });
+
+  it("数据库拒绝非 ISO 日期", async () => {
+    await expect(
+      database.query(
+        `INSERT INTO reports
+           (id, user_id, slug, revision_id, title, date, tag, description, keywords)
+         VALUES ($1, $2, $3, $4, 'invalid-date', 'not-a-date', '', '', '')`,
+        [crypto.randomUUID(), userId, `bad-date-${crypto.randomUUID()}`, crypto.randomUUID()],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("通用限流在数据库中跨调用共享", async () => {
+    const { consumeSharedRateLimit } = await import("@/lib/db-rate-limit");
+    const subject = crypto.randomUUID();
+    expect((await consumeSharedRateLimit("integration", subject, 2, 60)).allowed).toBe(true);
+    expect((await consumeSharedRateLimit("integration", subject, 2, 60)).allowed).toBe(true);
+    expect((await consumeSharedRateLimit("integration", subject, 2, 60)).allowed).toBe(false);
   });
 
   it("启动回收能区分未提交和已提交的跨存储删除", async () => {

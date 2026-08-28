@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // unzipper contains optional adapters (including S3) behind runtime require().
+  // Keep it as a native Node dependency so Turbopack does not resolve unused
+  // optional adapters into the application bundle.
+  serverExternalPackages: ["unzipper"],
   async headers() {
     return [
       {

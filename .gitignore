@@ -12,6 +12,9 @@
 
 # 测试覆盖率
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
 
 # Next.js 构建输出
 /.next/
