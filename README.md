@@ -36,6 +36,7 @@ pnpm check  # 一次执行全部检查
 | `DATABASE_URL` | PostgreSQL 连接串 |
 | `BETTER_AUTH_SECRET` | 会话与内部密钥派生的高熵根密钥 |
 | `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
+| `REPORTS_ORIGIN` | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站 |
 | `REPORTS_DATA_DIR` | 代码/镜像目录之外的持久卷，生产必填 |
 | `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（生产必填） |
 | `OTP_SECRET` | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生 |
@@ -62,18 +63,23 @@ pnpm start
 ```
 
 - `REPORTS_DATA_DIR` 必须指向容器镜像/代码 checkout 之外的持久卷；生产启动会拒绝不安全路径。
-- 反向代理应是应用的唯一入口，覆盖（不是追加客户端传入的）`X-Forwarded-For`，只允许 HTTPS，把单请求体上限设为 `51 MiB`，并保留 `Content-Length`。上传缺少该头时返回 `411`，超限时在解析 multipart 前返回 `413`。
+- 反向代理应是应用的唯一入口，覆盖（不是追加客户端传入的）`Host`、`X-Forwarded-Host`、`X-Forwarded-Proto` 与 `X-Forwarded-For`，只允许 HTTPS，把单请求体上限设为 `51 MiB`，并保留 `Content-Length`。上传缺少该头时返回 `411`，超限时在解析 multipart 前返回 `413`。
+- 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/r/*`；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
 - readiness probe 指向 `GET /api/health`：数据库可达时返回 `200`，否则返回 `503`。
 - 给进程留出 10–30 秒 `SIGTERM` 优雅退出时间，使请求和 Next.js `after()` 任务完成。
 - PostgreSQL 连接上限需同时计入业务池和 Better Auth 池，再乘以实例数。
 
 上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 2 GiB，站点总量硬上限 20 GiB。文件流式落盘和解压，只在最终配额确认和原子转正时使用 PostgreSQL advisory lock。
 
+## 报告网页能力
+
+报告默认可以运行 HTML/CSS/JavaScript，并读取同一报告目录中的脚本、样式、JSON/CSV、图片、字体、音视频、PDF 和 Blob Worker。包内资源使用相对路径；外部 HTTPS API、CDN、图片、字体、媒体和 iframe 可直接在 HTML 中引用，无需额外策略文件。外部 `fetch`/模块资源仍需要目标站正确提供 CORS 响应头。
+
 ## 安全边界
 
 - ZIP 按顺序流式解压，同时校验路径穿越、符号链接、重复文件、文件数和实际解压字节数。
 - 报告使用短时 HMAC capability 访问，与内容 revision 和撤销 epoch 绑定。
-- 报告 HTML 仅在不带 `allow-same-origin` 的 sandbox iframe 中运行，并有独立 CSP 禁止网络外发。
+- 报告由独立内容域提供，仅在不带 `allow-same-origin`/顶层导航/表单提交/设备权限的固定视口 sandbox iframe 中运行；包内资源与外部 HTTPS 网页能力可用。
 - OTP 只以 HMAC 落库，核销、错误次数和一次性变更 token 均使用数据库事务。
 - API token 按 SHA-256 指纹等值定位，只有失败认证才进入 PostgreSQL 共享限流。
 

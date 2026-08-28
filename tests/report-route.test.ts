@@ -36,11 +36,14 @@ describe("报告资源路由缓存", () => {
   let root: string;
 
   beforeEach(async () => {
+    vi.stubEnv("BETTER_AUTH_URL", "https://surge.example");
+    vi.stubEnv("REPORTS_ORIGIN", "https://surge.example");
     root = await mkdtemp(path.join(os.tmpdir(), "surge-report-route-"));
     mocked.reportRoot = root;
     await mkdir(path.join(root, "images"));
     await writeFile(path.join(root, "images", "a.webp"), Buffer.from("webp-data"));
     await writeFile(path.join(root, "paper.pdf"), Buffer.from("pdf-data"));
+    await writeFile(path.join(root, "clip.mp4"), Buffer.from("video-data"));
     await writeFile(
       path.join(root, "report.html"),
       "<!doctype html><html><head></head><body>report</body></html>",
@@ -49,6 +52,7 @@ describe("报告资源路由缓存", () => {
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
+    vi.unstubAllEnvs();
   });
 
   function request(
@@ -94,7 +98,33 @@ describe("报告资源路由缓存", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("etag")).toBeNull();
-    expect(await response.text()).toContain("__surgeReportHeight");
+    expect(response.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "frame-ancestors https://surge.example",
+    );
+    expect(response.headers.get("permissions-policy")).toContain("camera=()");
+    expect(await response.text()).not.toContain("__surgeReportHeight");
+  });
+
+  it("直接放行外部 HTTPS 网页能力，媒体使用正确 MIME", async () => {
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const entry = await request(cap, ["report.html"]);
+    const csp = entry.headers.get("content-security-policy")!;
+    expect(csp).toMatch(/connect-src https:\/\/surge\.example\/r\/[^;]+ https:/);
+    expect(csp).toMatch(/frame-src https:\/\/surge\.example\/r\/[^;]+ https:/);
+    expect(csp).toContain("form-action 'none'");
+
+    const media = await request(cap, ["clip.mp4"]);
+    expect(media.headers.get("content-type")).toBe("video/mp4");
+    await media.body?.cancel();
+  });
+
+  it("拒绝从主站 origin 直接读取 capability 资源", async () => {
+    vi.stubEnv("BETTER_AUTH_URL", "https://surge.example");
+    vi.stubEnv("REPORTS_ORIGIN", "https://reports.example");
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const response = await request(cap, ["report.html"]);
+    expect(response.status).toBe(404);
   });
 
   it("PDF iframe 请求保持 inline，显式下载参数稳定返回 attachment", async () => {

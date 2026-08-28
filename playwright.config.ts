@@ -12,7 +12,10 @@ if (
 }
 const e2ePort = String(configuredPort);
 const baseURL = `http://127.0.0.1:${e2ePort}`;
+const reportsURL = `http://localhost:${e2ePort}`;
 process.env.BETTER_AUTH_URL = baseURL;
+// 同一测试进程的两个 loopback host 模拟生产主站域和独立内容域。
+process.env.REPORTS_ORIGIN = reportsURL;
 process.env.REPORTS_DATA_DIR =
   process.env.E2E_REPORTS_DATA_DIR ?? "/tmp/surge-e2e-reports";
 process.env.SHARE_SECRET = "e2e-share-secret-at-least-32-characters";
@@ -31,7 +34,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `pnpm exec next start --hostname 127.0.0.1 --port ${e2ePort}`,
+    command: `pnpm exec next start --hostname 0.0.0.0 --port ${e2ePort}`,
     url: `${baseURL}/api/health`,
     // Never attach to a developer's existing app process: it may use a
     // different database or REPORTS_DATA_DIR and make the fixture look absent.

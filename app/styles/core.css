@@ -1,10 +1,28 @@
 
 /* 报告页系统级头部：所有报告统一提供标题 + 返回按钮，不依赖提交的 HTML。
    样式与 vela/nexus/kttks 模板内的 rpt-head / btn-light 保持一致。 */
+.report-viewer-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.report-frame {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+}
+
 .rpt-sys-head {
   display: flex;
-  /* body 是 flex 列容器且有固定视口高，头部/iframe 必须禁止 flex 收缩，
-     否则长报告的 iframe 会被压回一屏高（外层滚动失效） */
+  /* 系统头保持自身高度，剩余空间全部交给报告 iframe。 */
   flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
@@ -940,4 +958,3 @@ button {
     border-radius: 20px;
   }
 }
-

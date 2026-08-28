@@ -24,15 +24,35 @@ test.beforeAll(async () => {
   fixture.userId = user.id;
   const dir = reportDir(user.id, fixture.slug);
   await fs.mkdir(dir, { recursive: true });
+  const appOrigin = process.env.BETTER_AUTH_URL!;
   const html = `<!doctype html><html><head><title>PDF E2E</title></head><body>
     <button id="preview">preview pdf</button>
+    <button id="modal">native modal</button>
     <a id="download" href="./paper.pdf" download>download pdf</a>
+    <a id="external" href="${appOrigin}/login" target="_blank">external link</a>
     <iframe id="viewer" title="PDF 预览" src="about:blank"></iframe>
-    <script>document.getElementById("preview").onclick=function(){document.getElementById("viewer").src="./paper.pdf"}</script>
+    <output id="local-data">pending</output>
+    <output id="worker-data">pending</output>
+    <output id="media-type">pending</output>
+    <div style="height:1800px">scroll fixture</div>
+    <script>
+      document.getElementById("preview").onclick=function(){document.getElementById("viewer").src="./paper.pdf"};
+      document.getElementById("modal").onclick=function(){alert("report modal")};
+      fetch("./data.json").then(function(r){return r.json()}).then(function(v){document.getElementById("local-data").textContent=v.ok});
+      fetch("./clip.mp4").then(function(r){document.getElementById("media-type").textContent=r.headers.get("content-type")});
+      var workerUrl=URL.createObjectURL(new Blob(["postMessage(42)"],{type:"text/javascript"}));
+      var worker=new Worker(workerUrl);worker.onmessage=function(e){document.getElementById("worker-data").textContent=e.data;URL.revokeObjectURL(workerUrl);worker.terminate()};
+    </script>
   </body></html>`;
   await fs.writeFile(path.join(dir, "report.html"), html);
+  await fs.writeFile(path.join(dir, "data.json"), JSON.stringify({ ok: "loaded" }));
+  await fs.writeFile(path.join(dir, "clip.mp4"), "video-data");
   await fs.writeFile(path.join(dir, "paper.pdf"), "%PDF-1.4\n%%EOF\n");
-  const sizeBytes = Buffer.byteLength(html) + Buffer.byteLength("%PDF-1.4\n%%EOF\n");
+  const sizeBytes =
+    Buffer.byteLength(html) +
+    Buffer.byteLength('{"ok":"loaded"}') +
+    Buffer.byteLength("video-data") +
+    Buffer.byteLength("%PDF-1.4\n%%EOF\n");
   await db.query(
     `INSERT INTO reports
        (id, user_id, slug, revision_id, title, date, tag, description, keywords, size_bytes)
@@ -51,10 +71,49 @@ test.afterAll(async () => {
   await db.query(`DELETE FROM "user" WHERE id = $1`, [fixture.userId]);
 });
 
-test("sandbox 报告可预览并下载 PDF", async ({ page }) => {
+test("独立内容域报告保留视口、PDF 与外链能力", async ({ page }) => {
   await page.goto(`/s/${fixture.token}`);
   await expect(page.getByRole("heading", { name: fixture.title })).toBeVisible();
+  const frame = page.locator(`iframe[title="${fixture.title}"]`);
   const report = page.frameLocator(`iframe[title="${fixture.title}"]`);
+  await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/r\//);
+  const reportSrc = await frame.getAttribute("src");
+  const reportResponse = await page.request.get(reportSrc!);
+  expect(reportResponse.headers()["x-frame-options"]).toBeUndefined();
+  expect(reportResponse.headers()["content-security-policy"]).toContain(
+    `frame-ancestors ${process.env.BETTER_AUTH_URL}`,
+  );
+  const mainOriginCopy = new URL(reportSrc!);
+  mainOriginCopy.host = new URL(process.env.BETTER_AUTH_URL!).host;
+  expect((await page.request.get(mainOriginCopy.href)).status()).toBe(404);
+  const frameBox = await frame.boundingBox();
+  expect(frameBox?.height).toBeGreaterThan(300);
+  expect(frameBox?.height).toBeLessThanOrEqual(720);
+  expect(await report.locator("body").evaluate(() => window.innerHeight)).toBe(
+    Math.round(frameBox!.height),
+  );
+  await expect(report.locator("#local-data")).toHaveText("loaded");
+  await expect(report.locator("#worker-data")).toHaveText("42");
+  await expect(report.locator("#media-type")).toHaveText("video/mp4");
+  expect(
+    await report.locator("body").evaluate(() => {
+      try {
+        localStorage.setItem("surge", "blocked");
+        return false;
+      } catch {
+        return true;
+      }
+    }),
+  ).toBe(true);
+
+  const dialogPromise = page.waitForEvent("dialog");
+  await Promise.all([
+    dialogPromise.then(async (dialog) => {
+      expect(dialog.message()).toBe("report modal");
+      await dialog.accept();
+    }),
+    report.locator("#modal").click(),
+  ]);
 
   await report.locator("#preview").click();
   const preview = page.locator("iframe.report-pdf-preview");
@@ -66,4 +125,16 @@ test("sandbox 报告可预览并下载 PDF", async ({ page }) => {
   await report.locator("#download").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toContain("paper.pdf");
+
+  const popupPromise = page.waitForEvent("popup");
+  await report.locator("#external").click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  expect(new URL(popup.url()).pathname).toBe("/login");
+  expect(await popup.evaluate(() => window.opener === null)).toBe(true);
+  await popup.close();
+
+  const reportsOrigin = process.env.REPORTS_ORIGIN!;
+  const blocked = await page.request.get(`${reportsOrigin}/api/health`);
+  expect(blocked.status()).toBe(404);
 });

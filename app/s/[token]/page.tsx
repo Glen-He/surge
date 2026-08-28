@@ -6,6 +6,7 @@ import { SharePasswordGate } from "./password-gate";
 import { ReportFrame } from "@/components/report-frame";
 import { after } from "next/server";
 import { logger } from "@/lib/logger";
+import { reportDocumentUrl } from "@/lib/report-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +61,20 @@ export default async function SharePage({
     });
   }
 
+  const capability = issueCapability(
+    found.reportId,
+    found.revisionId,
+    found.capabilityEpoch,
+    found.share.expires_at
+      ? Math.floor(found.share.expires_at.getTime() / 1000)
+      : undefined,
+  );
+
   return (
-    <>
+    <main className="report-viewer-shell">
       {/* 系统级报告头：与登录态查看页（/report/[slug]）完全一致的 1280px 头部，
           右侧信息与返回按钮同处 40px 高的垂直带（上下居中对齐同一水平线）。
-          头部随内容一起滚动（本页整体滚动，iframe 自适应报告高度）。 */}
+          报告在头部下方的固定视口内自行滚动。 */}
       <header className="rpt-sys-head">
         <h1 className="rpt-sys-title">{found.reportTitle}</h1>
         <div className="flex h-[40px] shrink-0 items-center">
@@ -74,7 +84,7 @@ export default async function SharePage({
         </div>
       </header>
       {/*
-        sandbox="allow-scripts" 且不带 allow-same-origin：
+        sandbox 允许脚本、下载和用户触发的新标签页，但不带 allow-same-origin：
         报告脚本可执行（图表正常渲染），但运行于 opaque origin——
         读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
         文档响应另带 CSP（connect-src 'none' 等）作为第二道防线。
@@ -82,16 +92,9 @@ export default async function SharePage({
       {/* capability 到期时间 clamp 到分享自身截止时间：分享 18:00 到期时，
           17:59 签出的 capability 不会活过 18:00 */}
       <ReportFrame
-        src={`/r/${issueCapability(
-          found.reportId,
-          found.revisionId,
-          found.capabilityEpoch,
-          found.share.expires_at
-            ? Math.floor(found.share.expires_at.getTime() / 1000)
-            : undefined,
-        )}/report.html`}
+        src={reportDocumentUrl(capability)}
         title={found.reportTitle}
       />
-    </>
+    </main>
   );
 }

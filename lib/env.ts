@@ -32,4 +32,22 @@ export function validateProductionEnvironment(): void {
   if (authUrl.protocol !== "https:" && !loopback) {
     throw new Error("生产环境 BETTER_AUTH_URL 必须使用 HTTPS");
   }
+
+  const configuredReportsOrigin = process.env.REPORTS_ORIGIN?.trim();
+  if (!configuredReportsOrigin && !loopback) {
+    throw new Error("生产环境 REPORTS_ORIGIN 必须配置为独立汇报内容域");
+  }
+  const reportsUrl = new URL(configuredReportsOrigin || authUrl.origin);
+  if (reportsUrl.username || reportsUrl.password) {
+    throw new Error("REPORTS_ORIGIN 不能包含用户名或密码");
+  }
+  if (reportsUrl.protocol !== "https:" && !loopback) {
+    throw new Error("生产环境 REPORTS_ORIGIN 必须使用 HTTPS");
+  }
+  if (reportsUrl.pathname !== "/" || reportsUrl.search || reportsUrl.hash) {
+    throw new Error("REPORTS_ORIGIN 只能包含协议、主机名和端口");
+  }
+  if (!loopback && reportsUrl.hostname === authUrl.hostname) {
+    throw new Error("REPORTS_ORIGIN 必须使用不同于主站的独立主机名");
+  }
 }
