@@ -45,7 +45,7 @@ export async function cancelDeletion(userId: string): Promise<boolean> {
 }
 
 // 幂等清理：删除冷却期已过的账号。
-// 在 instrumentation 启动与首页 / 用户中心加载时调用，无需 cron。
+// 由进程内后台维护调度器周期调用，不占用用户页面请求。
 export async function purgeExpiredDeletions(): Promise<void> {
   try {
     const { rows } = await db.query<{ id: string }>(
@@ -130,5 +130,5 @@ export async function deleteUserPermanently(
       );
     });
     return true;
-  });
+  }, { global: false });
 }

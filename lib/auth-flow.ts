@@ -163,6 +163,7 @@ export async function signInAsGuest(): Promise<GuestResult> {
       | { ok?: boolean; ttlMinutes?: number; error?: string }
       | null;
     if (!res.ok || !data?.ok) {
+      await fetch("/api/auth/end-session", { method: "POST" }).catch(() => {});
       const raw = typeof data?.error === "string" ? data.error : "";
       return {
         ok: false,
@@ -174,6 +175,7 @@ export async function signInAsGuest(): Promise<GuestResult> {
     }
     return { ok: true, ttlMinutes: Number(data.ttlMinutes) || 60 };
   } catch {
+    await fetch("/api/auth/end-session", { method: "POST" }).catch(() => {});
     return { ok: false, error: "网络异常，请稍后重试" };
   }
 }

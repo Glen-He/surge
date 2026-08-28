@@ -119,9 +119,10 @@ export async function seedDemoReports(userId: string): Promise<void> {
       throw e;
     }
     try {
+      const sizeBytes = await dirSizeBytes(dest);
       await db.query(
-        `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           randomUUID(),
           userId,
@@ -134,6 +135,7 @@ export async function seedDemoReports(userId: string): Promise<void> {
           t.description,
           t.keywords,
           sortOrder++,
+          sizeBytes,
         ],
       );
     } catch (e) {
@@ -162,9 +164,15 @@ export async function destroyGuestUser(userId: string): Promise<void> {
 export async function purgeStaleGuests(): Promise<{ removed: number }> {
   await ensureOtpMigration();
   const stale = await db.query<{ user_id: string }>(
-    `SELECT user_id FROM guest_sessions
-     WHERE expires_at < NOW()
-     ORDER BY expires_at ASC
+    `SELECT u.id AS user_id
+     FROM "user" u
+     LEFT JOIN guest_sessions g ON g.user_id = u.id
+     WHERE u."isAnonymous" = TRUE
+       AND (
+         g.expires_at < NOW()
+         OR (g.user_id IS NULL AND u."createdAt" < NOW() - INTERVAL '15 minutes')
+       )
+     ORDER BY COALESCE(g.expires_at, u."createdAt") ASC
      LIMIT 100`,
   );
   if (!stale.rows.length) return { removed: 0 };

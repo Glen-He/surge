@@ -8,19 +8,17 @@ import {
   pdfDownloadUrl,
   resolveReportPdfUrl,
 } from "@/lib/report-pdf";
+import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 
 type PdfPreview = { url: string; title: string };
 
 /**
  * 报告沙箱 iframe（登录态查看页与分享页共用）。
  *
- * 外层页面整体滚动（系统头随内容一起滚走），iframe 必须自适应报告的
- * 真实内容高度 —— 报告文档由管线注入的高度上报脚本 postMessage 通知，
- * 本组件监听并撑高 iframe（opaque origin 无法直接读 contentDocument）。
- * 收不到消息的兜底：维持首屏高度 calc(100vh - 118px)。
+ * 查看器占据系统头以下的剩余视口，报告在 iframe 内自行滚动。完整 HTML
+ * 因而保有正常的 fixed/sticky/100vh 语义，不需要平台识别报告内部弹层。
  */
 export function ReportFrame({ src, title }: { src: string; title: string }) {
-  const [height, setHeight] = useState<number | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -31,16 +29,9 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
       if (!el || e.source !== el.contentWindow) return;
       const data = e.data as
         | {
-            __surgeReportHeight?: unknown;
             [REPORT_PDF_MESSAGE_KEY]?: unknown;
           }
         | null;
-      const h = data?.__surgeReportHeight;
-      if (typeof h === "number" && Number.isFinite(h) && h > 0) {
-        // +1px 避免亚像素舍入触发 iframe 内部滚动条
-        setHeight(Math.min(Math.ceil(h) + 1, 100000));
-      }
-
       const message = data?.[REPORT_PDF_MESSAGE_KEY];
       if (!isReportPdfMessage(message)) return;
       const resource = resolveReportPdfUrl(src, message.url, window.location.href);
@@ -70,18 +61,17 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
   // - allow-downloads：保留报告内非 PDF 附件的原生下载能力；PDF 由父页桥接
   // - allow-popups + escape：放行 target="_blank" 外链（DOI/PMID 等），
   //   新标签页脱离沙箱以正常加载外部站点（不回授报告脚本任何权限）
+  // - allow-modals：保留网页对话框语义；表单提交仍被 CSP 禁止
   return (
     <>
       <iframe
         ref={iframeRef}
         src={src}
         title={title}
-        sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox"
-        className="block w-full shrink-0 border-0 bg-transparent"
-        style={{
-          height: height !== null ? `${height}px` : "calc(100vh - 118px)",
-          minHeight: 480,
-        }}
+        sandbox={REPORT_SANDBOX_TOKENS}
+        allow="clipboard-write; fullscreen"
+        allowFullScreen
+        className="report-frame"
       />
       <Modal
         open={pdfPreview !== null}

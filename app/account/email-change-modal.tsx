@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import { StepIndicator } from "@/components/step-indicator";
 import { showGuestOtpFromResponse } from "@/lib/guest-otp-store";
+import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
 
 // 状态机：UI 完全由 step 决定
 type Step = "verify-current" | "enter-new" | "success";
@@ -68,7 +69,7 @@ function EmailChangeDialog({
   // Step1 当前邮箱验证码
   const [oldOtp, setOldOtp] = useState("");
   const [oldSending, setOldSending] = useState(false);
-  const [oldCooldown, setOldCooldown] = useState(0);
+  const [oldCooldown, setOldCooldown] = useOtpCooldown();
   // 每日上限：按钮静态禁用"明日再试"，不跑秒级倒计时
   const [oldDailyLimit, setOldDailyLimit] = useState(false);
 
@@ -77,24 +78,13 @@ function EmailChangeDialog({
   const [newEmailError, setNewEmailError] = useState("");
   const [newSent, setNewSent] = useState(false);
   const [newSending, setNewSending] = useState(false);
-  const [newCooldown, setNewCooldown] = useState(0);
+  const [newCooldown, setNewCooldown] = useOtpCooldown();
   const [newDailyLimit, setNewDailyLimit] = useState(false);
   const [newOtp, setNewOtp] = useState("");
 
   const [emailChangeToken, setEmailChangeToken] = useState("");
   const [successEmail, setSuccessEmail] = useState("");
   const closeTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (oldCooldown <= 0) return;
-    const t = setTimeout(() => setOldCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [oldCooldown]);
-  useEffect(() => {
-    if (newCooldown <= 0) return;
-    const t = setTimeout(() => setNewCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [newCooldown]);
 
   useEffect(
     () => () => {
@@ -115,17 +105,10 @@ function EmailChangeDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg({ ok: false, text: data.error ?? "发送失败" });
-        if (
-          data.code === "OTP_DAILY_LIMIT" ||
-          (typeof data.retryAfter === "number" && data.retryAfter > 600)
-        ) {
-          setOldDailyLimit(true);
-        } else if (typeof data.retryAfter === "number") {
-          setOldCooldown(data.retryAfter);
-        }
+        applyOtpRetry(data, setOldDailyLimit, setOldCooldown);
         return;
       }
-      if (typeof data.retryAfter === "number") setOldCooldown(data.retryAfter);
+      applyOtpRetry(data, setOldDailyLimit, setOldCooldown, 60);
       // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
@@ -181,17 +164,10 @@ function EmailChangeDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg({ ok: false, text: data.error ?? "发送失败" });
-        if (
-          data.code === "OTP_DAILY_LIMIT" ||
-          (typeof data.retryAfter === "number" && data.retryAfter > 600)
-        ) {
-          setNewDailyLimit(true);
-        } else if (typeof data.retryAfter === "number") {
-          setNewCooldown(data.retryAfter);
-        }
+        applyOtpRetry(data, setNewDailyLimit, setNewCooldown);
         return;
       }
-      setNewCooldown(typeof data.retryAfter === "number" ? data.retryAfter : 60);
+      applyOtpRetry(data, setNewDailyLimit, setNewCooldown, 60);
       setNewEmail(value);
       setNewSent(true);
       // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）

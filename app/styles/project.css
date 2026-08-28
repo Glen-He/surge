@@ -1,0 +1,260 @@
+/* ============ 新建项目 ============ */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 24px;
+}
+
+/* 四卡高度兜底 280px：内容超出时整行一起等高变高（grid 1fr），始终一致 */
+.project-card {
+  min-width: 0;
+  min-height: 280px;
+  padding: 20px 30px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 10px 30px rgba(0, 0, 0, 0.018);
+  display: flex;
+  flex-direction: column;
+}
+
+.project-field {
+  margin-top: 10px;
+}
+
+.project-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #3a3a3c;
+}
+
+/* 必填星号：保留但降低视觉重量 */
+.project-req {
+  margin-left: 2px;
+  color: var(--danger);
+  font-weight: 400;
+}
+
+.project-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+.project-input::placeholder {
+  color: #a1a1a6;
+}
+
+.project-input:focus {
+  border-color: var(--accent);
+}
+
+/* 标签输入框内右侧的取色圆点：为圆点留出空间（不遮住文字） */
+.tag-input-wrap .project-input {
+  padding-right: 42px;
+}
+
+textarea.project-input {
+  height: auto;
+  min-height: 120px;
+  padding: 12px 14px;
+  resize: none;
+  line-height: 1.6;
+}
+
+/* 报错槽位常驻：单行 18px + 2px 上距，紧凑不占位；报错出现/消失零位移 */
+.project-error {
+  min-height: 18px;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+/* 报告文件卡错误槽位：上传框下方、左对齐、常驻占位，报错出现时零位移 */
+.upload-error-slot {
+  min-height: 22px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+/* 上传区：顶部与项目说明 textarea 顶对齐（上方留出标签行高度 33px），
+   高度同为 120px，底边随之对齐 */
+.upload-zone {
+  margin-top: 33px;
+  height: 120px;
+  padding: 12px 16px;
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+  background: #f7f7f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.upload-zone:hover,
+.upload-zone-drag {
+  border-color: rgba(0, 113, 227, 0.4);
+  background: rgba(0, 113, 227, 0.03);
+}
+
+.upload-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* 已选文件状态：与 upload-zone 同位替换，同样顶对齐 + 120px */
+.file-state {
+  margin-top: 33px;
+  height: 120px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  background: #f7f7f9;
+}
+
+.file-state-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.file-name {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.file-check {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--success-text);
+}
+
+.file-swap {
+  margin-top: 2px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 页面级操作行：裸按钮，右对齐与卡片同轴 */
+.page-actions {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.page-actions-error {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+/* 页面级成对按钮：带边框 112×44，实心四周各收 1px → 110×42，并排视觉等大 */
+.btn-create {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 110px;
+  height: 42px;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-create:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btn-create:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 44px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6e6e73;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-cancel-page:hover {
+  background: #ededf2;
+  color: var(--text-primary);
+}
+
+/* 输入框错误态：只改边框颜色，不产生红色外发光 */
+.project-input-error,
+.project-input-error:focus {
+  border-color: var(--danger);
+}
+

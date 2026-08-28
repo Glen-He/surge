@@ -9,6 +9,7 @@ import {
   PASSWORD_RULE_TEXT,
   passwordPolicyError,
 } from "@/lib/password-policy";
+import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
 
 // 状态机：选择方式 → 验证（密码 / 邮箱验证码）→ 设置新密码 → 完成
 type Mode = "select" | "password" | "otp" | "new-password" | "success";
@@ -158,7 +159,7 @@ function PasswordChangeDialog({
 
   const [otp, setOtp] = useState("");
   const [otpSending, setOtpSending] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldown, setCooldown] = useOtpCooldown();
   // 每日上限（自然日 10 次）：按钮静态禁用显示"明日再试"，不跑秒级倒计时
   const [dailyLimit, setDailyLimit] = useState(false);
 
@@ -170,12 +171,6 @@ function PasswordChangeDialog({
 
   const [passwordChangeToken, setPasswordChangeToken] = useState("");
   const closeTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
 
   useEffect(
     () => () => {
@@ -196,18 +191,10 @@ function PasswordChangeDialog({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg({ ok: false, text: data.error ?? "发送失败" });
-        if (
-          data.code === "OTP_DAILY_LIMIT" ||
-          (typeof data.retryAfter === "number" && data.retryAfter > 600)
-        ) {
-          // 每日上限：静态禁用到明天，不把"到 0 点的秒数"当倒计时渲染
-          setDailyLimit(true);
-        } else if (typeof data.retryAfter === "number") {
-          setCooldown(data.retryAfter);
-        }
+        applyOtpRetry(data, setDailyLimit, setCooldown);
         return;
       }
-      setCooldown(typeof data.retryAfter === "number" && data.retryAfter > 0 ? data.retryAfter : 60);
+      applyOtpRetry(data, setDailyLimit, setCooldown, 60);
       // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {

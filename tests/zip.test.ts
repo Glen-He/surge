@@ -67,6 +67,13 @@ async function tempDir(): Promise<string> {
   return dir;
 }
 
+async function archiveFile(content: Buffer): Promise<string> {
+  const dir = await tempDir();
+  const file = path.join(dir, "archive.zip");
+  await fs.writeFile(file, content);
+  return file;
+}
+
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((dir) =>
@@ -79,10 +86,10 @@ describe("unzipStream", () => {
   it("按顺序解压并返回实际字节数", async () => {
     const dest = await tempDir();
     const result = await unzipStream(
-      makeZip([
+      await archiveFile(makeZip([
         { name: "report.html", data: "<h1>ok</h1>" },
         { name: "assets/data.js", data: "window.x = 1" },
-      ]),
+      ])),
       dest,
     );
     expect(result).toEqual({ fileCount: 2, totalBytes: 23 });
@@ -95,7 +102,7 @@ describe("unzipStream", () => {
     "拒绝非安全路径 %s",
     async (name) => {
       await expect(
-        unzipStream(makeZip([{ name, data: "x" }]), await tempDir()),
+        unzipStream(await archiveFile(makeZip([{ name, data: "x" }])), await tempDir()),
       ).rejects.toBeInstanceOf(UnzipLimitError);
     },
   );
@@ -103,10 +110,10 @@ describe("unzipStream", () => {
   it("拒绝大小写折叠后的重复路径", async () => {
     await expect(
       unzipStream(
-        makeZip([
+        await archiveFile(makeZip([
           { name: "Report.html", data: "a" },
           { name: "report.html", data: "b" },
-        ]),
+        ])),
         await tempDir(),
       ),
     ).rejects.toThrow("重复文件路径");
@@ -118,17 +125,17 @@ describe("unzipStream", () => {
       { name: "data.js", data: "67890" },
     ]);
     await expect(
-      unzipStream(zip, await tempDir(), { maxFiles: 1 }),
+      unzipStream(await archiveFile(zip), await tempDir(), { maxFiles: 1 }),
     ).rejects.toThrow("文件数量");
     await expect(
-      unzipStream(zip, await tempDir(), { maxTotalBytes: 9 }),
+      unzipStream(await archiveFile(zip), await tempDir(), { maxTotalBytes: 9 }),
     ).rejects.toThrow("总大小");
   });
 
   it("拒绝 Unix 符号链接条目", async () => {
     await expect(
       unzipStream(
-        makeZip([{ name: "link", data: "report.html", mode: 0o120777 }]),
+        await archiveFile(makeZip([{ name: "link", data: "report.html", mode: 0o120777 }])),
         await tempDir(),
       ),
     ).rejects.toThrow("符号链接");

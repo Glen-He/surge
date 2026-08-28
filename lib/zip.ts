@@ -1,6 +1,6 @@
-import { createWriteStream, promises as fs } from "fs";
+import { createReadStream, createWriteStream, promises as fs } from "fs";
 import path from "path";
-import { Readable, Transform } from "stream";
+import { Transform } from "stream";
 import { pipeline } from "stream/promises";
 import unzipper from "unzipper";
 
@@ -69,12 +69,12 @@ function assertRegularFile(file: unzipper.File): void {
  * cannot exceed the live cap and no entry is buffered in memory.
  */
 export async function unzipStream(
-  buf: Buffer,
+  archivePath: string,
   dest: string,
   limits: Partial<UnzipLimits> = {},
 ): Promise<UnzipResult> {
   const L = { ...DEFAULT_LIMITS, ...limits };
-  const directory = await unzipper.Open.buffer(buf);
+  const directory = await unzipper.Open.file(archivePath);
   const names = new Set<string>();
   let declaredTotal = 0;
   let declaredFiles = 0;
@@ -104,7 +104,7 @@ export async function unzipStream(
   }
 
   await fs.mkdir(dest, { recursive: true });
-  const parser = Readable.from([buf]).pipe(
+  const parser = createReadStream(archivePath).pipe(
     unzipper.Parse({ forceStream: true }),
   ) as AsyncIterable<unzipper.Entry>;
   let total = 0;

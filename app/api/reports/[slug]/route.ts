@@ -30,34 +30,32 @@ export async function PATCH(
 
   const parsed = await readUploadForm(req);
   if (!parsed.ok) return parsed.response;
-  const form = parsed.form;
-  const meta = metaFromForm(form);
-  const file = form.get("file");
+  const { form, file, cleanup } = parsed.value;
+  try {
+    const meta = metaFromForm(form);
 
-  // 先校验元信息，再动文件：避免字段不合法却已把报告文件换掉
-  const metaInvalid = validateReportMeta(meta);
-  if (metaInvalid) {
-    return Response.json({ error: metaInvalid }, { status: 400 });
-  }
+    // 先校验元信息，再动文件：避免字段不合法却已把报告文件换掉
+    const metaInvalid = validateReportMeta(meta);
+    if (metaInvalid) {
+      return Response.json({ error: metaInvalid }, { status: 400 });
+    }
 
-  // 可选更换报告文件：先解压到 .tmp 并校验，再原子替换原目录
-  if (file && typeof file !== "string") {
-    const result = await replaceReportFile(session.user.id, slug, {
-      name: file.name,
-      type: file.type,
-      buf: Buffer.from(await file.arrayBuffer()),
-    }, meta);
+    if (file) {
+      const result = await replaceReportFile(session.user.id, slug, file, meta);
+      if (!result.ok) {
+        return Response.json({ error: result.error }, { status: result.status });
+      }
+      return Response.json({ ok: true });
+    }
+
+    const result = await updateReportMeta(session.user.id, slug, meta);
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
     }
     return Response.json({ ok: true });
+  } finally {
+    await cleanup();
   }
-
-  const result = await updateReportMeta(session.user.id, slug, meta);
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-  return Response.json({ ok: true });
 }
 
 // 删除项目：DB 行（report_shares 随 FK 级联删除）+ 磁盘目录（含替换残留的 .tmp/.old）

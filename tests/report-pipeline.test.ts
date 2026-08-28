@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { reportDocCsp, requestOrigin, renderReportDoc } from "@/lib/report-pipeline";
+import { reportDocCsp, renderReportDoc } from "@/lib/report-pipeline";
+import {
+  applicationOrigin,
+  reportDocumentUrl,
+  reportsOrigin,
+  requestOrigin,
+} from "@/lib/report-origin";
 import {
   issueCapability,
   reportResourceEtag,
@@ -9,26 +15,41 @@ import {
 import { createHmac } from "crypto";
 
 describe("reportDocCsp", () => {
-  it("包含沙箱、断网与 base-uri/worker 禁用，资源仅限 capability 前缀", () => {
-    const csp = reportDocCsp("https://surge.example/r/CAP123");
-    expect(csp).toContain("sandbox allow-scripts");
-    expect(csp).toContain("connect-src 'none'");
-    expect(csp).toContain("base-uri 'none'");
-    expect(csp).toContain("worker-src 'none'");
+  it("包含沙箱并默认只允许 capability 资源、数据、媒体与 Worker", () => {
+    const csp = reportDocCsp(
+      "https://reports.example/r/CAP123",
+      "https://surge.example",
+    );
     expect(csp).toContain(
-      "script-src 'unsafe-inline' https://surge.example/r/CAP123/",
+      "sandbox allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals",
+    );
+    expect(csp).toContain(
+      "connect-src https://reports.example/r/CAP123/ https:",
+    );
+    expect(csp).toContain(
+      "media-src https://reports.example/r/CAP123/ data: blob: https:",
+    );
+    expect(csp).toContain("base-uri 'none'");
+    expect(csp).toContain(
+      "worker-src https://reports.example/r/CAP123/ blob: https:",
+    );
+    expect(csp).toContain(
+      "script-src 'unsafe-inline' 'unsafe-eval' https://reports.example/r/CAP123/ https:",
     );
     // 不允许整站 origin（收紧到 /r/<cap>/ 命名空间）
-    expect(csp).not.toContain("img-src https://surge.example ");
-    expect(csp).toContain("img-src https://surge.example/r/CAP123/ data: blob:");
-    expect(csp).toContain("frame-src https://surge.example/r/CAP123/");
+    expect(csp).not.toContain("img-src https://reports.example ");
+    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob: https:");
+    expect(csp).toContain("frame-src https://reports.example/r/CAP123/ https:");
+    expect(csp).toContain("frame-ancestors https://surge.example");
+    expect(csp).toContain("form-action 'none'");
   });
 });
 
-describe("requestOrigin", () => {
+describe("报告内容域", () => {
   beforeEach(() => {
     vi.stubEnv("BETTER_AUTH_URL", "");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("REPORTS_ORIGIN", "");
   });
 
   it("优先 x-forwarded-host + proto", () => {
@@ -43,12 +64,22 @@ describe("requestOrigin", () => {
     expect(requestOrigin(req)).toBe("http://localhost:3000");
   });
 
-  it("部署固定 origin 优先于可伪造请求头", () => {
-    vi.stubEnv("BETTER_AUTH_URL", "https://reports.example/app");
+  it("生产内容域独立于主站并生成绝对 capability URL", () => {
+    vi.stubEnv("BETTER_AUTH_URL", "https://surge.example/app");
+    vi.stubEnv("REPORTS_ORIGIN", "https://reports.example");
+    expect(applicationOrigin()).toBe("https://surge.example");
+    expect(reportsOrigin()).toBe("https://reports.example");
+    expect(reportDocumentUrl("CAP.123")).toBe(
+      "https://reports.example/r/CAP.123/report.html",
+    );
+  });
+
+  it("请求 origin 只取可信反代头，不被应用配置覆盖", () => {
+    vi.stubEnv("BETTER_AUTH_URL", "https://surge.example/app");
     const req = new Request("http://x/", {
       headers: { "x-forwarded-host": "evil.example" },
     });
-    expect(requestOrigin(req)).toBe("https://reports.example");
+    expect(requestOrigin(req)).toBe("http://evil.example");
   });
 });
 
@@ -173,18 +204,14 @@ describe("renderReportDoc", () => {
     expect(out).not.toContain("<h1>标题</h1>");
   });
 
-  it("注入滚动条隐藏样式于 <head> 首位、高度上报脚本于 </body> 前", () => {
+  it("只在 <head> 首位注入滚动条样式，不再改写报告视口高度", () => {
     const out = run("");
     const headPos = out.indexOf("<head>");
     const stylePos = out.indexOf("scrollbar-width:none");
-    const bodyPos = out.lastIndexOf("</body>");
-    const scriptPos = out.indexOf("__surgeReportHeight");
     expect(stylePos).toBeGreaterThan(headPos);
     expect(stylePos).toBeLessThan(out.indexOf("</head>"));
-    expect(scriptPos).toBeGreaterThan(0);
-    expect(scriptPos).toBeLessThan(bodyPos);
-    expect(out).toContain("requestAnimationFrame(measure)");
-    expect(out).toContain("h===last");
+    expect(out).not.toContain("__surgeReportHeight");
+    expect(out).not.toContain("ResizeObserver");
   });
 
   it("在报告脚本之前注入 PDF 桥接，拦截下载链接与 iframe 预览", () => {
@@ -194,6 +221,8 @@ describe("renderReportDoc", () => {
     expect(bridgePos).toBeGreaterThan(out.indexOf("<head>"));
     expect(bridgePos).toBeLessThan(out.indexOf(marker));
     expect(out).toContain('link.hasAttribute("download")');
+    expect(out).toContain('link.relList.add("noopener")');
+    expect(out).toContain('link.relList.add("noreferrer")');
     expect(out).toContain("target instanceof HTMLIFrameElement");
     expect(out).toContain('frame.setAttribute("src","about:blank")');
   });

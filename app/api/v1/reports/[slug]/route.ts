@@ -1,6 +1,6 @@
 import { authenticateApiToken } from "@/lib/api-tokens";
 import { clientIp } from "@/lib/client-ip";
-import { rateLimit } from "@/lib/rate-limit";
+import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import { getReportBySlug } from "@/lib/reports-db";
 import {
   metaFromForm,
@@ -35,7 +35,13 @@ export async function PATCH(
       { status: 401 },
     );
   }
-  if (!rateLimit(`api-v1:${user.id}`, REQ_LIMIT, REQ_WINDOW_MS)) {
+  const throughput = await consumeSharedRateLimit(
+    "api-v1",
+    user.id,
+    REQ_LIMIT,
+    REQ_WINDOW_MS / 1000,
+  );
+  if (!throughput.allowed) {
     return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
@@ -47,30 +53,28 @@ export async function PATCH(
 
   const parsed = await readUploadForm(req);
   if (!parsed.ok) return parsed.response;
-  const form = parsed.form;
+  const { form, file, cleanup } = parsed.value;
+  try {
+    const meta = metaFromForm(form);
+    const metaInvalid = validateReportMeta(meta);
+    if (metaInvalid) {
+      return Response.json({ error: metaInvalid }, { status: 400 });
+    }
 
-  const meta = metaFromForm(form);
-  const metaInvalid = validateReportMeta(meta);
-  if (metaInvalid) {
-    return Response.json({ error: metaInvalid }, { status: 400 });
-  }
+    if (file) {
+      const result = await replaceReportFile(user.id, slug, file, meta);
+      if (!result.ok) {
+        return Response.json({ error: result.error }, { status: result.status });
+      }
+      return Response.json({ ok: true });
+    }
 
-  const file = form.get("file");
-  if (file && typeof file !== "string") {
-    const result = await replaceReportFile(user.id, slug, {
-      name: file.name,
-      type: file.type,
-      buf: Buffer.from(await file.arrayBuffer()),
-    }, meta);
+    const result = await updateReportMeta(user.id, slug, meta);
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: result.status });
     }
     return Response.json({ ok: true });
+  } finally {
+    await cleanup();
   }
-
-  const result = await updateReportMeta(user.id, slug, meta);
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-  return Response.json({ ok: true });
 }

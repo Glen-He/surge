@@ -1,6 +1,6 @@
 import { authenticateApiToken } from "@/lib/api-tokens";
 import { clientIp } from "@/lib/client-ip";
-import { rateLimit } from "@/lib/rate-limit";
+import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import { createReport, metaFromForm } from "@/lib/report-upload";
 import { readUploadForm } from "@/lib/upload-request";
 
@@ -31,26 +31,29 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
-  if (!rateLimit(`api-v1:${user.id}`, REQ_LIMIT, REQ_WINDOW_MS)) {
+  const throughput = await consumeSharedRateLimit(
+    "api-v1",
+    user.id,
+    REQ_LIMIT,
+    REQ_WINDOW_MS / 1000,
+  );
+  if (!throughput.allowed) {
     return Response.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   const parsed = await readUploadForm(req);
   if (!parsed.ok) return parsed.response;
-  const form = parsed.form;
-
-  const file = form.get("file");
-  if (!file || typeof file === "string") {
-    return Response.json({ error: "缺少 file 字段（HTML 或 zip）" }, { status: 400 });
+  const { form, file, cleanup } = parsed.value;
+  try {
+    if (!file) {
+      return Response.json({ error: "缺少 file 字段（HTML 或 zip）" }, { status: 400 });
+    }
+    const result = await createReport(user.id, user.email, metaFromForm(form), file);
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return Response.json({ ok: true, slug: result.slug });
+  } finally {
+    await cleanup();
   }
-
-  const result = await createReport(user.id, user.email, metaFromForm(form), {
-    name: file.name,
-    type: file.type,
-    buf: Buffer.from(await file.arrayBuffer()),
-  });
-  if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
-  }
-  return Response.json({ ok: true, slug: result.slug });
 }

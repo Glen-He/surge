@@ -54,8 +54,15 @@ export async function POST() {
   try {
     signOutResp = await auth.handler(signOutReq as Request);
     await signOutResp.text(); // consume body
-  } catch {
-    signOutResp = new Response(null, { status: 204 });
+    if (!signOutResp.ok) {
+      logger.error("end-session", "better-auth 服务端会话撤销失败", {
+        status: signOutResp.status,
+      });
+      return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
+    }
+  } catch (error) {
+    logger.error("end-session", "better-auth 服务端会话撤销异常", error as Error);
+    return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
   }
 
   // 2) 若是访客 → 销毁沙箱（删 user、级联 reports/sessions/otp_codes/account_changes、磁盘目录）

@@ -5,15 +5,11 @@ import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 import { requireSession } from "@/lib/session";
 import {
   getDeletionRequestedAt,
-  purgeExpiredDeletions,
 } from "@/lib/account-deletion";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
-  // 先清理冷却期已过的账号，再读会话（过期账号直接回到登录）
-  await purgeExpiredDeletions();
-
   // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
 

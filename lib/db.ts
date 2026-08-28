@@ -18,14 +18,18 @@ export const db = new Pool({
 export async function withStorageLocks<T>(
   userId: string,
   fn: (client: import("pg").PoolClient) => Promise<T>,
+  options: { global?: boolean } = {},
 ): Promise<T> {
   const client = await db.connect();
   const globalKey = "storage-quota:global";
   const userKey = `storage-quota:${userId}`;
+  const useGlobal = options.global !== false;
   try {
-    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
-      globalKey,
-    ]);
+    if (useGlobal) {
+      await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
+        globalKey,
+      ]);
+    }
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
       userKey,
     ]);
@@ -34,9 +38,11 @@ export async function withStorageLocks<T>(
     await client
       .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [userKey])
       .catch(() => {});
-    await client
-      .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
-      .catch(() => {});
+    if (useGlobal) {
+      await client
+        .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
+        .catch(() => {});
+    }
     client.release();
   }
 }

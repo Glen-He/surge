@@ -2,7 +2,7 @@ import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "node:util";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
-import { rateLimit } from "./rate-limit";
+import { consumeSharedRateLimit } from "./db-rate-limit";
 import {
   clearSecurityFailures,
   isSecurityRateLimited,
@@ -56,14 +56,13 @@ export async function verifySharePassword(
 }
 
 // 解锁 cookie 值：HMAC(token, SECRET)。
-// 密钥解析：SHARE_SECRET 优先 → DATABASE_URL（内含高熵口令，开发/自托管可接受）
-// → 生产环境两者皆缺直接抛错，绝不静默落入固定值——否则任何人都能自算
+// 生产必须使用独立 SHARE_SECRET，避免轮换数据库口令时意外轮换
+// 分享凭证密钥。开发环境仅保留一个本地回退值。
 // HMAC 伪造解锁凭证，绕过所有受密码保护的分享。
 function shareSecret(): string {
   if (process.env.SHARE_SECRET) return process.env.SHARE_SECRET;
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (process.env.NODE_ENV === "production") {
-    throw new Error("缺少 SHARE_SECRET（或 DATABASE_URL）：分享解锁凭证无签名密钥");
+    throw new Error("缺少 SHARE_SECRET：分享解锁凭证无独立签名密钥");
   }
   return "dev-only";
 }
@@ -196,10 +195,12 @@ export async function incrementShareView(token: string) {
   );
 }
 
-// viewCount 防刷：同一 IP 对同一 token 1 小时内只计 1 次浏览。
-// 进程内限流（危害本身有限——最多计数失真，无需持久化）
-export function shouldCountView(token: string, ip: string): boolean {
-  return rateLimit(`sv:${token}:${ip}`, 1, 60 * 60 * 1000);
+// viewCount 防刷：同一 IP 对同一 token 1 小时内只计 1 次浏览，
+// 使用数据库固定窗口保证多实例口径一致。
+export async function shouldCountView(token: string, ip: string): Promise<boolean> {
+  return (
+    await consumeSharedRateLimit("share-view", `${token}:${ip}`, 1, 60 * 60)
+  ).allowed;
 }
 
 /** 分享是否仍有效（管理列表用轻量判断） */

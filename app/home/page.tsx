@@ -3,15 +3,12 @@ import { ReportBoard } from "@/components/report-board";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
 import { isGuestEmail, getGuestExpiry } from "@/lib/guest-sandbox";
 import { requireSession } from "@/lib/session";
-import { purgeExpiredDeletions } from "@/lib/account-deletion";
 import { RelaunchClear } from "@/components/relaunch-clear";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  await purgeExpiredDeletions();
-
   // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页（弹回诊断日志见 lib/session）
   const session = await requireSession();
 

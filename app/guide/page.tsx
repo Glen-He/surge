@@ -21,26 +21,32 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 3. 所有 JavaScript 用 IIFE 包裹，不要声明全局变量，不要操作页面标题；
 4. 引用本地资源一律用相对路径（./images/a.png），不要用以 / 开头的路径。
 
-三、图表（二选一）
+三、运行环境与外部资源
+1. 页面可以正常使用 HTML/CSS/JavaScript、Canvas、SVG、WebGL、相对路径资源、fetch("./data.json")、包内音视频、PDF、下载、用户触发的外链/新标签页和 Blob Worker。
+2. 页面运行在隔离沙箱中；不要依赖 Cookie、localStorage、IndexedDB、Service Worker、主站 API、顶层页面跳转、剪贴板读取、摄像头、麦克风、定位或其他设备权限。交互状态保存在页面内存/DOM 中。
+3. 外部 HTTPS API、CDN 脚本/样式、图片、字体、音视频和 iframe 可以直接在 HTML 中引用，不需要额外配置文件。fetch/XHR、ES Module 和字体等跨域资源仍需要对方服务器允许 CORS。
+4. 出于稳定性、加载速度和私密考虑，能随报告打包的脚本、数据、图片、字体和媒体仍优先放进报告文件夹。HTTP 外链和真正的表单提交不可用；表单只用于页内交互，用 JavaScript 阻止默认提交。
+
+四、图表（二选一）
 · 简单图形：用内联 SVG 或 HTML + CSS 直接画在页面里；
 · 数据图表（折线、柱状、饼图等）：用 ECharts。在 <head> 里按顺序写这两行，并把 echarts.min.js 放进同一文件夹：
   <script src="./_platform/echarts.min.js"></script>
   <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
   图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
 
-四、图片与性能
+五、图片与性能
 1. 照片、界面截图等优先转为 WebP（建议质量 90–95），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
 2. 首屏主图可设 fetchpriority="high"；首屏以外的图片使用 loading="lazy" decoding="async"，并写明 width/height 或 aspect-ratio，避免解码时反复重排。
 3. 图片切换/轮播默认只加载当前图；首屏完成后只预加载前后相邻图片，切换前等待 img.decode()，不要一次性预加载所有大图。
 4. 大图保持独立文件并用相对路径引用，不要把大图转为 base64/data URI 塞进 HTML 或 data.js。
 
-五、设计
+六、设计
 整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，小型图标可用内联 SVG，位图放文件夹里相对引用。配色、布局、信息组织方式由你决定，充分发挥。
 
-六、内容
+七、内容
 汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
 
-七、交付
+八、交付
 生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。
 平台上传上限：压缩包或单 HTML 不超过 50MB、解压后全部文件总大小不超过 100MB、文件总数不超过 50 个、目录深度不超过 5 层；所有项目合计存储上限 2GB。`;
 
@@ -288,23 +294,35 @@ function GuideContent() {
             （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录；
             echarts.min.js 不用压进去，平台已有内置版本）。
           </p>
-          <div className="rounded-lg bg-[#f7f7f7] px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
-            <pre className="m-0 overflow-x-auto font-mono text-[12.5px] leading-[2] whitespace-pre text-[#1d1d1f]">
-{`汇报文件夹
-├── `}
-<span className="font-semibold text-[#b91c1c]">report.html</span>
-{`    ← 必须有，名字不能改；打 zip 时必须放在根目录，这是汇报页的入口
-├── data.js        ← 可选：数据文件，HTML 里用相对路径引用
-├── style.css      ← 可选：外链样式表，包内图片字体同样可用
-├── chart.js       ← 可选：其他脚本 / 图片 / 字体等辅助文件
-└── …              ← 可选：包内文件用相对路径随意引用，都会正常加载`}
-            </pre>
+          <div className="overflow-x-auto rounded-lg bg-[#f7f7f7] px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
+            <div className="min-w-[760px] font-mono text-[12.5px] leading-[2] whitespace-nowrap text-[#1d1d1f]">
+              <div>汇报文件夹</div>
+              {[
+                ["├──", "report.html", "必须有，名字不能改；打 zip 时必须放在根目录，这是汇报页的入口"],
+                ["├──", "data.js", "可选：数据文件，HTML 里用相对路径引用"],
+                ["├──", "style.css", "可选：外链样式表，包内图片字体同样可用"],
+                ["├──", "chart.js", "可选：其他脚本 / 图片 / 字体等辅助文件"],
+                ["└──", "…", "可选：包内文件用相对路径随意引用，都会正常加载"],
+              ].map(([branch, name, description]) => (
+                <div
+                  key={name}
+                  className="grid grid-cols-[44px_130px_28px_minmax(0,1fr)] items-baseline"
+                >
+                  <span>{branch}</span>
+                  <span className={name === "report.html" ? "font-semibold text-[#b91c1c]" : undefined}>
+                    {name}
+                  </span>
+                  <span>←</span>
+                  <span>{description}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <NoteRow icon="info">
             上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
           </NoteRow>
           <NoteRow icon="lock">
-            不要引用文件夹外部或网络上的资源（CDN 脚本、外链图片等）——出于安全考虑不会加载，文件夹内的文件随便用。
+            报告可直接引用外部 HTTPS 资源；为了稳定、加载快和便于离线预览，仍建议优先把资源放进汇报文件夹。
           </NoteRow>
         </section>
 
@@ -347,7 +365,7 @@ function GuideContent() {
             <FaqTile
               no={2}
               q="图片能放吗？"
-              a="能。文件夹里的图片用相对路径引用；照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。文件夹外部和网络图片不会加载。"
+              a="能。文件夹里的图片用相对路径引用；外部 HTTPS 图片也可直接引用。照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。"
             />
             <FaqTile
               no={3}
@@ -377,7 +395,7 @@ function GuideContent() {
             <FaqTile
               no={8}
               q="图片裂了，本地预览正常但上传后有几张加载不出来？"
-              a="检查路径写法：用 ./images/a.png 这种相对路径，不要以 / 开头（会被解析到平台根目录而非你报告文件夹下）；文件名不要包含中文以外的特殊字符；文件夹外和网络外链图片不会加载。"
+              a="检查路径写法：用 ./images/a.png 这种相对路径，不要以 / 开头（会被解析到内容域根目录而非你报告文件夹下）；外链图片必须使用 HTTPS，并检查对方是否防盗链或已失效。"
             />
           </div>
         </section>
