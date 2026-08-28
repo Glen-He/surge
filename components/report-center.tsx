@@ -3,10 +3,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import { EmptyState } from "@/components/empty-state";
 import type { ReportCardView as Report } from "@/lib/report-cards";
+import {
+  moveReportToTargetDate,
+  type ReportDropPosition,
+} from "@/lib/report-order";
 import { tagTextColor } from "@/lib/tag-colors";
 
 export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
@@ -321,24 +326,24 @@ function ReportCard({
   draggable,
   dragging,
   onDragStart,
-  onDragEnter,
   onDragOver,
+  onDrop,
   onDragEnd,
 }: {
   r: Report;
   draggable: boolean;
   dragging: boolean;
   onDragStart: (e: React.DragEvent) => void;
-  onDragEnter: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
   onDragEnd: (e: React.DragEvent) => void;
 }) {
   return (
     <div
       draggable={draggable}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
+      onDrop={onDrop}
       onDragEnd={onDragEnd}
       className={`group relative transition-transform duration-200 hover:-translate-y-0.5 ${
         dragging ? "opacity-40" : ""
@@ -399,7 +404,40 @@ function ReportCard({
   );
 }
 
-// 数据区组件：只渲染列表/空状态；显示顺序 = 手动顺序，支持同月内拖拽调序
+function ReportDropPlaceholder({
+  date,
+  onDragOver,
+  onDrop,
+}: {
+  date: string;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className="flex h-[208px] items-center justify-center rounded-[18px] bg-[rgba(0,113,227,0.07)] text-[13px] font-medium text-[#0071e3]"
+    >
+      移到 {date}
+    </div>
+  );
+}
+
+function pointerDropPosition(e: React.DragEvent): ReportDropPosition {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const grid = e.currentTarget.parentElement;
+  const columns = grid
+    ? getComputedStyle(grid).gridTemplateColumns.split(" ").length
+    : 1;
+  if (columns <= 1) {
+    return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  }
+  return e.clientX < rect.left + rect.width / 2 ? "before" : "after";
+}
+
+// 数据区组件：日期倒序；同一天内支持手动排序，也可跨日期拖动并自动改日期。
 export function ReportList({
   reports,
   q,
@@ -407,7 +445,9 @@ export function ReportList({
   reports: Report[];
   q: string;
 }): ReactNode {
-  const identity = reports.map((report) => report.slug).join("\0");
+  const identity = reports
+    .map((report) => `${report.slug}:${report.date}`)
+    .join("\0");
   return <ReportListState key={identity} reports={reports} q={q} />;
 }
 
@@ -418,55 +458,114 @@ function ReportListState({
   reports: Report[];
   q: string;
 }): ReactNode {
-  // 手动顺序（slug 序列）：服务端顺序为初始值，拖拽后本地即时更新
-  const [order, setOrder] = useState<string[]>(() => reports.map((r) => r.slug));
+  const [items, setItems] = useState<Report[]>(reports);
   const [dragSlug, setDragSlug] = useState<string | null>(null);
-
-  const bySlug = useMemo(
-    () => new Map(reports.map((r) => [r.slug, r] as const)),
-    [reports],
-  );
-  const ordered = useMemo(
-    () =>
-      order
-        .map((s) => bySlug.get(s))
-        .filter((r): r is Report => Boolean(r)),
-    [order, bySlug],
-  );
+  const [crossPreview, setCrossPreview] = useState<{
+    targetSlug: string;
+    date: string;
+    position: ReportDropPosition;
+  } | null>(null);
+  const itemsRef = useRef(items);
+  const dragStartRef = useRef<Report[] | null>(null);
+  const previewPlacementRef = useRef<string | null>(null);
+  const router = useRouter();
 
   const canDrag = q.trim() === "";
 
-  function handleDragEnter(target: string) {
-    if (!dragSlug || dragSlug === target) return;
-    const a = bySlug.get(dragSlug);
-    const b = bySlug.get(target);
-    // 仅允许同一天分组内调序
-    if (!a || !b || a.date.slice(0, 10) !== b.date.slice(0, 10)) return;
-    setOrder((prev) => {
-      const from = prev.indexOf(dragSlug);
-      const to = prev.indexOf(target);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      next.splice(from, 1);
-      next.splice(to, 0, dragSlug);
-      return next;
+  function handleDragPreview(
+    targetSlug: string,
+    position: ReportDropPosition,
+  ) {
+    if (!dragSlug || dragSlug === targetSlug) return;
+    const placement = `${targetSlug}:${position}`;
+    if (previewPlacementRef.current === placement) return;
+    const current = itemsRef.current;
+    const moving = current.find((item) => item.slug === dragSlug);
+    const target = current.find((item) => item.slug === targetSlug);
+    if (!moving || !target) return;
+
+    previewPlacementRef.current = placement;
+    if (moving.date.slice(0, 10) === target.date.slice(0, 10)) {
+      const next = moveReportToTargetDate(
+        current,
+        dragSlug,
+        targetSlug,
+        position,
+      );
+      itemsRef.current = next;
+      setItems(next);
+      setCrossPreview(null);
+      return;
+    }
+
+    setCrossPreview({
+      targetSlug,
+      date: target.date.slice(0, 10),
+      position,
     });
   }
 
-  function handleDragEnd() {
-    if (dragSlug) {
-      void fetch("/api/reports/reorder", {
+  async function persistOrder(next: Report[], snapshot: Report[] | null) {
+    try {
+      const res = await fetch("/api/reports/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slugs: order }),
+        body: JSON.stringify({
+          items: next.map((item) => ({
+            slug: item.slug,
+            date: item.date.slice(0, 10),
+          })),
+        }),
       });
+      if (!res.ok) throw new Error("reorder failed");
+      router.refresh();
+    } catch {
+      if (snapshot) {
+        itemsRef.current = snapshot;
+        setItems(snapshot);
+      }
+      toast.error("排序保存失败，请重试");
+    }
+  }
+
+  function handleDrop(target: string, position: ReportDropPosition) {
+    if (!dragSlug) return;
+    const snapshot = dragStartRef.current;
+    const current = itemsRef.current;
+    const moving = current.find((item) => item.slug === dragSlug);
+    const targetItem = current.find((item) => item.slug === target);
+    const needsMove =
+      moving &&
+      targetItem &&
+      (moving.date.slice(0, 10) !== targetItem.date.slice(0, 10) ||
+        previewPlacementRef.current !== `${target}:${position}`);
+    const next = needsMove
+      ? moveReportToTargetDate(current, dragSlug, target, position)
+      : current;
+    itemsRef.current = next;
+    setItems(next);
+    setDragSlug(null);
+    setCrossPreview(null);
+    dragStartRef.current = null;
+    previewPlacementRef.current = null;
+    if (next !== snapshot) void persistOrder(next, snapshot);
+  }
+
+  function handleDragEnd() {
+    const snapshot = dragStartRef.current;
+    if (snapshot) {
+      itemsRef.current = snapshot;
+      setItems(snapshot);
     }
     setDragSlug(null);
+    setCrossPreview(null);
+    dragStartRef.current = null;
+    previewPlacementRef.current = null;
   }
 
   const list = useMemo(
-    () => ordered.filter((r) => matches(r, q.trim().toLowerCase())),
-    [ordered, q],
+    () => items.filter((r) => matches(r, q.trim().toLowerCase())),
+    [items, q],
   );
 
   const groups = useMemo(() => {
@@ -521,24 +620,68 @@ function ReportListState({
                 </div>
               )}
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {g.items.map((r) => (
-                  <ReportCard
-                    key={r.slug}
-                    r={r}
-                    draggable={canDrag}
-                    dragging={dragSlug === r.slug}
-                    onDragStart={(e) => {
-                      setDragSlug(r.slug);
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", r.slug);
-                    }}
-                    onDragEnter={() => handleDragEnter(r.slug)}
-                    onDragOver={(e) => {
-                      if (dragSlug) e.preventDefault();
-                    }}
-                    onDragEnd={handleDragEnd}
-                  />
-                ))}
+                {g.items.flatMap((r) => {
+                  const showBefore =
+                    crossPreview?.targetSlug === r.slug &&
+                    crossPreview.position === "before";
+                  const showAfter =
+                    crossPreview?.targetSlug === r.slug &&
+                    crossPreview.position === "after";
+                  const nodes: ReactNode[] = [];
+                  if (showBefore) {
+                    nodes.push(
+                      <ReportDropPlaceholder
+                        key={`drop-before-${r.slug}`}
+                        date={crossPreview.date}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleDrop(r.slug, crossPreview.position);
+                        }}
+                      />,
+                    );
+                  }
+                  nodes.push(
+                    <ReportCard
+                      key={r.slug}
+                      r={r}
+                      draggable={canDrag}
+                      dragging={dragSlug === r.slug}
+                      onDragStart={(e) => {
+                        dragStartRef.current = itemsRef.current;
+                        previewPlacementRef.current = null;
+                        setCrossPreview(null);
+                        setDragSlug(r.slug);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", r.slug);
+                      }}
+                      onDragOver={(e) => {
+                        if (!dragSlug) return;
+                        e.preventDefault();
+                        handleDragPreview(r.slug, pointerDropPosition(e));
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDrop(r.slug, pointerDropPosition(e));
+                      }}
+                      onDragEnd={handleDragEnd}
+                    />,
+                  );
+                  if (showAfter) {
+                    nodes.push(
+                      <ReportDropPlaceholder
+                        key={`drop-after-${r.slug}`}
+                        date={crossPreview.date}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleDrop(r.slug, crossPreview.position);
+                        }}
+                      />,
+                    );
+                  }
+                  return nodes;
+                })}
               </div>
             </div>
           ))}
