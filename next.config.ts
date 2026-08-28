@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // proxy.ts 会克隆请求体，Next.js 默认只保留前 10MB。上传接口允许
+    // 50MB 文件，因此为 multipart 边界和元数据额外预留 1MB。
+    proxyClientMaxBodySize: "51mb",
+  },
   // unzipper contains optional adapters (including S3) behind runtime require().
   // Keep it as a native Node dependency so Turbopack does not resolve unused
   // optional adapters into the application bundle.
