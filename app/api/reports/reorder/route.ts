@@ -3,7 +3,20 @@ import { getReportsByUser, reorderReports } from "@/lib/reports-db";
 
 export const dynamic = "force-dynamic";
 
-// 拖拽调序持久化：{ slugs: string[] } 为该用户全部项目的完整顺序
+type OrderItem = { slug: string; date: string };
+
+function isOrderItem(value: unknown): value is OrderItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.slug === "string" &&
+    typeof item.date === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(item.date)
+  );
+}
+
+// 拖拽持久化：日期决定分组顺序，同一天内由 items 顺序决定；
+// 拖到另一日期的卡片上时，客户端会把该项目日期改成目标日期。
 export async function POST(req: Request) {
   const session = await getApiSession();
   if (!session) {
@@ -11,21 +24,25 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const slugs = body?.slugs;
-  if (!Array.isArray(slugs) || slugs.some((s) => typeof s !== "string")) {
+  const items: unknown = body?.items;
+  if (!Array.isArray(items) || !items.every(isOrderItem)) {
     return Response.json({ error: "参数无效" }, { status: 400 });
   }
 
   const mine = await getReportsByUser(session.user.id);
-  const mineSet = new Set(mine.map((r) => r.slug));
+  const mineSet = new Set(mine.map((report) => report.slug));
+  const allowedDates = new Set(mine.map((report) => report.date.slice(0, 10)));
+  const slugs = items.map((item) => item.slug);
   const valid =
-    slugs.length === mineSet.size &&
+    items.length === mineSet.size &&
     new Set(slugs).size === slugs.length &&
-    slugs.every((s) => mineSet.has(s));
+    items.every(
+      (item) => mineSet.has(item.slug) && allowedDates.has(item.date),
+    );
   if (!valid) {
     return Response.json({ error: "排序与项目列表不匹配" }, { status: 400 });
   }
 
-  await reorderReports(session.user.id, slugs);
+  await reorderReports(session.user.id, items);
   return Response.json({ ok: true });
 }
