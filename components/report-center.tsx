@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/empty-state";
 import type { ReportCardView as Report } from "@/lib/report-cards";
 import {
   moveReportToTargetDate,
-  reportDropPosition,
   type ReportDropPosition,
 } from "@/lib/report-order";
 import { tagTextColor } from "@/lib/tag-colors";
@@ -327,7 +326,6 @@ function ReportCard({
   draggable,
   dragging,
   onDragStart,
-  onDragEnter,
   onDragOver,
   onDrop,
   onDragEnd,
@@ -336,7 +334,6 @@ function ReportCard({
   draggable: boolean;
   dragging: boolean;
   onDragStart: (e: React.DragEvent) => void;
-  onDragEnter: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: (e: React.DragEvent) => void;
@@ -345,7 +342,6 @@ function ReportCard({
     <div
       draggable={draggable}
       onDragStart={onDragStart}
-      onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
@@ -429,6 +425,18 @@ function ReportDropPlaceholder({
   );
 }
 
+function pointerDropPosition(e: React.DragEvent): ReportDropPosition {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const grid = e.currentTarget.parentElement;
+  const columns = grid
+    ? getComputedStyle(grid).gridTemplateColumns.split(" ").length
+    : 1;
+  if (columns <= 1) {
+    return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  }
+  return e.clientX < rect.left + rect.width / 2 ? "before" : "after";
+}
+
 // 数据区组件：日期倒序；同一天内支持手动排序，也可跨日期拖动并自动改日期。
 export function ReportList({
   reports,
@@ -459,35 +467,42 @@ function ReportListState({
   } | null>(null);
   const itemsRef = useRef(items);
   const dragStartRef = useRef<Report[] | null>(null);
-  const previewTargetRef = useRef<string | null>(null);
+  const previewPlacementRef = useRef<string | null>(null);
   const router = useRouter();
 
   const canDrag = q.trim() === "";
 
-  function handleDragEnter(targetSlug: string) {
+  function handleDragPreview(
+    targetSlug: string,
+    position: ReportDropPosition,
+  ) {
     if (!dragSlug || dragSlug === targetSlug) return;
+    const placement = `${targetSlug}:${position}`;
+    if (previewPlacementRef.current === placement) return;
     const current = itemsRef.current;
     const moving = current.find((item) => item.slug === dragSlug);
     const target = current.find((item) => item.slug === targetSlug);
     if (!moving || !target) return;
 
-    previewTargetRef.current = targetSlug;
+    previewPlacementRef.current = placement;
     if (moving.date.slice(0, 10) === target.date.slice(0, 10)) {
-      const next = moveReportToTargetDate(current, dragSlug, targetSlug);
+      const next = moveReportToTargetDate(
+        current,
+        dragSlug,
+        targetSlug,
+        position,
+      );
       itemsRef.current = next;
       setItems(next);
       setCrossPreview(null);
       return;
     }
 
-    const position = reportDropPosition(current, dragSlug, targetSlug);
-    if (position) {
-      setCrossPreview({
-        targetSlug,
-        date: target.date.slice(0, 10),
-        position,
-      });
-    }
+    setCrossPreview({
+      targetSlug,
+      date: target.date.slice(0, 10),
+      position,
+    });
   }
 
   async function persistOrder(next: Report[], snapshot: Report[] | null) {
@@ -513,7 +528,7 @@ function ReportListState({
     }
   }
 
-  function handleDrop(target: string) {
+  function handleDrop(target: string, position: ReportDropPosition) {
     if (!dragSlug) return;
     const snapshot = dragStartRef.current;
     const current = itemsRef.current;
@@ -523,16 +538,16 @@ function ReportListState({
       moving &&
       targetItem &&
       (moving.date.slice(0, 10) !== targetItem.date.slice(0, 10) ||
-        previewTargetRef.current !== target);
+        previewPlacementRef.current !== `${target}:${position}`);
     const next = needsMove
-      ? moveReportToTargetDate(current, dragSlug, target)
+      ? moveReportToTargetDate(current, dragSlug, target, position)
       : current;
     itemsRef.current = next;
     setItems(next);
     setDragSlug(null);
     setCrossPreview(null);
     dragStartRef.current = null;
-    previewTargetRef.current = null;
+    previewPlacementRef.current = null;
     if (next !== snapshot) void persistOrder(next, snapshot);
   }
 
@@ -545,7 +560,7 @@ function ReportListState({
     setDragSlug(null);
     setCrossPreview(null);
     dragStartRef.current = null;
-    previewTargetRef.current = null;
+    previewPlacementRef.current = null;
   }
 
   const list = useMemo(
@@ -621,7 +636,7 @@ function ReportListState({
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
-                          handleDrop(r.slug);
+                          handleDrop(r.slug, crossPreview.position);
                         }}
                       />,
                     );
@@ -634,19 +649,20 @@ function ReportListState({
                       dragging={dragSlug === r.slug}
                       onDragStart={(e) => {
                         dragStartRef.current = itemsRef.current;
-                        previewTargetRef.current = null;
+                        previewPlacementRef.current = null;
                         setCrossPreview(null);
                         setDragSlug(r.slug);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", r.slug);
                       }}
-                      onDragEnter={() => handleDragEnter(r.slug)}
                       onDragOver={(e) => {
-                        if (dragSlug) e.preventDefault();
+                        if (!dragSlug) return;
+                        e.preventDefault();
+                        handleDragPreview(r.slug, pointerDropPosition(e));
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
-                        handleDrop(r.slug);
+                        handleDrop(r.slug, pointerDropPosition(e));
                       }}
                       onDragEnd={handleDragEnd}
                     />,
@@ -659,7 +675,7 @@ function ReportListState({
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
-                          handleDrop(r.slug);
+                          handleDrop(r.slug, crossPreview.position);
                         }}
                       />,
                     );

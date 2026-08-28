@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  moveReportToTargetDate,
-  reportDropPosition,
-} from "@/lib/report-order";
+import { moveReportToTargetDate } from "@/lib/report-order";
 
 const reports = [
   { slug: "a", date: "2026-08-28", title: "A" },
@@ -44,14 +41,24 @@ describe("moveReportToTargetDate", () => {
   it("目标无效时保持原数组", () => {
     expect(moveReportToTargetDate(reports, "a", "missing")).toBe(reports);
   });
-});
 
-describe("reportDropPosition", () => {
-  it("向后拖时占位在目标之后", () => {
-    expect(reportDropPosition(reports, "a", "c")).toBe("after");
+  it("从较新日期也能插入较旧日期的第一位", () => {
+    const next = moveReportToTargetDate(reports, "a", "c", "before");
+    expect(next.map(({ slug, date }) => ({ slug, date }))).toEqual([
+      { slug: "b", date: "2026-08-28" },
+      { slug: "a", date: "2026-08-26" },
+      { slug: "c", date: "2026-08-26" },
+      { slug: "d", date: "2026-08-26" },
+    ]);
   });
 
-  it("向前拖时占位在目标之前", () => {
-    expect(reportDropPosition(reports, "d", "b")).toBe("before");
+  it("可明确插入目标卡片之后", () => {
+    const next = moveReportToTargetDate(reports, "d", "a", "after");
+    expect(next.map(({ slug, date }) => ({ slug, date }))).toEqual([
+      { slug: "a", date: "2026-08-28" },
+      { slug: "d", date: "2026-08-28" },
+      { slug: "b", date: "2026-08-28" },
+      { slug: "c", date: "2026-08-26" },
+    ]);
   });
 });
