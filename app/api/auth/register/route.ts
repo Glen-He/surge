@@ -5,7 +5,7 @@ import { toChineseError } from "@/lib/auth-errors";
 import { clientIp } from "@/lib/client-ip";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { logger } from "@/lib/logger";
-import { rateLimit } from "@/lib/rate-limit";
+import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,8 @@ export async function POST(req: Request) {
 
   const hs = await nextHeaders();
   const ip = clientIp(hs);
-  if (!rateLimit(`register:${ip}`, 10, 10 * 60 * 1000)) {
+  const registrationRate = await consumeSharedRateLimit("register", ip, 10, 10 * 60);
+  if (!registrationRate.allowed) {
     return NextResponse.json(
       { error: "操作过于频繁，请稍后再试" },
       { status: 429 },

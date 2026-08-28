@@ -1,0 +1,960 @@
+
+/* 报告页系统级头部：所有报告统一提供标题 + 返回按钮，不依赖提交的 HTML。
+   样式与 vela/nexus/kttks 模板内的 rpt-head / btn-light 保持一致。 */
+.report-viewer-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.report-frame {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+}
+
+.rpt-sys-head {
+  display: flex;
+  /* 系统头保持自身高度，剩余空间全部交给报告 iframe。 */
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  /* 与模板 .wrap 一致：1280px 居中，保证标题/返回按钮与正文卡片左右缘对齐。
+     上限 1280 而非固定：窗口 ≥1280 时行为不变；窄窗口时收缩到窗口宽，
+     避免外层出现横向滚动（报告正文的横向平移由 iframe 内部完成） */
+  width: 100%;
+  min-width: 0;
+  max-width: 1280px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  /* 顶部 32px 同 wrap；底部 10px + wrap 自身 32px 顶内边距 = 原模板 42px 的标题下间距 */
+  padding: 32px 36px 10px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+.rpt-sys-head .rpt-sys-title {
+  margin: 0;
+  min-width: 0;
+  /* 窄窗口收缩时标题截断省略，不挤右侧按钮 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+}
+/* 与 .btn-light 同款视觉（页级导航胶囊）：字号/字重必须显式设置，
+   按钮元素不继承页面字号，缺失时落回浏览器默认 13.33px */
+.rpt-sys-head .rpt-sys-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.rpt-sys-head .rpt-sys-back:hover {
+  background: #ededf2;
+  color: #1d1d1f;
+}
+.rpt-sys-head .rpt-sys-back:focus {
+  outline: none;
+  border-color: #0071e3;
+}
+.rpt-sys-head .rpt-sys-back svg {
+  width: 15px;
+  height: 15px;
+}
+
+
+@theme inline {
+  --color-background: #f5f5f7;
+  --color-foreground: #1d1d1f;
+  --font-sans:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
+/* ============ 设计 Token（Apple 风格、克制、黑/白/灰） ============ */
+:root {
+  --page-bg: #f5f5f7;
+  --surface: #ffffff;
+
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  /* 三级信息文字：#6e6e73 保白底 4.7:1 达 WCAG AA（#86868b 仅 3.9:1，
+     只允许用于图标/装饰，信息文字一律走本 token） */
+  --text-tertiary: #6e6e73;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.14);
+
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-soft: rgba(0, 113, 227, 0.08);
+
+  --success: #34c759;
+  --success-text: #18864b;
+  --success-soft: rgba(52, 199, 89, 0.1);
+
+  --danger: #ff3b30;
+  --danger-hover: #e4382d;
+  --danger-soft: rgba(255, 59, 48, 0.08);
+}
+
+/* ============ 基础 ============ */
+html,
+body {
+  height: 100%;
+}
+
+/* 全局根除滚动条/滚动框（页面级 + 元素级：textarea、pre、内部滚动容器等）。
+   滚动功能完整保留（滚轮/触控板/键盘/触摸），仅不渲染滚动条。
+   Chrome/Safari/Edge 走 ::-webkit-scrollbar；Firefox 走 scrollbar-width。
+   Safari 同为 WebKit 前者即覆盖；iOS 移动端本就是悬浮条自动消失，无感。 */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  cursor: pointer;
+  /* 只继承字体族，不整体 font: inherit -- 未分层规则会覆盖 Tailwind 工具类，
+     导致按钮上的 text-[13px] 等字号/字重全部失效（一律回退 16px） */
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============ 键盘焦点（苹果式焦点环） ============ */
+/* 按钮/链接等交互元素：仅键盘导航（Tab）时显示系统蓝外环；鼠标点击不触发
+   :focus-visible，对鼠标用户零打扰。offset 2px 让环画在页面背景上，
+   不受按钮自身配色（蓝底/红底/白底）影响 */
+:is(a, button, summary, [role="button"], [role="tab"], [role="switch"], [role="menuitem"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 输入类：边框变蓝之外叠加柔光环（macOS 文本框焦点环质感）；
+   error 态换红环，与边框语义一致 */
+:is(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.15);
+}
+.input-error:focus-visible,
+.auth-input-error:focus-visible,
+.project-input-error:focus-visible,
+.otp-error:focus-visible {
+  box-shadow: 0 0 0 3.5px rgba(255, 59, 48, 0.12);
+}
+
+/* ============ 账户中心 Shell（1080px 标准内容轨道） ============ */
+.account-shell {
+  width: min(1080px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-block: 32px 96px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.account-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 280px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 22px;
+  padding: 28px 30px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 10px 30px rgba(0, 0, 0, 0.018);
+}
+
+/* 卡片三段骨架：标题区 → 主内容 → 弹性空间 → 操作（auto 推底，四卡 Y 对齐） */
+.card-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.card-main {
+  margin-top: 24px;
+}
+
+/* 其余卡片内容下移：与账号信息卡的邮箱文字顶部对齐（48head + 40 = 88px） */
+.card-main.shifted {
+  margin-top: 40px;
+}
+
+.card-action {
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 贴底操作区：提示文字 + 操作按钮一起沉底，卡片高度不被内容撑大 */
+.card-action-wrap {
+  margin-top: auto;
+}
+
+/* ============ 通用控件 ============ */
+.input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  font-size: 16px;
+  color: var(--text-primary);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.input::placeholder {
+  color: #a1a1a6;
+}
+
+/* 聚焦：只变边框颜色，不做任何外扩光环 */
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input.input-error {
+  border-color: var(--danger);
+}
+
+.input.input-error:focus {
+  border-color: var(--danger);
+}
+
+.input:disabled {
+  background: #f5f5f7;
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+/* ============ 按钮 ============ */
+/* 规则：全部胶囊形；深色按钮 hover 变浅，浅色按钮 hover 变深；成对按钮视觉等大 */
+/* 光学修正：实心（深色）按钮比带边框（浅色）按钮四周各小 1px —— 高 42 vs 44、宽 -2px，对齐边框内芯 */
+/* 主操作按钮：胶囊、实心蓝 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 20px;
+  min-width: 104px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 验证码发送按钮：固定宽，文案在 获取验证码/发送中/Xs 后重发 之间切换时尺寸不跳 */
+.otp-send {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 21px;
+  min-width: 106px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background: #ededf2;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 单一主 CTA 行：桌面右对齐、按钮自适应宽度；手机全宽 */
+.modal-cta-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .modal-cta-row {
+    flex-direction: column;
+  }
+
+  .modal-cta-row > .btn-primary {
+    width: 100%;
+  }
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 20px;
+  min-width: 104px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 21px;
+  min-width: 106px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--danger);
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.btn-danger-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 轻量文字 Action（主页卡片里的“修改邮箱 / 修改密码”），Web 蓝 */
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  color: #0071e3;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.btn-action:hover {
+  color: #0062c4;
+}
+
+/* 同格式的危险文字 Action（删除账号），红仅危险 */
+.btn-action-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.btn-action-danger:hover {
+  color: #d32f25;
+}
+
+/* 浅色胶囊按钮（返回 / 用户中心）：hover 变深而不是变浅 */
+.btn-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* 白色系按钮 hover 统一浅灰 #ededf2（与 .rpt-sys-back、分享小胶囊同值） */
+.btn-light:hover {
+  background: #ededf2;
+  color: #1d1d1f;
+}
+
+/* Modal 底部操作行：右对齐、次按钮 + 主按钮，不再使用两个 50% 巨型按钮 */
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 成对等宽由按钮类自身的 min-width 保证（实心 104 / 描边 106，光学补偿 2px）；
+   固定 width 钉死的旧方案已移除，长文案（如「发送验证码」）不再被压缩 */
+@media (max-width: 420px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions > button,
+  .modal-actions > a {
+    width: 100%;
+  }
+
+  .modal-actions > .btn-primary,
+  .modal-actions > .btn-danger {
+    width: 100%;
+  }
+}
+
+/* ============ Badge（已验证 / 活跃） ============ */
+.badge-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success-text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-success::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+/* ============ 输入行包装 ============ */
+.field-error {
+  margin-top: 6px;
+  /* 固定单行高度：配合“始终渲染空串占位”的用法，错误出现/消失不引起布局跳动 */
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.inline-success {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--success-text);
+  line-height: 1.4;
+}
+
+/* 长邮箱兼容：任何邮箱都允许在任意字符处断行 */
+.break-email {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ============ 动画 ============ */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease both;
+}
+
+/* 步骤切换：fade + translateX 8px */
+.animate-step {
+  animation: step-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-shake {
+  animation: shake 0.28s ease;
+}
+
+/* ============ 安全操作 Modal ============ */
+.security-modal {
+  width: min(496px, calc(100vw - 32px));
+  /* 相对弹窗容器（= 可见视口，键盘弹出时被 visualViewport 缩小），
+     而非 100dvh（iOS 上 dvh 不响应键盘），保证键盘弹出时内容可完整滚读 */
+  max-height: calc(100% - 32px);
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.security-modal-wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.report-pdf-preview {
+  display: block;
+  width: 100%;
+  height: min(76vh, 820px);
+  min-height: 520px;
+  border: 0;
+  border-radius: 12px;
+  background: #525659;
+}
+
+.security-modal-overlay {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+/* Header：68px，标题 20px/650，底部分隔线 */
+.security-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.security-modal-title {
+  font-size: 20px;
+  font-weight: 650;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+/* 无分隔线变体（如退出登录确认） */
+.security-modal-header-plain {
+  border-bottom: 0;
+}
+
+/* 关闭按钮 36×36，浅灰圆 */
+.security-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f5f5f7;
+  color: #6e6e73;
+  border: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.security-modal-close:hover {
+  background: #ebebed;
+  color: #1d1d1f;
+}
+
+.security-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* 轻量步骤指示器：24px 圆点 + 13px 文字 + 细连接线 */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.step-dot-current,
+.step-dot-done {
+  background: var(--accent);
+  color: #fff;
+}
+
+.step-dot-todo {
+  background: #f0f0f2;
+  color: #6e6e73;
+}
+
+.step-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.step-label-current {
+  color: var(--accent);
+}
+
+.step-label-done {
+  color: var(--text-primary);
+}
+
+.step-label-todo {
+  color: var(--text-tertiary);
+}
+
+.step-line {
+  flex: 1 0 10px;
+  min-width: 10px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.step-line-done {
+  background: rgba(0, 113, 227, 0.35);
+}
+
+/* 当前绑定邮箱等轻量信息行 */
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f7f9;
+}
+
+.info-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d1d1f;
+  flex-shrink: 0;
+}
+
+/* 密码强度：三条小 bar + 文字 */
+.pw-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pw-bars {
+  display: flex;
+  gap: 4px;
+}
+
+.pw-bar {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e5e5ea;
+  transition: background-color 0.2s ease;
+}
+
+.pw-strength-label {
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+/* 验证方式选择：桌面双列小卡，手机单列 */
+.verify-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.verify-method {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 116px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.verify-method:hover {
+  background: rgba(0, 113, 227, 0.035);
+  border-color: rgba(0, 113, 227, 0.25);
+}
+
+.verify-method-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .verify-methods {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 返回链接（‹ 选择其他验证方式） */
+.modal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.modal-back:hover {
+  color: var(--accent-hover);
+}
+
+/* OTP 外壳（错误时整体变红 + shake 由组件触发） */
+.otp-shell {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .security-modal {
+    width: calc(100vw - 24px);
+    /* 同桌面：相对容器（= 可见视口），iOS 键盘弹出时 dvh 不收缩 */
+    max-height: calc(100% - 24px);
+    border-radius: 20px;
+  }
+
+  .security-modal-wide {
+    width: calc(100vw - 24px);
+  }
+
+  .report-pdf-preview {
+    height: 72vh;
+    min-height: 420px;
+  }
+
+  .security-modal-header {
+    padding: 0 20px;
+    min-height: 64px;
+  }
+
+  .security-modal-body {
+    padding: 20px 20px 24px;
+  }
+
+  .otp-shell {
+    gap: 6px;
+  }
+}
+
+/* ============ 手机响应式 ============ */
+@media (max-width: 768px) {
+  .account-shell {
+    width: calc(100% - 32px);
+    padding-block: 20px 64px;
+  }
+
+  .account-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+    gap: 16px;
+  }
+
+  .account-card {
+    min-height: 280px;
+    padding: 24px 22px;
+    border-radius: 20px;
+  }
+}

@@ -5,6 +5,40 @@ function safeKey(namespace: string, subject: string): string {
   return `${namespace}:${createHash("sha256").update(subject).digest("hex")}`;
 }
 
+/** Atomically consumes one fixed-window allowance across all app instances. */
+export async function consumeSharedRateLimit(
+  namespace: string,
+  subject: string,
+  max: number,
+  windowSeconds: number,
+): Promise<{ allowed: boolean; retryAfter: number }> {
+  const { rows } = await db.query<{ attempts: number; reset_at: Date }>(
+    `INSERT INTO security_rate_limits (key, attempts, reset_at)
+     VALUES ($1, 1, NOW() + ($2 * INTERVAL '1 second'))
+     ON CONFLICT (key) DO UPDATE SET
+       attempts = CASE
+         WHEN security_rate_limits.reset_at <= NOW() THEN 1
+         ELSE security_rate_limits.attempts + 1
+       END,
+       reset_at = CASE
+         WHEN security_rate_limits.reset_at <= NOW()
+           THEN NOW() + ($2 * INTERVAL '1 second')
+         ELSE security_rate_limits.reset_at
+       END,
+       updated_at = NOW()
+     RETURNING attempts, reset_at`,
+    [safeKey(namespace, subject), windowSeconds],
+  );
+  const row = rows[0];
+  return {
+    allowed: row.attempts <= max,
+    retryAfter: Math.max(
+      1,
+      Math.ceil((row.reset_at.getTime() - Date.now()) / 1000),
+    ),
+  };
+}
+
 export async function isSecurityRateLimited(
   namespace: string,
   subject: string,

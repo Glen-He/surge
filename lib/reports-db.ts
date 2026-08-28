@@ -14,6 +14,7 @@ export type DbReport = {
   description: string;
   keywords: string;
   sort_order: number | null;
+  size_bytes: number;
   created_at: Date;
 };
 

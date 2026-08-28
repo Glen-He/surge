@@ -10,6 +10,11 @@ import {
 } from "@/lib/storage-limits";
 
 describe("上传容量常量关系", () => {
+  it("全站硬顶为 20 GiB，预警线为 16 GiB", () => {
+    expect(SITE_TOTAL_CAP_BYTES).toBe(20 * 1024 ** 3);
+    expect(SITE_TOTAL_WARN_BYTES).toBe(16 * 1024 ** 3);
+  });
+
   it("解压后上限 ≥ zip 上限（合理：压缩包可能不压缩）", () => {
     expect(MAX_PROJECT_BYTES).toBeGreaterThanOrEqual(MAX_ZIP_BYTES);
   });

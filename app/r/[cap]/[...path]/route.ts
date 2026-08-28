@@ -8,12 +8,19 @@ import {
   requestMatchesEtag,
   verifyCapability,
 } from "@/lib/report-capability";
-import { renderReportDoc, reportDocCsp, requestOrigin } from "@/lib/report-pipeline";
+import { renderReportDoc, reportDocCsp } from "@/lib/report-pipeline";
+import {
+  applicationOrigin,
+  isReportOriginRequest,
+  reportsOrigin,
+} from "@/lib/report-origin";
 import {
   REPORT_SHARED_DIR,
   reportDir,
 } from "@/lib/report-storage";
 import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
+import { parseByteRange } from "@/lib/http-range";
+import { REPORT_PERMISSIONS_POLICY } from "@/lib/report-security";
 
 export const dynamic = "force-dynamic";
 
@@ -49,11 +56,26 @@ const CONTENT_TYPES: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
   ".otf": "font/otf",
+  ".csv": "text/csv; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".wav": "audio/wav",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".ogv": "video/ogg",
+  ".mov": "video/quicktime",
 };
 // 可导航的活动文档类型：被浏览器直接打开时内部脚本会以站点同源身份运行，
 // 必须挂 sandbox CSP 降级（.html 含入口与非入口；.svg 单独更严策略）
@@ -75,6 +97,10 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ cap: string; path: string[] }> },
 ) {
+  // 独立内容域是主动安全边界：主站 origin 上即使拿到 capability 也不输出
+  // 活动报告文件。本地开发未配置 REPORTS_ORIGIN 时两者相同，仍可正常工作。
+  if (!isReportOriginRequest(req)) return notFound();
+
   const { cap, path: segments } = await params;
   const grant = verifyCapability(cap);
   if (!grant) return notFound();
@@ -157,7 +183,11 @@ export async function GET(
     // capability URL 即凭证（无 Cookie 授权），允许无凭证跨源读取：
     // ES Module 等 CORS-required 加载在 opaque origin 下必需
     "Access-Control-Allow-Origin": "*",
+    "Cross-Origin-Resource-Policy": "cross-origin",
     "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": REPORT_PERMISSIONS_POLICY,
+    // 所有可导航资源（尤其 PDF）只允许主站查看器嵌入。
+    "Content-Security-Policy": `frame-ancestors ${applicationOrigin()}`,
     // 入口 HTML 含 capability 且会被动态注入，继续 no-store。
     // 静态子资源只允许浏览器私有缓存，并要求每次复用前回源
     // 验权；ETag 命中返 304，避免重复传输大图，同时保留撤销即时性。
@@ -167,9 +197,8 @@ export async function GET(
   };
 
   if (isEntryDoc) {
-    // 入口文档：确定性后处理（内置库路径映射 / 剥报告头 / 注入高度脚本）+
-    // 完整文档 CSP——资源 source 收紧到本 capability 虚拟目录前缀
-    // （脚本可在沙箱内跑图表，connect-src 'none' 断网络外发）
+    // 入口文档：确定性后处理 + 统一网页汇报 CSP。
+    // 本 capability 目录与外部 HTTPS 资源可用，高权限仍由沙箱隔离。
     let content: Buffer;
     try {
       // Runtime data is mounted separately and must never be copied into a build trace.
@@ -182,7 +211,8 @@ export async function GET(
         ...headers,
         "Content-Type": "text/html; charset=utf-8",
         "Content-Security-Policy": reportDocCsp(
-          `${requestOrigin(req)}/r/${cap}`,
+          `${reportsOrigin()}/r/${cap}`,
+          applicationOrigin(),
         ),
       },
     });
@@ -196,6 +226,7 @@ export async function GET(
   );
   headers.ETag = etag;
   headers["Last-Modified"] = stat.mtime.toUTCString();
+  headers["Accept-Ranges"] = "bytes";
 
   // 先完成 capability + DB 世代/纪元 + 真实路径校验，才允许
   // 304。因此报告替换、删除或撤销分享仍然会立即拒绝旧 URL。
@@ -209,10 +240,11 @@ export async function GET(
   // 作为子资源（<img>、<iframe> 之外）嵌入时不受影响。
   // 未知扩展名：octet-stream + attachment，禁止浏览器猜测渲染。
   if (ACTIVE_DOC_RE.test(rel)) {
-    headers["Content-Security-Policy"] = "sandbox";
+    headers["Content-Security-Policy"] =
+      `sandbox; frame-ancestors ${applicationOrigin()}`;
   } else if (ext === ".svg") {
     headers["Content-Security-Policy"] =
-      "default-src 'none'; style-src 'unsafe-inline'";
+      `default-src 'none'; style-src 'unsafe-inline'; frame-ancestors ${applicationOrigin()}`;
   } else if (!(ext in CONTENT_TYPES)) {
     headers["Content-Disposition"] = "attachment";
   }
@@ -227,11 +259,28 @@ export async function GET(
     headers["Content-Disposition"] = "attachment";
   }
 
-  headers["Content-Length"] = String(stat.size);
+  const rangeHeader = req.headers.get("range");
+  const ifRange = req.headers.get("if-range");
+  const mayUseRange =
+    !ifRange || ifRange === etag || ifRange === headers["Last-Modified"];
+  const range = mayUseRange ? parseByteRange(rangeHeader, stat.size) : null;
+  if (rangeHeader && mayUseRange && !range) {
+    headers["Content-Range"] = `bytes */${stat.size}`;
+    return new Response(null, { status: 416, headers });
+  }
+  if (range) {
+    headers["Content-Range"] = `bytes ${range.start}-${range.end}/${stat.size}`;
+    headers["Content-Length"] = String(range.end - range.start + 1);
+  } else {
+    headers["Content-Length"] = String(stat.size);
+  }
   // 非 HTML 资源直接流式输出，避免多张大图同时请求时把整个
   // 文件全部读入 Node.js 内存，也能更早开始向浏览器传输。
   const body = Readable.toWeb(
-    createReadStream(/* turbopackIgnore: true */ realFile),
+    createReadStream(
+      /* turbopackIgnore: true */ realFile,
+      range ? { start: range.start, end: range.end } : undefined,
+    ),
   ) as ReadableStream<Uint8Array>;
-  return new Response(body, { headers });
+  return new Response(body, { status: range ? 206 : 200, headers });
 }

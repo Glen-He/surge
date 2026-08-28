@@ -11,7 +11,8 @@ import { CardHead } from "@/components/card-head";
 
 type TokenInfo = {
   id: string;
-  token: string;
+  prefix: string;
+  token?: string;
   createdAt: string;
   lastUsedAt: string | null;
 };
@@ -140,7 +141,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
     }
   }
 
-  const masked = (t: string) => `${t.slice(0, 7)}${"•".repeat(20)}${t.slice(-4)}`;
+  const masked = (t: TokenInfo) => `${t.prefix}${"•".repeat(24)}`;
 
   return (
     <section className="account-card">
@@ -182,18 +183,27 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
             </p>
             <div className="mt-1.5 flex items-center gap-1">
               <code className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[1.5] text-[#1d1d1f]">
-                {revealed ? token.token : masked(token.token)}
+                {revealed && token.token ? token.token : masked(token)}
               </code>
-              <button
-                type="button"
-                aria-label={revealed ? "隐藏令牌" : "显示令牌"}
-                onClick={() => setRevealed((v) => !v)}
-                className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3]"
-              >
-                {revealed ? ICON_EYE_OFF : ICON_EYE}
-              </button>
-              <CopyIcon text={token.token} />
+              {token.token && (
+                <>
+                  <button
+                    type="button"
+                    aria-label={revealed ? "隐藏令牌" : "显示令牌"}
+                    onClick={() => setRevealed((v) => !v)}
+                    className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3]"
+                  >
+                    {revealed ? ICON_EYE_OFF : ICON_EYE}
+                  </button>
+                  <CopyIcon text={token.token} />
+                </>
+              )}
             </div>
+            {!token.token && (
+              <p className="mt-1 text-[12px] leading-[1.4] text-[#86868b]">
+                明文只在创建时显示一次；遗失后请更换令牌
+              </p>
+            )}
           </div>
         ) : (
           <p className="text-[15px] leading-[1.5] text-[#6e6e73]">

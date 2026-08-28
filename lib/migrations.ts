@@ -204,7 +204,7 @@ MIGRATIONS.push(REPORT_CAP_EPOCH);
 
 // ── v7：API 令牌可索引指纹 ──
 // 认证不再加载并解密全部令牌；token_lookup 是高熵令牌的
-// SHA-256 指纹，只用于等值定位。存量密文由启动任务解密后回填。
+// SHA-256 指纹，只用于等值定位。旧版本会在销毁密文前完成回填。
 const API_TOKEN_LOOKUP: Migration = {
   version: 7,
   name: "api-token-lookup",
@@ -264,6 +264,43 @@ const SECURITY_RATE_LIMITS: Migration = {
 };
 
 MIGRATIONS.push(SECURITY_RATE_LIMITS);
+
+// ── v10：报告存储字节记账 + 日期数据库约束 ──
+// size_bytes 让每次上传无需递归扫描整个持久卷。旧数据由启动回填
+// 任务从文件系统校准。日期约束 NOT VALID 避免历史脏数据阻塞发布，
+// 但会立即拒绝之后的非法写入；应用层同时做严格日历校验。
+const REPORT_STORAGE_ACCOUNTING: Migration = {
+  version: 10,
+  name: "report-storage-accounting",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS size_bytes BIGINT NOT NULL DEFAULT 0`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_date_iso`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_date_iso
+       CHECK (date ~ '^\\d{4}-\\d{2}-\\d{2}$' AND date::date IS NOT NULL) NOT VALID`,
+    `CREATE INDEX IF NOT EXISTS reports_user_size ON reports (user_id) INCLUDE (size_bytes)`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_STORAGE_ACCOUNTING);
+
+// ── v11：API 令牌恢复为只展示一次──
+// token_lookup 本身是对 256-bit 随机令牌的 SHA-256 指纹，足以认证。
+// 销毁可解密密文，避免数据库 + 应用密钥同时泄露时恢复所有 PAT。
+const API_TOKEN_HASH_ONLY: Migration = {
+  version: 11,
+  name: "api-token-hash-only",
+  statements: [
+    `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_prefix TEXT NOT NULL DEFAULT 'sgk_'`,
+    // A deployment that jumps directly from v6 to this version has no safe
+    // lookup for its legacy encrypted token. Revoke it before destroying the
+    // ciphertext instead of leaving a misleading but unusable active token.
+    `UPDATE api_tokens SET revoked_at = NOW()
+       WHERE revoked_at IS NULL AND token_lookup IS NULL`,
+    `ALTER TABLE api_tokens DROP COLUMN IF EXISTS token_enc`,
+  ],
+};
+
+MIGRATIONS.push(API_TOKEN_HASH_ONLY);
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;
