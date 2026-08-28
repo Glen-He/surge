@@ -1,4 +1,16 @@
 export type DatedReport = { slug: string; date: string };
+export type ReportDropPosition = "before" | "after";
+
+export function reportDropPosition(
+  items: DatedReport[],
+  movingSlug: string,
+  targetSlug: string,
+): ReportDropPosition | null {
+  const from = items.findIndex((item) => item.slug === movingSlug);
+  const to = items.findIndex((item) => item.slug === targetSlug);
+  if (from < 0 || to < 0 || from === to) return null;
+  return from < to ? "after" : "before";
+}
 
 /**
  * 把一个项目移动到目标项目的位置；跨日期时继承目标项目的日期。

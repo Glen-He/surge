@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { moveReportToTargetDate } from "@/lib/report-order";
+import {
+  moveReportToTargetDate,
+  reportDropPosition,
+} from "@/lib/report-order";
 
 const reports = [
   { slug: "a", date: "2026-08-28", title: "A" },
@@ -40,5 +43,15 @@ describe("moveReportToTargetDate", () => {
 
   it("目标无效时保持原数组", () => {
     expect(moveReportToTargetDate(reports, "a", "missing")).toBe(reports);
+  });
+});
+
+describe("reportDropPosition", () => {
+  it("向后拖时占位在目标之后", () => {
+    expect(reportDropPosition(reports, "a", "c")).toBe("after");
+  });
+
+  it("向前拖时占位在目标之前", () => {
+    expect(reportDropPosition(reports, "d", "b")).toBe("before");
   });
 });
