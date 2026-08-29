@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { nextCookies } from "better-auth/next-js";
 import { anonymous, emailOTP } from "better-auth/plugins";
 import { Pool } from "pg";
 import nodemailer from "nodemailer";
@@ -125,6 +126,10 @@ export const auth = betterAuth({
         enabled: false,
       },
     }),
+    // 必须放在最后：Server Action 直接调用 auth.api 时，将认证库返回的
+    // Set-Cookie 写入 Next.js 的响应 cookie store。这样登录、写 cookie、
+    // redirect 能在同一次服务端响应里完成，避免浏览器端请求后的提交竞态。
+    nextCookies(),
   ],
 
   hooks: {

@@ -1,78 +1,24 @@
 import { authClient } from "@/lib/auth-client";
 import { toChineseError } from "@/lib/auth-errors";
 import { passwordPolicyError } from "@/lib/password-policy";
-import { markRelaunchIntent } from "@/lib/relaunch-marker";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 export type GuestResult =
   | { ok: true; ttlMinutes: number }
   | { ok: false; error: string };
 
-/* ────────────────────────────────────────────────────────────
- * Safari/WebKit 兼容层（与业务完全隔离）
- *
- * 已知现象：登录接口 200 后紧跟着整页跳转，Safari/WebKit 可能因为
- * cookie jar 提交时序导致导航请求不带会话 cookie，被服务端 307 弹回
- * 登录页（Chrome 未复现）。根因尚未拿到线上日志坐实，因此本层只做
- * 「等会话可读再跳 + 弹回后自动续跳」，并把诊断职责留给服务端
- * requireSession 的 bounce 日志，UI 与业务流程不感知这些细节。
- * ──────────────────────────────────────────────────────────── */
-
-/** 轮询服务端直到会话可读（说明 cookie 已对服务端生效），超时返回 false */
-export async function waitSessionReady(
-  timeoutMs = 8000,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      // 原生 fetch 直连服务端（不经 better-auth 客户端的 cookie 缓存）
-      const r = await fetch("/api/auth/get-session", { cache: "no-store" });
-      if (r.ok) {
-        const j = (await r.json().catch(() => null)) as
-          | { session?: unknown }
-          | null;
-        if (j && j.session) return true;
-      }
-    } catch {
-      /* 网络抖动等，继续重试 */
-    }
-    await new Promise((res) => setTimeout(res, 150));
-  }
-  return false;
-}
-
 /**
- * 登录成功后的整页跳转。先落「续跳」标记：若跳转被 307 弹回登录页，
- * 登录页重新 mount 时发现标记 → 原地轮询到会话就绪 → 自动再跳一次，
- * 用户无需手动点第二次。/home 成功落地时清掉标记（见
- * components/relaunch-clear.tsx），保证标记只在「认证成功 → 首次落地」
- * 之间存活。
+ * 注册/游客仍由客户端认证接口完成，成功后做一次整页导航。
+ * 密码登录不经过这里，已迁移到 Server Action，由服务端原子写 Cookie
+ * 并 redirect，避免客户端 Cookie 提交时序问题。
  */
 export async function navigateAfterAuth(path: string): Promise<void> {
-  markRelaunchIntent();
-  await waitSessionReady();
   window.location.assign(path);
 }
 
 /* ────────────────────────────────────────────────────────────
  * 认证流程（UI 只调这些函数，不感知协议细节）
  * ──────────────────────────────────────────────────────────── */
-
-/** 密码登录（better-auth 官方客户端 API，cookie 由框架处理） */
-export async function signInWithPassword(
-  email: string,
-  password: string,
-): Promise<AuthResult> {
-  const { error } = await authClient.signIn.email({
-    email,
-    password,
-    // 保持登录 30 天
-    rememberMe: true,
-  });
-  return error
-    ? { ok: false, error: toChineseError(error) }
-    : { ok: true };
-}
 
 /** 注册第一步：发送验证码（sign-in 类型对未注册邮箱同样可用） */
 export async function sendSignUpOtp(

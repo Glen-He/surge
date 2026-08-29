@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/empty-state";
 import { listAllShares, shareStatus } from "@/lib/shares";
 import { ShareRowActions } from "@/components/share-row-actions";
 import { requireSession } from "@/lib/session";
+import { listShareBoardsWithItems } from "@/lib/share-boards";
+import { ShareBoardsManager } from "@/components/share-boards-manager";
+import { ShareManagementEmptyState } from "@/components/share-management-empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,10 @@ export default async function SharesPage() {
   // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
 
-  const rows = await listAllShares(session.user.id);
+  const [rows, boards] = await Promise.all([
+    listAllShares(session.user.id),
+    listShareBoardsWithItems(session.user.id),
+  ]);
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
@@ -40,7 +45,9 @@ export default async function SharesPage() {
               分享管理
             </h1>
             <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
-              {rows.length > 0 ? `共 ${rows.length} 条分享链接` : "暂无分享链接"}
+              {boards.length > 0 || rows.length > 0
+                ? `${boards.length} 个分享面板 · ${rows.length} 条分享链接`
+                : "暂无分享内容"}
             </p>
           </div>
           <Link href="/home" className="btn-light">
@@ -51,14 +58,29 @@ export default async function SharesPage() {
           </Link>
         </div>
 
+        <ShareBoardsManager
+          initialBoards={boards.map((board) => ({
+            id: board.id,
+            token: board.token,
+            title: board.title,
+            hasPassword: board.hasPassword,
+            disabled: board.disabled,
+            viewCount: board.viewCount,
+            itemCount: board.itemCount,
+            items: board.items,
+          }))}
+        />
+
+        <div className="mb-5">
+          <h2 className="text-[21px] font-semibold tracking-[-0.01em]">分享链接</h2>
+          <p className="mt-1 text-[13px] text-[#6e6e73]">适合只发送一份汇报，继续沿用原来的独立密码和有效期。</p>
+        </div>
+
         {rows.length === 0 ? (
-          <div className="rounded-[16px] border border-black/8 bg-white">
-            <EmptyState
-              icon="share"
-              title="还没有任何分享链接"
-              hint="在项目卡片的分享图标或报告页的分享按钮里生成链接，都会汇总在这里管理。"
-            />
-          </div>
+          <ShareManagementEmptyState
+            title="还没有分享链接"
+            hint="在项目卡片的分享按钮或报告页的分享按钮里生成链接，都会汇总在这里管理。"
+          />
         ) : (
           <div className="overflow-hidden rounded-[16px] border border-black/8 bg-white">
             <table className="w-full text-[13px]">

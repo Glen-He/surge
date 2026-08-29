@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  passwordLoginAction,
+  type PasswordLoginState,
+} from "@/app/actions/auth";
 import {
   navigateAfterAuth,
   registerWithOtp,
   sendSignUpOtp,
   signInAsGuest,
-  signInWithPassword,
-  waitSessionReady,
 } from "@/lib/auth-flow";
-import {
-  clearRelaunchIntent,
-  hasFreshRelaunchIntent,
-} from "@/lib/relaunch-marker";
 import { PASSWORD_RULE_TEXT } from "@/lib/password-policy";
 
 type Mode = "signin" | "signup";
@@ -21,6 +19,10 @@ type Mode = "signin" | "signup";
 const OTP_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
 const GUEST_TOAST_KEY = "surge:guest-login-toast";
+const INITIAL_LOGIN_STATE: PasswordLoginState = {
+  error: "",
+  submissionId: 0,
+};
 
 const ICON_MAIL = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
@@ -38,7 +40,7 @@ const ICON_LOCK = (
 
 /**
  * 登录/注册页。本组件只负责表单 UI 与输入校验，
- * 认证协议、Safari 兼容、游客沙箱等细节全部在 lib/auth-flow.ts。
+ * 密码登录由 Server Action 原子完成；注册与游客流程仍由 auth-flow 封装。
  */
 export function AuthPageClient() {
   const [mode, setMode] = useState<Mode>("signin");
@@ -47,6 +49,8 @@ export function AuthPageClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [dismissedLoginSubmissionId, setDismissedLoginSubmissionId] =
+    useState(0);
 
   // 注册验证码
   const [otpDigits, setOtpDigits] = useState<string[]>(
@@ -56,10 +60,19 @@ export function AuthPageClient() {
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [loginState, loginAction, loginPending] = useActionState(
+    passwordLoginAction,
+    INITIAL_LOGIN_STATE,
+  );
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isSignUp = mode === "signup";
   const otpPhase = isSignUp && otpSent;
+  const visibleError =
+    error ||
+    (!isSignUp && loginState.submissionId > dismissedLoginSubmissionId
+      ? loginState.error
+      : "");
 
   // 验证码发送后的 60s 倒计时
   useEffect(() => {
@@ -67,32 +80,6 @@ export function AuthPageClient() {
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
-
-  // 跳转 /home 被 307 弹回（Safari cookie 时序）时随登录页重新 mount：
-  // 读到续跳标记就原地轮询到会话就绪再自动跳一次，
-  // 把「用户手动点第二次」变成「页面自动前进一次」
-  useEffect(() => {
-    if (!hasFreshRelaunchIntent()) return;
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      const ready = await waitSessionReady();
-      if (cancelled) return;
-      setLoading(false);
-      if (ready) {
-        clearRelaunchIntent();
-        // A document navigation is intentional here: Safari may not expose a
-        // freshly committed session cookie to an App Router transition yet.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign("/home");
-      } else {
-        setError("会话同步较慢，请再点一次登录");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // 发送验证码后聚焦第一格
   useEffect(() => {
@@ -149,27 +136,8 @@ export function AuthPageClient() {
     }
   }
 
-  // 登录：邮箱 + 密码，无需验证码
-  async function handleSignIn() {
-    if (!email || !password) {
-      setError("请填写邮箱和密码");
-      return;
-    }
-    setLoading(true);
-    try {
-      const r = await signInWithPassword(email, password);
-      if (!r.ok) {
-        setError(r.error);
-        return;
-      }
-      await navigateAfterAuth("/home");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleGuestLogin() {
-    if (guestLoading || loading) return;
+    if (guestLoading || loading || loginPending) return;
     setGuestLoading(true);
     setError("");
     try {
@@ -194,6 +162,7 @@ export function AuthPageClient() {
   function switchMode(next: Mode) {
     setMode(next);
     setError("");
+    setDismissedLoginSubmissionId(loginState.submissionId);
     setEmailError("");
     setOtpDigits(Array(OTP_LENGTH).fill(""));
     setOtpSent(false);
@@ -307,14 +276,14 @@ export function AuthPageClient() {
               </div>
 
               <form
+                action={loginAction}
                 onSubmit={(e) => {
-                  e.preventDefault();
                   setError("");
+                  setDismissedLoginSubmissionId(loginState.submissionId);
                   if (isSignUp) {
+                    e.preventDefault();
                     if (otpSent) return;
-                    sendOtp();
-                  } else {
-                    handleSignIn();
+                    void sendOtp();
                   }
                 }}
                 noValidate
@@ -395,12 +364,16 @@ export function AuthPageClient() {
                         <span className="auth-input-icon">{ICON_MAIL}</span>
                         <input
                           id="auth-email"
+                          name="email"
                           type="email"
                           placeholder="name@example.com"
                           value={email}
                           onChange={(e) => {
                             setEmail(e.target.value);
                             setError("");
+                            setDismissedLoginSubmissionId(
+                              loginState.submissionId,
+                            );
                             if (emailError) {
                               setEmailError(validateEmail(e.target.value));
                             }
@@ -422,10 +395,17 @@ export function AuthPageClient() {
                         <span className="auth-input-icon">{ICON_LOCK}</span>
                         <input
                           id="auth-password"
+                          name="password"
                           type={showPassword ? "text" : "password"}
                           placeholder={isSignUp ? PASSWORD_RULE_TEXT : "••••••••"}
                           value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            setError("");
+                            setDismissedLoginSubmissionId(
+                              loginState.submissionId,
+                            );
+                          }}
                           autoComplete={
                             isSignUp ? "new-password" : "current-password"
                           }
@@ -451,7 +431,7 @@ export function AuthPageClient() {
                           )}
                         </button>
                       </div>
-                      <p className="auth-error-slot">{error}</p>
+                      <p className="auth-error-slot">{visibleError}</p>
                     </div>
                   </div>
                 </div>
@@ -475,10 +455,12 @@ export function AuthPageClient() {
 
                 <button
                   type="submit"
-                  disabled={loading || (otpPhase && !otpComplete)}
+                  disabled={
+                    loading || loginPending || (otpPhase && !otpComplete)
+                  }
                   className="auth-submit"
                 >
-                  {loading
+                  {loading || loginPending
                     ? "请稍候…"
                     : isSignUp
                       ? otpSent
@@ -493,7 +475,7 @@ export function AuthPageClient() {
                 <button
                   type="button"
                   onClick={() => void handleGuestLogin()}
-                  disabled={guestLoading || loading}
+                  disabled={guestLoading || loading || loginPending}
                   className="auth-guest"
                 >
                   {guestLoading ? "正在准备访客环境…" : "游客登录"}
