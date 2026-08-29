@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>8.13 搜索服务超时故障 P1 分析报告</title>
-<script src="../../lib/echarts.min.js"></script>
+<script src="./_platform/echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="echarts.min.js"><\/script>')</script>
 <style>
   :root {
     --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
@@ -13,16 +14,18 @@
   }
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
-    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font:15.5px/1.78 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
     -webkit-font-smoothing: antialiased; }
-  .wrap { max-width:1280px; min-width:1280px; margin:0 auto; padding:32px 36px 64px; }
+  .wrap { width:1280px; margin:0 auto; padding:26px 0 72px; }
   .num, .value, td.numeric { font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
 
-  .card { margin:0 auto 28px; padding:60px 80px; border:1px solid var(--line); border-radius:16px; background:var(--card);
-    box-shadow:0 2px 8px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02); }
+  .card { margin:0 0 26px; padding:50px; border-radius:18px; background:var(--card);
+    box-shadow:0 1px 2px rgba(0,0,0,.04), 0 10px 28px rgba(0,0,0,.035); }
   .card > :last-child { margin-bottom:0 !important; }
-  .card h2 { margin:0 0 22px; font-size:19px; font-weight:600; }
-  .card .subt { margin:-14px 0 22px; color:var(--muted); font-size:13px; }
+  .card h2 { margin:0 0 16px; font-size:23px; font-weight:700; line-height:1.25;
+    text-box-trim:trim-both; text-box-edge:text alphabetic; text-box:trim-both text alphabetic; }
+  .card .subt { margin:0 0 26px; color:var(--muted); font-size:13.5px; line-height:1.7;
+    text-box-trim:trim-both; text-box-edge:text alphabetic; text-box:trim-both text alphabetic; }
   .subhead { margin:28px 0 12px; font-size:14px; font-weight:650; }
   .subhead:first-child { margin-top:0; }
 
@@ -53,8 +56,8 @@
   .tl-node.final { border-color:rgba(52,199,89,.42); background:#f3fbf5; }
   .tl-node.final .value { color:#21833c; }
 
-  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-  .panel { border:1px solid var(--line); border-radius:14px; padding:22px 24px 14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
+  .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .panel { border:1px solid var(--line); border-radius:14px; padding:20px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
   .panel .p-title { margin:0 0 4px; font-size:14px; font-weight:650; }
   .panel .p-sub { margin:0 0 14px; color:var(--muted); font-size:12px; }
 
@@ -116,12 +119,12 @@
       <div class="panel">
         <p class="p-title">5xx 错误率 × Full GC 停顿</p>
         <p class="p-sub">08-13 13:40 ~ 14:40 · 每 5 分钟</p>
-        <div id="chartErr" style="width:100%;height:300px"></div>
+        <div id="chartErr" style="width:100%;height:340px"></div>
       </div>
       <div class="panel">
         <p class="p-title">主节点老年代堆使用率</p>
         <p class="p-sub">08-13 12:00 ~ 14:30 · 每 10 分钟 · 虚线为 85% 告警阈值</p>
-        <div id="chartHeap" style="width:100%;height:300px"></div>
+        <div id="chartHeap" style="width:100%;height:340px"></div>
       </div>
     </div>
   </section>
@@ -173,6 +176,7 @@
     axisPointer:{ type:'line', lineStyle:{ color:'#d2d2d7' } },
     extraCssText:'box-shadow:0 6px 20px rgba(0,0,0,.10);border-radius:10px;'
   };
+  var TOOLTIP_BAR = Object.assign({}, TOOLTIP, { axisPointer:{ type:'shadow' } });
   var GRID = { left:8, right:16, top:44, bottom:8, containLabel:true };
   var charts = [];
 
@@ -183,8 +187,8 @@
     var times = ['13:40','13:45','13:50','13:55','14:00','14:05','14:10','14:15','14:20','14:25','14:30','14:35','14:40'];
     ch.setOption({
       animation:false,
-      tooltip:{ ...TOOLTIP },
-      legend:{ top:0, right:0, itemWidth:12, itemHeight:8, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
+      tooltip:{ ...TOOLTIP_BAR },
+      legend:{ top:0, right:16, itemWidth:10, itemHeight:10, icon:'roundRect', textStyle:{ color:'#6e6e73', fontSize:12, fontFamily:FONT } },
       grid: GRID,
       xAxis:{ type:'category', data:times, boundaryGap:true,
         axisLine:{show:false}, axisTick:{show:false}, axisLabel:AXIS },

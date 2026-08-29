@@ -15,8 +15,6 @@ export async function register() {
     await validateReportStorageConfiguration();
     await purgeTrash();
     await reconcileReportSizes();
-    const { seedDefaultUser } = await import("./lib/seed");
-    await seedDefaultUser();
     const { startMaintenanceScheduler } = await import("./lib/maintenance");
     startMaintenanceScheduler();
   }

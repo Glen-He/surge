@@ -22,11 +22,6 @@ export const REPORT_SHARED_DIR = path.join(
   "reports",
   "_shared",
 );
-export const REPORT_TEMPLATES_DIR = path.join(
-  process.cwd(),
-  "reports",
-  "templates",
-);
 export const REPORT_DEMO_TEMPLATES_DIR = path.join(
   process.cwd(),
   "reports",

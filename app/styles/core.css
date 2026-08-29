@@ -20,6 +20,19 @@
   background: transparent;
 }
 
+/* 登录态汇报页：系统头与按正文高度展开的 iframe 共用页面滚动；分享页仍使用
+   上方默认的一屏查看器布局。 */
+.report-viewer-shell--page-flow {
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+.report-frame--page-flow {
+  flex: 0 0 auto;
+  min-height: 480px;
+}
+
 .rpt-sys-head {
   display: flex;
   /* 系统头保持自身高度，剩余空间全部交给报告 iframe。 */
@@ -27,7 +40,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  /* 与模板 .wrap 一致：1280px 居中，保证标题/返回按钮与正文卡片左右缘对齐。
+  /* 1280px 居中，标题/返回按钮直接对齐 1280 内容线——报告卡片铺满 1280、
+     页面容器不设水平 padding（规范见制作指南），系统头必须同口径零水平内边距，
+     才能与正文卡片左右缘像素级对齐。
      上限 1280 而非固定：窗口 ≥1280 时行为不变；窄窗口时收缩到窗口宽，
      避免外层出现横向滚动（报告正文的横向平移由 iframe 内部完成） */
   width: 100%;
@@ -35,8 +50,8 @@
   max-width: 1280px;
   box-sizing: border-box;
   margin: 0 auto;
-  /* 顶部 32px 同 wrap；底部 10px + wrap 自身 32px 顶内边距 = 原模板 42px 的标题下间距 */
-  padding: 32px 36px 10px;
+  /* 顶部 32px 同报告容器顶距；底部 10px + 报告容器 32px 顶内边距 = 42px 标题下间距 */
+  padding: 32px 0 10px;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", sans-serif;
@@ -180,16 +195,18 @@ button {
   outline-offset: 2px;
 }
 
-/* 输入类：边框变蓝之外叠加柔光环（macOS 文本框焦点环质感）；
-   error 态换红环，与边框语义一致 */
+/* 输入类：聚焦时只高亮控件原有的 1px 边框，不产生向外扩散的焦点环。 */
 :is(input, textarea, select):focus-visible {
-  box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.15);
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: none;
 }
 .input-error:focus-visible,
 .auth-input-error:focus-visible,
 .project-input-error:focus-visible,
 .otp-error:focus-visible {
-  box-shadow: 0 0 0 3.5px rgba(255, 59, 48, 0.12);
+  border-color: var(--danger);
+  box-shadow: none;
 }
 
 /* ============ 账户中心 Shell（1080px 标准内容轨道） ============ */

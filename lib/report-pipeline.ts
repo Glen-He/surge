@@ -54,7 +54,7 @@ const reportPdfBridgeScript =
  * 1. 平台内置库约定路径（../../lib/echarts.min.js 等旧约定）映射到
  *    虚拟目录内的 ./_platform/ ——唯一保留的兼容改写，模式确定、不扫描内容；
  * 2. 剥离模板自带的报告头（标题 + 返回按钮）：页面统一在上方渲染系统头；
- * 3. 注入 PDF 桥接 + 滚动条隐藏样式。
+ * 3. 注入 PDF/内容高度桥接 + 滚动条隐藏样式。
  */
 export function renderReportDoc(html: string): string {
   // 平台内置库：旧约定的 ../..(../)lib/X → ./_platform/X
@@ -75,6 +75,10 @@ export function renderReportDoc(html: string): string {
   //   居中内容会向右滑约 7px（打开报告瞬间卡片从左向右移动一下的根因）
   const injectStyle =
     '<style>html{scrollbar-width:none}html::-webkit-scrollbar{display:none}</style>';
+  // 登录态汇报页需要让外层页面成为唯一滚动容器，因此 iframe 把内容高度
+  // 告知父页以撑开自身。分享页仍保留独立视口，收到消息也不会采用该高度。
+  const reportHeightBridgeScript =
+    '<script>(function(){var queued=false,last=0;function measure(){queued=false;var d=document.documentElement,b=document.body;var h=Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);if(!h||h===last)return;last=h;try{if(window.parent!==window)window.parent.postMessage({__surgeReportHeight:h},"*")}catch(e){}}function schedule(){if(queued)return;queued=true;requestAnimationFrame(measure)}schedule();window.addEventListener("load",schedule);window.addEventListener("resize",schedule);if(window.ResizeObserver&&document.documentElement){try{new ResizeObserver(schedule).observe(document.documentElement)}catch(e){}}setTimeout(schedule,300);setTimeout(schedule,1500)})();</script>';
   if (/<head[^>]*>/i.test(html)) {
     // 桥接脚本放在 head 首位，确保报告自己的点击处理器设置 PDF iframe.src
     // 时观察器已经就绪。
@@ -84,6 +88,14 @@ export function renderReportDoc(html: string): string {
     );
   } else {
     html = injectStyle + reportPdfBridgeScript + html;
+  }
+  if (/<\/body>/i.test(html)) {
+    html = html.replace(
+      /<\/body>/i,
+      `${reportHeightBridgeScript}</body>`,
+    );
+  } else {
+    html += reportHeightBridgeScript;
   }
   return html;
 }
