@@ -50,6 +50,15 @@ const nextConfig: NextConfig = {
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
       {
+        // 分享面板及面板内报告同样是持有链接才可访问的内容。
+        source: "/b/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+      {
         // Capability URLs are bearer credentials and must not be indexed or
         // leak through a Referer header. Route handlers repeat these headers
         // so the invariant also holds outside this Next.js config.
