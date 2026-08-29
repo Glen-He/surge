@@ -7,12 +7,12 @@ import { toast } from "sonner";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import { EmptyState } from "@/components/empty-state";
+import { ReportCardLink } from "@/components/report-card-link";
 import type { ReportCardView as Report } from "@/lib/report-cards";
 import {
   moveReportToTargetDate,
   type ReportDropPosition,
 } from "@/lib/report-order";
-import { tagTextColor } from "@/lib/tag-colors";
 
 export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
 
@@ -257,7 +257,7 @@ function DeleteIcon({ r }: { r: Report }) {
       >
         <p className="text-[14px] leading-[1.6] text-[#1d1d1f]">
           即将删除 <span className="font-semibold">{r.title}</span>{" "}
-          及其全部报告文件，分享链接同时失效。此操作不可恢复。
+          及其全部报告文件，面板入口和分享链接同时失效。此操作不可恢复。
         </p>
         <p className="mt-4 text-[13px] leading-[1.7] text-[#6e6e73]">
           请输入验证码{" "}
@@ -349,36 +349,7 @@ function ReportCard({
         dragging ? "opacity-40" : ""
       }`}
     >
-      <Link
-        href={`/report/${r.slug}`}
-        draggable={false}
-        className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-shadow group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
-          draggable ? "cursor-grab active:cursor-grabbing" : ""
-        }`}
-      >
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className="rounded-full px-3 py-0.5 text-[11px] font-semibold"
-              style={{ backgroundColor: r.tagColor, color: tagTextColor(r.tagColor) }}
-            >
-              {r.tag}
-            </span>
-            <span className="whitespace-nowrap text-xs text-[#6e6e73] tabular-nums">
-              {r.date}
-            </span>
-          </div>
-          <h2 className="mt-2.5 line-clamp-2 text-[18px] font-semibold leading-[1.3] tracking-tight text-[#1d1d1f]">
-            {r.title}
-          </h2>
-          <p className="mt-1.5 line-clamp-3 text-[13px] leading-normal text-[#6e6e73]">
-            {r.desc}
-          </p>
-        </div>
-        <div className="mt-2 translate-y-1 text-xs font-semibold text-[#0071e3] opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100">
-          查看报告
-        </div>
-      </Link>
+      <ReportCardLink report={r} href={`/report/${r.slug}`} draggable={draggable} />
       {/* 源码顺序 = Tab 顺序，刻意与视觉从左到右一致（删除 → 分享 → 编辑） */}
       <DeleteIcon r={r} />
       <ShareIcon r={r} />

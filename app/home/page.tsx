@@ -3,7 +3,6 @@ import { ReportBoard } from "@/components/report-board";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
 import { isGuestEmail, getGuestExpiry } from "@/lib/guest-sandbox";
 import { requireSession } from "@/lib/session";
-import { RelaunchClear } from "@/components/relaunch-clear";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +21,6 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
-      {/* 登录已成功落地：清掉 Safari 续跳标记（见 components/relaunch-clear）。
-          标记只应在「点登录 → 首次进入 /home」之间存活，否则 60s 内登出
-          回登录页会被误判为 Safari 弹回（按钮黑锁 8s 并误报「会话同步较慢」）。
-          被 307 弹回时本页不渲染，不影响真正的自动续跳。 */}
-      <RelaunchClear />
       <div className="account-shell">
         {/* 页头 + 右侧按钮组（与用户中心同一视觉轴） */}
         <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">

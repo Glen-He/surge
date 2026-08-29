@@ -6,6 +6,12 @@ import {
   unlockProof,
   verifySharePassword,
 } from "@/lib/shares";
+import {
+  boardUnlockCookieName,
+  boardUnlockProof,
+  normalizeBoardTitle,
+  verifyBoardUnlockProof,
+} from "@/lib/share-boards";
 
 describe("generateShareToken", () => {
   it("生成长度 22 的 base62 token", () => {
@@ -66,5 +72,22 @@ describe("unlockProof（密码门解锁凭证）", () => {
 
   it("不同 token 凭证不同", () => {
     expect(unlockProof("tokA")).not.toBe(unlockProof("tokB"));
+  });
+});
+
+describe("分享面板边界", () => {
+  it("规范化名称并拒绝空名称或超长名称", () => {
+    expect(normalizeBoardTitle("  课题组   周会  ")).toBe("课题组 周会");
+    expect(normalizeBoardTitle("   ")).toBeNull();
+    expect(normalizeBoardTitle("面".repeat(41))).toBeNull();
+  });
+
+  it("面板解锁凭证与单独链接分属不同命名空间", () => {
+    const token = "same-token";
+    const proof = boardUnlockProof(token);
+    expect(proof).not.toBe(unlockProof(token));
+    expect(verifyBoardUnlockProof(token, proof)).toBe(true);
+    expect(verifyBoardUnlockProof(token, unlockProof(token))).toBe(false);
+    expect(boardUnlockCookieName(token)).toBe(`board_${token}`);
   });
 });

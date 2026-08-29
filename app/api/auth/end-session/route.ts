@@ -70,12 +70,11 @@ export async function POST() {
     try { await destroyGuestUser(guestId); } catch (e) { logger.warn("end-session", "销毁访客沙箱失败", e as Error, { guestId }); }
   }
 
-  // 3) 兜底：再清一次前端的 better-auth cookie（防止 handler 返回没有清除干净）
-  //    ⚠️ 清理指令必须带 secure + sameSite 与主 cookie 一致：
-  //    __Secure- 前缀的 Set-Cookie 若缺 Secure 属性，浏览器（尤其 Safari/WebKit）
-  //    会拒绝整条指令，且同名多条 Set-Cookie 竞争会让 WebKit 的 cookie jar
-  //    进入异常状态——随后登录响应的新 cookie 不被提交，表现为"登录要两次"。
+  // 3) 兜底：再清一次前端的 better-auth cookie（防止 handler 返回没有清除干净）。
+  //    Secure 必须与当前站点协议一致：生产 HTTPS 使用 Secure，本地 HTTP
+  //    不使用，否则浏览器会拒绝本地的清理指令，留下无法覆盖的旧会话。
   const resp = NextResponse.json({ ok: true });
+  const secureCookie = new URL(baseUrl(hs)).protocol === "https:";
   const setCookies =
     (signOutResp.headers as Headers).getSetCookie?.() ??
     ((signOutResp.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/)) ?? []);
@@ -85,7 +84,7 @@ export async function POST() {
       resp.cookies.set(c.name, "", {
         expires: new Date(0),
         path: "/",
-        secure: true,
+        secure: secureCookie,
         sameSite: "lax",
       });
     }

@@ -14,6 +14,17 @@ interface ShareView {
   createdAt: string;
 }
 
+interface BoardView {
+  id: string;
+  token: string;
+  title: string;
+  hasPassword: boolean;
+  disabled: boolean;
+  viewCount: number;
+  itemCount: number;
+  included: boolean;
+}
+
 function fmtDate(s: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
@@ -58,6 +69,7 @@ function ShareDialog({
   slug: string;
   title: string;
 }) {
+  const [tab, setTab] = useState<"boards" | "links">("boards");
   const [shares, setShares] = useState<ShareView[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -66,6 +78,13 @@ function ShareDialog({
   const [days, setDays] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<BoardView[]>([]);
+  const [boardsLoading, setBoardsLoading] = useState(true);
+  const [boardName, setBoardName] = useState("");
+  const [boardError, setBoardError] = useState("");
+  const [creatingBoard, setCreatingBoard] = useState(false);
+  const [changingBoardId, setChangingBoardId] = useState<string | null>(null);
+  const [copiedBoardId, setCopiedBoardId] = useState<string | null>(null);
   // 列表滚动容器：创建新链接后回到顶部，确保置顶的新链接可见
   const listRef = useRef<HTMLDivElement>(null);
   // 达到上限：按钮禁用，提示行显示中性说明（非红色错误）
@@ -94,6 +113,24 @@ function ShareDialog({
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/reports/${slug}/boards`)
+      .then(async (response) => ({
+        ok: response.ok,
+        data: await response.json().catch(() => null),
+      }))
+      .then(({ ok, data }) => {
+        if (active && ok && data?.boards) setBoards(data.boards);
+      })
+      .finally(() => {
+        if (active) setBoardsLoading(false);
       });
     return () => {
       active = false;
@@ -162,8 +199,182 @@ function ShareDialog({
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  async function writeClipboard(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  }
+
+  async function createBoard() {
+    const name = boardName.trim();
+    if (!name || creatingBoard) return;
+    setCreatingBoard(true);
+    setBoardError("");
+    try {
+      const response = await fetch("/api/share-boards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: name, reportSlug: slug }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setBoardError(data?.error ?? "创建失败，请重试");
+        return;
+      }
+      setBoardName("");
+      setBoards((current) => [{ ...data.board, included: true }, ...current]);
+    } finally {
+      setCreatingBoard(false);
+    }
+  }
+
+  async function toggleBoard(board: BoardView) {
+    if (changingBoardId) return;
+    setChangingBoardId(board.id);
+    setBoardError("");
+    const next = !board.included;
+    setBoards((current) => current.map((item) =>
+      item.id === board.id
+        ? { ...item, included: next, itemCount: item.itemCount + (next ? 1 : -1) }
+        : item,
+    ));
+    try {
+      const response = await fetch(`/api/reports/${slug}/boards/${board.id}`, {
+        method: next ? "PUT" : "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setBoards((current) => current.map((item) =>
+          item.id === board.id
+            ? { ...item, included: board.included, itemCount: board.itemCount }
+            : item,
+        ));
+        setBoardError(data?.error ?? "更新失败，请重试");
+      }
+    } finally {
+      setChangingBoardId(null);
+    }
+  }
+
+  async function copyBoard(board: BoardView) {
+    await writeClipboard(`${location.origin}/b/${board.token}`);
+    setCopiedBoardId(board.id);
+    setTimeout(() => setCopiedBoardId(null), 2000);
+  }
+
   return (
     <Modal open onClose={onClose} title={`分享 · ${title}`} plainHeader>
+      <div className="mb-5 grid grid-cols-2 rounded-full bg-[#f2f2f7] p-1">
+        <button
+          type="button"
+          onClick={() => setTab("boards")}
+          className={`h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+            tab === "boards" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73]"
+          }`}
+        >
+          分享面板
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("links")}
+          className={`h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+            tab === "links" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73]"
+          }`}
+        >
+          分享链接
+        </button>
+      </div>
+
+      {tab === "boards" ? (
+        <div className="space-y-5">
+          <div className="rounded-[14px] bg-[#f9f9fb] p-4">
+            <p className="text-[13px] font-semibold text-[#1d1d1f]">新建面板并加入当前汇报</p>
+            <div className="mt-3 flex gap-2.5">
+              <input
+                type="text"
+                value={boardName}
+                onChange={(event) => {
+                  setBoardName(event.target.value);
+                  setBoardError("");
+                }}
+                onKeyDown={(event) => event.key === "Enter" && void createBoard()}
+                maxLength={40}
+                placeholder="例如：课题组周会、院领导汇报"
+                className="h-[42px] min-w-0 flex-1 rounded-[10px] border border-black/12 bg-white px-3 text-[14px] outline-none focus:border-[#0071e3]"
+              />
+              <button
+                type="button"
+                onClick={createBoard}
+                disabled={!boardName.trim() || creatingBoard}
+                className="btn-primary"
+              >
+                {creatingBoard ? "创建中…" : "新建面板"}
+              </button>
+            </div>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{boardError}</p>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[13px] font-semibold text-[#1d1d1f]">
+              选择要展示当前汇报的面板 {boards.length > 0 && `（${boards.length}）`}
+            </p>
+            <div className="h-[230px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {boardsLoading ? (
+                <div className="flex h-full items-center justify-center rounded-[12px] bg-[#f9f9fb] text-[13px] text-[#6e6e73]">加载中…</div>
+              ) : boards.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-[12px] bg-[#f9f9fb] text-[13px] text-[#6e6e73]">还没有分享面板，先新建一个</div>
+              ) : (
+                <ul className="space-y-2">
+                  {boards.map((board) => (
+                    <li key={board.id} className="flex min-h-[58px] items-center gap-3 rounded-[12px] bg-[#f9f9fb] px-3.5 py-2.5">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={board.included}
+                        aria-label={`${board.included ? "从面板移除" : "加入面板"} ${board.title}`}
+                        disabled={changingBoardId === board.id}
+                        onClick={() => toggleBoard(board)}
+                        className={`relative h-[24px] w-[42px] shrink-0 rounded-full transition-colors disabled:opacity-50 ${board.included ? "bg-[#34c759]" : "bg-[#d1d1d6]"}`}
+                      >
+                        <span className={`absolute top-[2px] h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${board.included ? "translate-x-0 left-5" : "left-0.5"}`} />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-[#1d1d1f]">
+                          {board.title}
+                          <button
+                            type="button"
+                            onClick={() => copyBoard(board)}
+                            aria-label={`复制 ${board.title} 的链接`}
+                            title={copiedBoardId === board.id ? "已复制" : "复制面板链接"}
+                            className="relative top-[2px] ml-1 inline-flex h-4 w-4 items-center justify-center text-[#86868b] hover:text-[#1d1d1f] disabled:opacity-40"
+                            disabled={board.disabled}
+                          >
+                            {copiedBoardId === board.id ? (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="h-3 w-3"><path d="M20 6 9 17l-5-5" /></svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+                            )}
+                          </button>
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-[#6e6e73]">
+                          {board.disabled ? "已停用" : board.hasPassword ? "密码保护" : "无需密码"} · {board.itemCount} 份汇报
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="space-y-5">
         {/* 创建区 */}
         <div className="rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
@@ -303,6 +514,7 @@ function ShareDialog({
           </div>
         </div>
       </div>
+      )}
     </Modal>
   );
 }
