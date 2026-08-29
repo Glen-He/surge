@@ -204,14 +204,17 @@ describe("renderReportDoc", () => {
     expect(out).not.toContain("<h1>标题</h1>");
   });
 
-  it("只在 <head> 首位注入滚动条样式，不再改写报告视口高度", () => {
+  it("在 <head> 首位注入滚动条样式，并在正文末尾注入高度桥接", () => {
     const out = run("");
     const headPos = out.indexOf("<head>");
     const stylePos = out.indexOf("scrollbar-width:none");
     expect(stylePos).toBeGreaterThan(headPos);
     expect(stylePos).toBeLessThan(out.indexOf("</head>"));
-    expect(out).not.toContain("__surgeReportHeight");
-    expect(out).not.toContain("ResizeObserver");
+    expect(out).toContain("__surgeReportHeight");
+    expect(out).toContain("ResizeObserver");
+    expect(out.indexOf("__surgeReportHeight")).toBeLessThan(
+      out.indexOf("</body>"),
+    );
   });
 
   it("在报告脚本之前注入 PDF 桥接，拦截下载链接与 iframe 预览", () => {

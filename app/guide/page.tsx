@@ -16,10 +16,16 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 样式、图片、字体等辅助文件也放同一文件夹，一律用相对路径引用。
 
 二、页面约定（展示平台的固定要求）
-1. 页面背景 #f5f5f7，内容区固定宽度 1280px、水平居中，内容放在白色圆角卡片里；
+1. 页面背景 #f5f5f7，内容区固定宽度 1280px、水平居中，内容放在白色圆角卡片里；卡片宽度必须占满整个 1280px，最外层页面容器（.page/.wrap 等）不要加左右 padding——卡片左右边缘就是 1280 内容线，需要与平台菜单栏左右边缘对齐；卡片内部用自己的 padding 留白；
 2. 不要写页面大标题、页头、返回按钮、公司 Logo——平台会在页面上方统一展示标题和导航；
 3. 所有 JavaScript 用 IIFE 包裹，不要声明全局变量，不要操作页面标题；
 4. 引用本地资源一律用相对路径（./images/a.png），不要用以 / 开头的路径。
+5. 间距与排版（固定规范，不要改动）：
+   · 每张大卡片四周边距（padding）上下左右均为 50px，所有内容都落在页边距以内的内容区；
+   · 首张卡片距页面顶部 26px（页面容器 padding-top）、相邻卡片间距 26px（卡片 margin-bottom）、最后一张卡片距页面底部 72px（padding-bottom）；参考实现：.page{width:1280px;margin:0 auto;padding:26px 0 72px} + .card{padding:50px;margin-bottom:26px;border-radius:18px}；
+   · 卡片标题 23px 加粗，标题下默认带一行 13.5px 弱化色副标题；标题→副标题间距 16px，副标题→正文 26px；
+   · 正文 15.5px、行高 1.78；大卡片内 2 列内嵌卡片的间距（横向列间距与上下行间距）统一 20px，内嵌卡片内部上下左右边距 20px；
+   · 标题/副标题要精确贴合留白线时，用 CSS Leading Trim：text-box-trim:trim-both; text-box-edge:text alphabetic; text-box:trim-both text alphabetic（兼容写法并存）。
 
 三、运行环境与外部资源
 1. 页面可以正常使用 HTML/CSS/JavaScript、Canvas、SVG、WebGL、相对路径资源、fetch("./data.json")、包内音视频、PDF、下载、用户触发的外链/新标签页和 Blob Worker。
@@ -33,6 +39,13 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
   <script src="./_platform/echarts.min.js"></script>
   <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
   图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
+· 悬停/点击交互按图型统一：柱状/条形图（含柱线混合）用 tooltip trigger:'axis' + axisPointer type:'shadow'（类目阴影带，tooltip 列出该类目全部系列数值）；折线/时间序列用 trigger:'axis' + type:'line'（仅竖线）；热图/散点/饼/雷达用 trigger:'item'；一律不用 type:'cross'。
+· 图例统一：放图表右上角，图标用圆角正方形（icon:'roundRect'，itemWidth 与 itemHeight 相同，如 10×10），只作颜色识别——禁长方形图标、折线图禁线形图标；legend.right 取与 grid.right 相同数值，与绘图区右缘对齐，不贴容器边缘（right:0 禁用）；饼/雷达等无网格图不强制位置但图标同为圆角正方形。
+· 坐标轴：axisTick 隐藏，axisLine 隐藏或极浅（#d2d2d7），splitLine 浅灰（#eef0f3 一类）；轴名写清物理量与单位（如「时间 (ns)」）；grid 带 containLabel:true。
+· 柱形：柱端圆角 3–6px（竖柱 [4,4,0,0]、横条 [0,3,3,0]）；barMaxWidth 20–28；柱顶数值标签 11px 浅灰 + tabular-nums。
+· 热图色阶三档：单调指标用单色蓝渐变（深蓝=好）；以 0 为中心的有利/不利指标用蓝-白-暖发散（蓝=有利，对称截断）；离散状态矩阵用固定离散色。visualMap 一律 hoverLink:false、show:false。
+· 参考线 markLine：dashed 1px 灰 + silent:true，标签 10px 灰不遮挡数据。
+· 工程惯例：option 根部 textStyle.fontFamily 与页面字体一致；所有实例收进数组统一 resize 监听。
 
 五、图片与性能
 1. 照片、界面截图等优先转为 WebP（建议质量 90–95），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
@@ -41,7 +54,17 @@ const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要�
 4. 大图保持独立文件并用相对路径引用，不要把大图转为 base64/data URI 塞进 HTML 或 data.js。
 
 六、设计
-整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，小型图标可用内联 SVG，位图放文件夹里相对引用。配色、布局、信息组织方式由你决定，充分发挥。
+整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，小型图标可用内联 SVG，位图放文件夹里相对引用。卡片内部的信息组织、配色由你决定，充分发挥——只约束"外壳"：
+· 内嵌小卡默认参考：1px 极浅边框（如 #eceff3）+ 圆角 16px + 无背景色（浅色底亦可，不要大面积彩色底/粗描边）。
+· 成组卡片尺寸一致（硬规则）：左右两张并排必须等宽等高（矮卡拉伸适配高卡）；2×2 四张必须完全同尺寸；卡片用 flex column，主体 flex:1 吸收高度差。
+· 强调收尾内容底部对齐（硬规则）：结论行/关键指标/标签用 margin-top:auto 推到卡片底部、贴住 20px 内边距线，同组底边齐平。
+· 分割线默认不用（用间距分隔），语义需要（表格/时间线）可用 1px 浅灰，禁彩色粗分割线。
+· 字体档位（同页同类元素统一）：卡片标题 13–15px / 650–700 近黑；正文条目 12–13.5px / 行高 1.6–1.8；说明标签 10.5–12px muted；数值 tabular-nums；序列/代码用等宽字体栈。留白宁松勿挤。
+· 视觉令牌（硬规则）：:root 统一 --ink #1d1d1f / --muted #6e6e73 / --line #e8e8ed / --card #ffffff / --bg #f5f5f7 + 每页一个自定机制色 --accent；颜色引用走变量不散写；正文 15.5px/1.78 苹果字体栈。
+· 语义色克制（硬规则）：红只表警示/异常，绿只表通过，琥珀只表待复核；彩色不当装饰，机制色只上识别锚点（编号、小圆点、图例色块），其余黑白灰。
+· 状态徽章参考：浅底深字软色对 + 999px 圆角 + 10.5–11px 字（如通过 #e9f6f3/#28655f）；不做描边式徽章。
+· 表格参考：.table-wrap 1px 边框 + 12px 圆角，表头 #f9f9fb 浅底 600 字重，行 hover #f7f7fa，末行去底边，数字列 tabular-nums，table-layout:fixed。
+· 证据卡参考模式：每张卡左上角机制色大编号（01–04，30px/700，--c 传色）+ 近黑标题基线对齐；条目层禁止再编号（不要双层 01/01），列表项用 6px 机制色小圆点；2×2 网格加 grid-auto-rows:1fr 保证四卡同尺寸（grid 默认只同行等高，跨行会一高一矮）。
 
 七、内容
 汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
@@ -333,7 +356,7 @@ function GuideContent() {
           <div className="grid grid-auto-rows-[1fr] grid-cols-1 gap-4 md:grid-cols-2">
             <UsageNode
               t="查看"
-              d="首页点击项目卡片即可进入汇报页，页面顶部有固定标题栏和返回按钮，向下滑动时也始终可见。"
+              d="首页点击项目卡片即可进入汇报页，页面顶部提供标题、分享和返回入口，向下浏览正文时会随页面一起收起。"
             />
             <UsageNode
               t="分享"

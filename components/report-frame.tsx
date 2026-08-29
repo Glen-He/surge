@@ -11,14 +11,25 @@ import {
 import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 
 type PdfPreview = { url: string; title: string };
+type MeasuredHeight = { src: string; value: number };
 
 /**
  * 报告沙箱 iframe（登录态查看页与分享页共用）。
  *
- * 查看器占据系统头以下的剩余视口，报告在 iframe 内自行滚动。完整 HTML
- * 因而保有正常的 fixed/sticky/100vh 语义，不需要平台识别报告内部弹层。
+ * 默认让报告在系统头以下的独立视口内滚动。登录态汇报页可开启
+ * flowWithPage：iframe 按正文真实高度展开，与系统头组成一条页面滚动流。
  */
-export function ReportFrame({ src, title }: { src: string; title: string }) {
+export function ReportFrame({
+  src,
+  title,
+  flowWithPage = false,
+}: {
+  src: string;
+  title: string;
+  flowWithPage?: boolean;
+}) {
+  const [measuredHeight, setMeasuredHeight] =
+    useState<MeasuredHeight | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -30,8 +41,25 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
       const data = e.data as
         | {
             [REPORT_PDF_MESSAGE_KEY]?: unknown;
+            __surgeReportHeight?: unknown;
           }
         | null;
+
+      const reportHeight = data?.__surgeReportHeight;
+      if (
+        flowWithPage &&
+        typeof reportHeight === "number" &&
+        Number.isFinite(reportHeight) &&
+        reportHeight > 0
+      ) {
+        const value = Math.min(Math.ceil(reportHeight), 100000);
+        setMeasuredHeight((current) =>
+          current?.src === src && current.value === value
+            ? current
+            : { src, value },
+        );
+      }
+
       const message = data?.[REPORT_PDF_MESSAGE_KEY];
       if (!isReportPdfMessage(message)) return;
       const resource = resolveReportPdfUrl(src, message.url, window.location.href);
@@ -55,7 +83,12 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [src]);
+  }, [flowWithPage, src]);
+
+  const pageFlowHeight =
+    measuredHeight?.src === src
+      ? `${measuredHeight.value}px`
+      : "calc(100dvh - 118px)";
 
   // sandbox 补充：
   // - allow-downloads：保留报告内非 PDF 附件的原生下载能力；PDF 由父页桥接
@@ -71,7 +104,10 @@ export function ReportFrame({ src, title }: { src: string; title: string }) {
         sandbox={REPORT_SANDBOX_TOKENS}
         allow="clipboard-write; fullscreen"
         allowFullScreen
-        className="report-frame"
+        className={`report-frame${
+          flowWithPage ? " report-frame--page-flow" : ""
+        }`}
+        style={flowWithPage ? { height: pageFlowHeight } : undefined}
       />
       <Modal
         open={pdfPreview !== null}
