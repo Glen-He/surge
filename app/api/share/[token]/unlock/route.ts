@@ -41,6 +41,7 @@ export async function POST(
   const password = typeof body.password === "string" ? body.password : "";
   if (
     !password ||
+    password.length > 64 ||
     !(await verifySharePassword(password, found.share.password_hash))
   ) {
     return Response.json({ error: "密码不正确" }, { status: 401 });
@@ -50,7 +51,7 @@ export async function POST(
   const jar = await cookies();
   jar.set(unlockCookieName(token), unlockProof(token), {
     httpOnly: true,
-    secure: true,
+    secure: new URL(process.env.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
     path: "/",
     // 会话级：不设 maxAge，关浏览器即失；重新打开需再次输入密码

@@ -14,6 +14,8 @@ vi.mock("@/lib/db", () => ({
           slug: "report-1",
           revision_id: "rev-1",
           capability_epoch: 0,
+          template_key: null,
+          storage_key: "a_0123456789abcdef0123456789abcdef",
         },
       ],
     })),
@@ -26,7 +28,7 @@ vi.mock("@/lib/schema", () => ({
 
 vi.mock("@/lib/report-storage", () => ({
   REPORT_SHARED_DIR: "/tmp/surge-route-test-shared",
-  reportDir: vi.fn(() => mocked.reportRoot),
+  reportContentDir: vi.fn(() => mocked.reportRoot),
 }));
 
 import { GET } from "@/app/r/[cap]/[...path]/route";

@@ -8,6 +8,11 @@ import {
   isSecurityRateLimited,
   recordSecurityFailure,
 } from "./db-rate-limit";
+import {
+  decryptShareToken,
+  ensureShareTokensProtected,
+  shareTokenHash,
+} from "./share-token-store";
 
 // ── 分享链接工具 ──
 // token 用 22 位 base62（≈131bit 熵），不可枚举；
@@ -102,20 +107,32 @@ export interface ShareRow {
   created_at: Date;
 }
 
+type StoredShareRow = Omit<ShareRow, "token"> & {
+  token: string | null;
+  token_enc: string | null;
+};
+
+function revealShare(row: StoredShareRow): ShareRow {
+  const token = row.token ?? (row.token_enc ? decryptShareToken(row.token_enc) : "");
+  if (!token) throw new Error("share token is unavailable");
+  return { ...row, token };
+}
+
 /** 按属主列出某报告的全部分享（含已撤销，管理页需要看到） */
 export async function listSharesBySlug(
   userId: string,
   slug: string,
 ): Promise<ShareRow[]> {
   await ensureOtpMigration();
-  const r = await db.query<ShareRow>(
+  await ensureShareTokensProtected();
+  const r = await db.query<StoredShareRow>(
     `SELECT s.* FROM report_shares s
      JOIN reports r ON r.id = s.report_id
      WHERE r.user_id = $1 AND r.slug = $2
      ORDER BY s.created_at DESC`,
     [userId, slug],
   );
-  return r.rows;
+  return r.rows.map(revealShare);
 }
 
 /** 按属主列出其全部报告的全部分享 */
@@ -123,7 +140,8 @@ export async function listAllShares(
   userId: string,
 ): Promise<(ShareRow & { report_title: string; report_slug: string })[]> {
   await ensureOtpMigration();
-  const r = await db.query<ShareRow & { report_title: string; report_slug: string }>(
+  await ensureShareTokensProtected();
+  const r = await db.query<StoredShareRow & { report_title: string; report_slug: string }>(
     `SELECT s.*, r.title AS report_title, r.slug AS report_slug
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
@@ -131,7 +149,7 @@ export async function listAllShares(
      ORDER BY s.created_at DESC`,
     [userId],
   );
-  return r.rows;
+  return r.rows.map((row) => revealShare(row) as ShareRow & { report_title: string; report_slug: string });
 }
 
 export interface ValidShare {
@@ -149,8 +167,9 @@ export async function findValidShare(
   token: string,
 ): Promise<ValidShare | null> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const r = await db.query<
-    ShareRow & {
+    StoredShareRow & {
       owner_id: string;
       slug: string;
       report_title: string;
@@ -162,8 +181,8 @@ export async function findValidShare(
             r.revision_id, r.capability_epoch
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
-     WHERE s.token = $1 LIMIT 1`,
-    [token],
+     WHERE s.token_hash = $1 LIMIT 1`,
+    [shareTokenHash(token)],
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -175,8 +194,9 @@ export async function findValidShare(
     report_title,
     revision_id,
     capability_epoch,
-    ...share
+    ...storedShare
   } = row;
+  const share = revealShare(storedShare);
   return {
     share,
     ownerId: owner_id,
@@ -189,9 +209,10 @@ export async function findValidShare(
 }
 
 export async function incrementShareView(token: string) {
+  await ensureShareTokensProtected();
   await db.query(
-    `UPDATE report_shares SET view_count = view_count + 1 WHERE token = $1`,
-    [token],
+    `UPDATE report_shares SET view_count = view_count + 1 WHERE token_hash = $1`,
+    [shareTokenHash(token)],
   );
 }
 
@@ -223,25 +244,24 @@ export async function checkUnlockRate(
   ip: string,
 ): Promise<{ ok: boolean; retryAfter?: number }> {
   const subject = `${token}:${ip}`;
-  const current = await isSecurityRateLimited(
-    "share-unlock",
-    subject,
-    MAX_ATTEMPTS,
-  );
-  if (current.limited) {
-    return { ok: false, retryAfter: current.retryAfter };
+  const [current, global] = await Promise.all([
+    isSecurityRateLimited("share-unlock", subject, MAX_ATTEMPTS),
+    isSecurityRateLimited("share-unlock-token", token, MAX_ATTEMPTS * 5),
+  ]);
+  if (current.limited || global.limited) {
+    return { ok: false, retryAfter: Math.max(current.retryAfter, global.retryAfter) };
   }
-  const recorded = await recordSecurityFailure(
-    "share-unlock",
-    subject,
-    MAX_ATTEMPTS,
-    WINDOW_SEC,
-  );
-  return recorded.limited
-    ? { ok: false, retryAfter: recorded.retryAfter }
+  const [recorded, globallyRecorded] = await Promise.all([
+    recordSecurityFailure("share-unlock", subject, MAX_ATTEMPTS, WINDOW_SEC),
+    recordSecurityFailure("share-unlock-token", token, MAX_ATTEMPTS * 5, WINDOW_SEC),
+  ]);
+  return recorded.limited || globallyRecorded.limited
+    ? { ok: false, retryAfter: Math.max(recorded.retryAfter, globallyRecorded.retryAfter) }
     : { ok: true };
 }
 
 export async function clearUnlockRate(token: string, ip: string): Promise<void> {
+  // Preserve the token-wide bucket so success from one source cannot erase
+  // failures accumulated by other addresses.
   await clearSecurityFailures("share-unlock", `${token}:${ip}`);
 }

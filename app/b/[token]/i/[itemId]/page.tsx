@@ -31,7 +31,7 @@ export default async function ShareBoardReportPage({
   }
   if (found.boardPasswordHash) {
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
-    if (!verifyBoardUnlockProof(token, proof)) {
+    if (!verifyBoardUnlockProof(token, found.boardAccessEpoch, proof)) {
       return <ShareBoardPasswordGate token={token} title={found.boardTitle} />;
     }
   }
@@ -39,6 +39,9 @@ export default async function ShareBoardReportPage({
     found.reportId,
     found.revisionId,
     found.capabilityEpoch,
+    found.boardExpiresAt
+      ? Math.floor(found.boardExpiresAt.getTime() / 1000)
+      : undefined,
   );
   return (
     <main className="report-viewer-shell report-viewer-shell--page-flow">

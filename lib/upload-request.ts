@@ -5,6 +5,11 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import Busboy from "busboy";
 import { MAX_ZIP_BYTES } from "./storage-limits";
+import {
+  ensureStorageHeadroom,
+  StorageCapacityError,
+} from "./storage-capacity";
+import { tryAcquireUploadLease } from "./upload-gate";
 
 // Multipart headers and metadata are tiny compared with the file. The reverse
 // proxy should enforce the same bound; this check rejects oversized requests
@@ -56,11 +61,30 @@ export async function readUploadForm(req: Request): Promise<UploadParseResult> {
   }
   if (!req.body) return failure("multipart 表单无效", 400);
 
-  const tempDir = await fs.mkdtemp(path.join(tmpdir(), "surge-upload-"));
+  let lease: Awaited<ReturnType<typeof tryAcquireUploadLease>>;
+  try {
+    lease = await tryAcquireUploadLease();
+  } catch {
+    return failure("上传服务暂时不可用，请稍后重试", 503);
+  }
+  if (!lease) return failure("当前上传任务较多，请稍后重试", 503);
+
+  let tempDir: string;
+  try {
+    await ensureStorageHeadroom(tmpdir(), length);
+    tempDir = await fs.mkdtemp(path.join(tmpdir(), "surge-upload-"));
+  } catch (error) {
+    await lease.release();
+    if (error instanceof StorageCapacityError) {
+      return failure(error.message, 507);
+    }
+    return failure("无法创建上传暂存目录，请稍后重试", 503);
+  }
   // Cleanup is best-effort: a transient filesystem cleanup failure must not
   // replace an otherwise successful upload response with a 500.
   const cleanup = async () => {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await lease.release();
   };
   const form = new FormData();
   let staged: StagedUpload | null = null;

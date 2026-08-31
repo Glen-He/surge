@@ -58,6 +58,12 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('api_tokens', 'token_prefix'),
            ('api_tokens', 'token_enc'),
            ('reports', 'size_bytes')
+           ,('reports', 'storage_key'),
+           ('reports', 'external_network_enabled'),
+           ('report_shares', 'token_hash'),
+           ('report_shares', 'token_enc'),
+           ('share_boards', 'access_epoch'),
+           ('share_boards', 'expires_at')
          )`,
     );
     const columns = new Map(
@@ -70,6 +76,76 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.has("api_tokens.token_prefix")).toBe(true);
     expect(columns.has("api_tokens.token_enc")).toBe(false);
     expect(columns.get("reports.size_bytes")).toBe("NO");
+    expect(columns.has("reports.storage_key")).toBe(true);
+    expect(columns.get("reports.external_network_enabled")).toBe("NO");
+    expect(columns.has("report_shares.token_hash")).toBe(true);
+    expect(columns.has("report_shares.token_enc")).toBe(true);
+    expect(columns.get("share_boards.access_epoch")).toBe("NO");
+    expect(columns.has("share_boards.expires_at")).toBe(true);
+    const migrationIntegrity = await database.query<{ total: string; protected: string }>(
+      `SELECT count(*)::text AS total,
+              count(*) FILTER (WHERE checksum ~ '^[0-9a-f]{64}$')::text AS protected
+       FROM schema_migrations`,
+    );
+    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(19);
+    expect(migrationIntegrity.rows[0]?.protected).toBe(
+      migrationIntegrity.rows[0]?.total,
+    );
+  });
+
+  it("修改密码与撤销其他设备会话作为同一事务完成", async () => {
+    const accountId = crypto.randomUUID();
+    const currentSessionId = crypto.randomUUID();
+    const currentSessionToken = crypto.randomUUID();
+    const otherSessionId = crypto.randomUUID();
+    await database.query(
+      `INSERT INTO account
+         (id, "accountId", "providerId", "userId", password, "updatedAt")
+       VALUES ($1, $2, 'credential', $2, 'old-hash', NOW())`,
+      [accountId, userId],
+    );
+    await database.query(
+      `INSERT INTO "session"
+         (id, "expiresAt", token, "updatedAt", "userId")
+       VALUES ($1, NOW() + INTERVAL '1 day', $2, NOW(), $5),
+              ($3, NOW() + INTERVAL '1 day', $4, NOW(), $5)`,
+      [
+        currentSessionId,
+        currentSessionToken,
+        otherSessionId,
+        crypto.randomUUID(),
+        userId,
+      ],
+    );
+    const { completePasswordChange, createChangeToken } = await import("@/lib/account");
+    const token = await createChangeToken({ userId, type: "password_change" });
+    await expect(
+      completePasswordChange({
+        token,
+        userId,
+        currentSessionId,
+        passwordHash: "new-hash",
+      }),
+    ).resolves.toBe(true);
+
+    const credential = await database.query<{ password: string }>(
+      `SELECT password FROM account WHERE id = $1`,
+      [accountId],
+    );
+    expect(credential.rows[0]?.password).toBe("new-hash");
+    const sessions = await database.query<{ id: string }>(
+      `SELECT id FROM "session" WHERE "userId" = $1`,
+      [userId],
+    );
+    expect(sessions.rows.map((row) => row.id)).toEqual([currentSessionId]);
+    await expect(
+      completePasswordChange({
+        token,
+        userId,
+        currentSessionId,
+        passwordHash: "replayed-hash",
+      }),
+    ).resolves.toBe(false);
   });
 
   it("并发核销同一 OTP 时只有一次成功", async () => {

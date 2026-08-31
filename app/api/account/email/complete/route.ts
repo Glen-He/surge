@@ -1,12 +1,9 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { getApiSession } from "@/lib/api-session";
 import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "@/lib/guest-sandbox";
 import {
-  consumeChangeToken,
+  completeEmailChange,
   getChangeToken,
   logSecurity,
-  updateEmailWithVersion,
   verifyStoredOtp,
 } from "@/lib/account";
 
@@ -67,26 +64,21 @@ export async function POST(req: Request) {
     return Response.json({ error: res.error }, { status: 400 });
   }
 
-  if (!(await consumeChangeToken(token, session.user.id))) {
-    return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
-  }
-
-  // 多设备并发安全：仅当当前邮箱仍等于 originalEmail 且 version 未变化才更新
-  const ok = await updateEmailWithVersion({
+  // Proof consumption, optimistic email update and session revocation are one
+  // transaction: success never leaves an old device authorized.
+  const result = await completeEmailChange({
+    token,
     userId: session.user.id,
+    currentSessionId: session.session.id,
     originalEmail: payload.originalEmail ?? session.user.email,
     expectedVersion: payload.userVersion ?? 0,
     newEmail,
   });
-  if (!ok) {
-    return Response.json({ error: "账号信息已经发生变化，请重新验证后再试" }, { status: 409 });
+  if (result === "invalid-proof") {
+    return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
   }
-
-  // 撤销其他设备的会话（当前设备保持登录）
-  try {
-    await auth.api.revokeOtherSessions({ headers: await headers() });
-  } catch {
-    // 撤销失败不影响修改结果
+  if (result === "conflict") {
+    return Response.json({ error: "账号信息已经发生变化，请重新验证后再试" }, { status: 409 });
   }
 
   await logSecurity({ userId: session.user.id, action: "EMAIL_CHANGED" });
