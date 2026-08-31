@@ -9,6 +9,7 @@ import {
   recordSecurityFailure,
 } from "./db-rate-limit";
 import {
+  decryptSharePasscode,
   decryptShareToken,
   ensureShareTokensProtected,
   shareTokenHash,
@@ -37,6 +38,26 @@ export function generateShareToken(len = 22): string {
 
 export function generateShareId(): string {
   return randomBytes(16).toString("hex");
+}
+
+export const SHARE_PASSCODE_LENGTH = 4;
+const SHARE_PASSCODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Four-character, cryptographically random extraction code. */
+export function generateSharePasscode(): string {
+  const limit = 256 - (256 % SHARE_PASSCODE_ALPHABET.length);
+  let result = "";
+  while (result.length < SHARE_PASSCODE_LENGTH) {
+    for (const byte of randomBytes(SHARE_PASSCODE_LENGTH)) {
+      if (byte < limit) result += SHARE_PASSCODE_ALPHABET[byte % SHARE_PASSCODE_ALPHABET.length];
+      if (result.length === SHARE_PASSCODE_LENGTH) break;
+    }
+  }
+  return result;
+}
+
+export function isValidSharePasscode(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Z0-9]{4}$/.test(value);
 }
 
 const scryptAsync = promisify(scrypt);
@@ -101,21 +122,33 @@ export interface ShareRow {
   report_id: string;
   token: string;
   password_hash: string | null;
+  passcode: string | null;
   expires_at: Date | null;
   revoked_at: Date | null;
   view_count: number;
   created_at: Date;
 }
 
-type StoredShareRow = Omit<ShareRow, "token"> & {
+type StoredShareRow = Omit<ShareRow, "token" | "passcode"> & {
   token: string | null;
   token_enc: string | null;
+  password_enc: string | null;
 };
 
 function revealShare(row: StoredShareRow): ShareRow {
   const token = row.token ?? (row.token_enc ? decryptShareToken(row.token_enc) : "");
   if (!token) throw new Error("share token is unavailable");
-  return { ...row, token };
+  return {
+    id: row.id,
+    report_id: row.report_id,
+    token,
+    password_hash: row.password_hash,
+    passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
+    expires_at: row.expires_at,
+    revoked_at: row.revoked_at,
+    view_count: row.view_count,
+    created_at: row.created_at,
+  };
 }
 
 /** 按属主列出某报告的全部分享（含已撤销，管理页需要看到） */
@@ -149,7 +182,11 @@ export async function listAllShares(
      ORDER BY s.created_at DESC`,
     [userId],
   );
-  return r.rows.map((row) => revealShare(row) as ShareRow & { report_title: string; report_slug: string });
+  return r.rows.map((row) => ({
+    ...revealShare(row),
+    report_title: row.report_title,
+    report_slug: row.report_slug,
+  }));
 }
 
 export interface ValidShare {

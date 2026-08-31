@@ -7,7 +7,7 @@ import {
 } from "@/lib/guest-otp-store";
 
 /**
- * 访客验证码通知 —— 顶部居中胶囊 Toast。
+ * 游客验证码通知 —— 顶部居中胶囊 Toast。
  *
  * 单一职责：本组件只订阅 store 并渲染（含复制交互）。
  * 显示 / 5s 自动消失的生命周期完全由 store 管（单一事实来源）。
@@ -116,7 +116,7 @@ export function GuestOtpModal() {
               whiteSpace: "nowrap",
             }}
           >
-            访客验证码
+            游客验证码
           </span>
           <span
             aria-label={`验证码 ${code}`}

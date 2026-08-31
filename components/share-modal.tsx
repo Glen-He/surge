@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
+import { SharePasscodeControl } from "@/components/share-passcode-control";
+import { shareClipboardText } from "@/lib/share-copy";
 
 // 分享链接视图模型
 interface ShareView {
   id: string;
   token: string;
   hasPassword: boolean;
+  passcode: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
   viewCount: number;
@@ -19,6 +22,7 @@ interface BoardView {
   token: string;
   title: string;
   hasPassword: boolean;
+  passcode: string | null;
   disabled: boolean;
   viewCount: number;
   itemCount: number;
@@ -74,13 +78,14 @@ function ShareDialog({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const [password, setPassword] = useState("");
+  const [passwordProtected, setPasswordProtected] = useState(false);
   const [days, setDays] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [boards, setBoards] = useState<BoardView[]>([]);
   const [boardsLoading, setBoardsLoading] = useState(true);
   const [boardName, setBoardName] = useState("");
+  const [boardPasswordProtected, setBoardPasswordProtected] = useState(false);
   const [boardError, setBoardError] = useState("");
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [changingBoardId, setChangingBoardId] = useState<string | null>(null);
@@ -146,7 +151,7 @@ function ShareDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          password: password.trim() || null,
+          passwordProtected,
           expiresInDays: days,
         }),
       });
@@ -155,7 +160,7 @@ function ShareDialog({
         setError(data?.error ?? "创建失败，请重试");
         return;
       }
-      setPassword("");
+      setPasswordProtected(false);
       setDays(0);
       // 乐观更新：直接把新链接前插（置顶），不走 refresh ——
       // refresh 会把列表闪成“加载中”再变回来，正是弹窗内跳动的根源
@@ -184,12 +189,12 @@ function ShareDialog({
   }
 
   async function copyLink(s: ShareView) {
-    const url = `${location.origin}/s/${s.token}`;
+    const value = shareClipboardText(`${location.origin}/s/${s.token}`, s.passcode);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(value);
     } catch {
       const ta = document.createElement("textarea");
-      ta.value = url;
+      ta.value = value;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
@@ -221,7 +226,11 @@ function ShareDialog({
       const response = await fetch("/api/share-boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: name, reportSlug: slug }),
+        body: JSON.stringify({
+          title: name,
+          passwordProtected: boardPasswordProtected,
+          reportSlug: slug,
+        }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -229,6 +238,7 @@ function ShareDialog({
         return;
       }
       setBoardName("");
+      setBoardPasswordProtected(false);
       setBoards((current) => [{ ...data.board, included: true }, ...current]);
     } finally {
       setCreatingBoard(false);
@@ -264,139 +274,199 @@ function ShareDialog({
   }
 
   async function copyBoard(board: BoardView) {
-    await writeClipboard(`${location.origin}/b/${board.token}`);
+    await writeClipboard(
+      shareClipboardText(`${location.origin}/b/${board.token}`, board.passcode),
+    );
     setCopiedBoardId(board.id);
     setTimeout(() => setCopiedBoardId(null), 2000);
   }
 
   return (
     <Modal open onClose={onClose} title={`分享 · ${title}`} plainHeader>
-      <div className="mb-5 grid grid-cols-2 rounded-full bg-[#f2f2f7] p-1">
+      <div
+        role="tablist"
+        aria-label="分享方式"
+        className="relative mb-5 grid h-[42px] grid-cols-2 rounded-full bg-[#f2f2f7] p-1"
+      >
+        <span
+          aria-hidden
+          data-testid="share-tab-indicator"
+          className="absolute bottom-1 left-1 top-1 rounded-full bg-white"
+          style={{
+            width: "calc((100% - 8px) / 2)",
+            transform: tab === "boards" ? "translateX(0)" : "translateX(100%)",
+            transition: "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow:
+              "0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.03)",
+          }}
+        />
         <button
           type="button"
+          role="tab"
+          id="share-tab-boards"
+          aria-selected={tab === "boards"}
+          aria-controls="share-panel-boards"
           onClick={() => setTab("boards")}
-          className={`h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
-            tab === "boards" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73]"
+          className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+            tab === "boards" ? "text-[#1d1d1f]" : "text-[#6e6e73]"
           }`}
         >
           分享面板
         </button>
         <button
           type="button"
+          role="tab"
+          id="share-tab-links"
+          aria-selected={tab === "links"}
+          aria-controls="share-panel-links"
           onClick={() => setTab("links")}
-          className={`h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
-            tab === "links" ? "bg-white text-[#1d1d1f] shadow-sm" : "text-[#6e6e73]"
+          className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+            tab === "links" ? "text-[#1d1d1f]" : "text-[#6e6e73]"
           }`}
         >
           分享链接
         </button>
       </div>
 
+      {/* 两个面板共用固定内容高度；切换时外层弹窗尺寸不变，列表只在内部滚动。 */}
+      <div className="h-[404px] max-sm:h-[450px]">
       {tab === "boards" ? (
-        <div className="space-y-5">
-          <div className="rounded-[14px] bg-[#f9f9fb] p-4">
+        <div
+          id="share-panel-boards"
+          role="tabpanel"
+          aria-labelledby="share-tab-boards"
+          className="flex h-full flex-col gap-5"
+        >
+          <div className="shrink-0 rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
             <p className="text-[13px] font-semibold text-[#1d1d1f]">新建面板并加入当前汇报</p>
-            <div className="mt-3 flex gap-2.5">
-              <input
-                type="text"
-                value={boardName}
-                onChange={(event) => {
-                  setBoardName(event.target.value);
+            <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div>
+                <label htmlFor="new-share-board-name" className="mb-1 block text-[12px] text-[#6e6e73]">
+                  面板名称
+                </label>
+                <input
+                  id="new-share-board-name"
+                  type="text"
+                  value={boardName}
+                  onChange={(event) => {
+                    setBoardName(event.target.value);
+                    setBoardError("");
+                  }}
+                  onKeyDown={(event) => event.key === "Enter" && void createBoard()}
+                  maxLength={40}
+                  placeholder="例如：课题组周会"
+                  className="h-[38px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+                />
+              </div>
+              <SharePasscodeControl
+                enabled={boardPasswordProtected}
+                onChange={(enabled) => {
+                  setBoardPasswordProtected(enabled);
                   setBoardError("");
                 }}
-                onKeyDown={(event) => event.key === "Enter" && void createBoard()}
-                maxLength={40}
-                placeholder="例如：课题组周会、院领导汇报"
-                className="h-[42px] min-w-0 flex-1 rounded-[10px] border border-black/12 bg-white px-3 text-[14px] outline-none focus:border-[#0071e3]"
+                disabled={creatingBoard}
               />
+            </div>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{boardError}</p>
+            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={createBoard}
                 disabled={!boardName.trim() || creatingBoard}
-                className="btn-primary"
+                className="btn-primary min-w-[96px]"
               >
                 {creatingBoard ? "创建中…" : "新建面板"}
               </button>
             </div>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{boardError}</p>
           </div>
 
-          <div>
+          <div className="flex min-h-0 flex-1 flex-col">
             <p className="mb-2 text-[13px] font-semibold text-[#1d1d1f]">
-              选择要展示当前汇报的面板 {boards.length > 0 && `（${boards.length}）`}
+              已有面板 {boards.length > 0 && `（${boards.length}）`}
             </p>
-            <div className="h-[230px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {boardsLoading ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] bg-[#f9f9fb] text-[13px] text-[#6e6e73]">加载中…</div>
+                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">加载中…</div>
               ) : boards.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] bg-[#f9f9fb] text-[13px] text-[#6e6e73]">还没有分享面板，先新建一个</div>
+                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">还没有分享面板，先新建一个</div>
               ) : (
                 <ul className="space-y-2">
-                  {boards.map((board) => (
-                    <li key={board.id} className="flex min-h-[58px] items-center gap-3 rounded-[12px] bg-[#f9f9fb] px-3.5 py-2.5">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={board.included}
-                        aria-label={`${board.included ? "从面板移除" : "加入面板"} ${board.title}`}
-                        disabled={changingBoardId === board.id}
-                        onClick={() => toggleBoard(board)}
-                        className={`relative h-[24px] w-[42px] shrink-0 rounded-full transition-colors disabled:opacity-50 ${board.included ? "bg-[#34c759]" : "bg-[#d1d1d6]"}`}
+                  {boards.map((board) => {
+                    const boardStatus = board.disabled
+                      ? { label: "已停用", cls: "bg-[#f2f2f7] text-[#6e6e73]" }
+                      : board.included
+                        ? { label: "已加入", cls: "bg-[#e9fbe9] text-[#166534]" }
+                        : { label: "未加入", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
+                    return (
+                      <li
+                        key={board.id}
+                        className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-black/8 bg-white px-3.5 py-2.5"
                       >
-                        <span className={`absolute top-[2px] h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${board.included ? "translate-x-0 left-5" : "left-0.5"}`} />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold text-[#1d1d1f]">
-                          {board.title}
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${boardStatus.cls}`}>
+                          {boardStatus.label}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] font-semibold text-[#1d1d1f]">{board.title}</span>
+                          <span className="block text-[11px] text-[#6e6e73]">
+                            {board.hasPassword
+                              ? board.passcode
+                                ? `提取码 ${board.passcode}`
+                                : "密码保护"
+                              : "无需提取码"} · {board.itemCount} 份汇报
+                          </span>
+                        </span>
+                        <span className="ml-auto flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => copyBoard(board)}
-                            aria-label={`复制 ${board.title} 的链接`}
-                            title={copiedBoardId === board.id ? "已复制" : "复制面板链接"}
-                            className="relative top-[2px] ml-1 inline-flex h-4 w-4 items-center justify-center text-[#86868b] hover:text-[#1d1d1f] disabled:opacity-40"
                             disabled={board.disabled}
+                            className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
                           >
-                            {copiedBoardId === board.id ? (
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="h-3 w-3"><path d="M20 6 9 17l-5-5" /></svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-                            )}
+                            {copiedBoardId === board.id ? "已复制" : "复制链接"}
                           </button>
-                        </p>
-                        <p className="mt-0.5 text-[12px] text-[#6e6e73]">
-                          {board.disabled ? "已停用" : board.hasPassword ? "密码保护" : "无需密码"} · {board.itemCount} 份汇报
-                        </p>
-                      </div>
-                    </li>
-                  ))}
+                          <button
+                            type="button"
+                            onClick={() => toggleBoard(board)}
+                            disabled={board.disabled || changingBoardId === board.id}
+                            className={`inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border text-[12px] font-medium transition-colors disabled:opacity-40 ${
+                              board.included
+                                ? "border-[rgba(255,59,48,0.35)] text-[#ff3b30] hover:bg-[rgba(255,59,48,0.06)]"
+                                : "border-[rgba(0,113,227,0.3)] text-[#0071e3] hover:bg-[rgba(0,113,227,0.06)]"
+                            }`}
+                          >
+                            {changingBoardId === board.id
+                              ? "更新中…"
+                              : board.included
+                                ? "移出面板"
+                                : "加入面板"}
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
           </div>
         </div>
       ) : (
-      <div className="space-y-5">
+      <div
+        id="share-panel-links"
+        role="tabpanel"
+        aria-labelledby="share-tab-links"
+        className="flex h-full flex-col gap-5"
+      >
         {/* 创建区 */}
-        <div className="rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
+        <div className="shrink-0 rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
           <p className="text-[13px] font-semibold text-[#1d1d1f]">创建分享链接</p>
           <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[12px] text-[#6e6e73]">访问密码（可选）</label>
-              <input
-                type="text"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError("");
-                }}
-                placeholder="留空则任何人可查看"
-                className="h-[38px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] text-[#6e6e73]">有效期</label>
+              <label htmlFor="share-link-expiry" className="mb-1 block text-[12px] text-[#6e6e73]">
+                有效期
+              </label>
               <div className="relative">
                 <select
+                  id="share-link-expiry"
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
                   className="h-[38px] w-full appearance-none rounded-[10px] border border-black/12 bg-white pl-3 pr-9 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
@@ -419,6 +489,14 @@ function ShareDialog({
                 </svg>
               </div>
             </div>
+            <SharePasscodeControl
+              enabled={passwordProtected}
+              onChange={(enabled) => {
+                setPasswordProtected(enabled);
+                setError("");
+              }}
+              disabled={creating || limitReached}
+            />
           </div>
           {/* 提示行固定占位 18px：错误（红）/ 达到上限说明（灰）都不改变弹窗高度 */}
           <p
@@ -444,18 +522,15 @@ function ShareDialog({
           </div>
         </div>
 
-        {/* 列表区：固定高度 = 2.5 行链接（50×2 + 间距 8×2 + 25）。
-            无论 loading / 空 / 1 条 / 2 条 / 更多，高度恒定 ——
-            超过 2 条时第 3 条自然露出上半截，用户一眼知道往下还有内容（滚动暗示），
-            因此隐藏原生滚动条：既不难看，也不占宽度，列表卡片与上方创建区完全对齐。
-            滚轮 / 触控板 / 触摸滑动照常可用 */}
-        <div>
+        {/* 列表占用固定面板的剩余空间；内容增加时仅列表内部滚动，
+            不改变弹窗尺寸。隐藏原生滚动条，滚轮、触控板和触摸滑动仍可用。 */}
+        <div className="flex min-h-0 flex-1 flex-col">
           <p className="mb-2 text-[13px] font-semibold text-[#1d1d1f]">
             已有链接 {shares.length > 0 && `（${shares.length}）`}
           </p>
           <div
             ref={listRef}
-            className="h-[141px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {loading ? (
               <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">
@@ -479,7 +554,11 @@ function ShareDialog({
                       {st.label}
                     </span>
                     <span className="text-[12px] text-[#6e6e73]">
-                      {s.hasPassword ? "🔐 密码" : "公开"}
+                      {s.hasPassword
+                        ? s.passcode
+                          ? `提取码 ${s.passcode}`
+                          : "密码保护"
+                        : "公开"}
                       {" · "}
                       {s.expiresAt ? `至 ${fmtDate(s.expiresAt)}` : "永久"}
                       {" · "}
@@ -515,6 +594,7 @@ function ShareDialog({
         </div>
       </div>
       )}
+      </div>
     </Modal>
   );
 }

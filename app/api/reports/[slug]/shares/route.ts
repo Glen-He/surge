@@ -4,11 +4,17 @@ import { ensureOtpMigration } from "@/lib/schema";
 import { isGuestEmail } from "@/lib/guest-sandbox";
 import {
   generateShareId,
+  generateSharePasscode,
   generateShareToken,
   hashSharePassword,
+  isValidSharePasscode,
   listSharesBySlug,
 } from "@/lib/shares";
-import { encryptShareToken, shareTokenHash } from "@/lib/share-token-store";
+import {
+  encryptSharePasscode,
+  encryptShareToken,
+  shareTokenHash,
+} from "@/lib/share-token-store";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +37,7 @@ export async function GET(
       id: s.id,
       token: s.token,
       hasPassword: !!s.password_hash,
+      passcode: s.passcode,
       expiresAt: s.expires_at,
       revokedAt: s.revoked_at,
       viewCount: Number(s.view_count),
@@ -46,10 +53,10 @@ export async function POST(
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
-  // 访客报告随沙箱销毁，禁止分享（避免死链与演示数据外泄）
+  // 游客报告随沙箱销毁，禁止分享（避免死链与演示数据外泄）
   if (isGuestEmail(session.user.email)) {
     return Response.json(
-      { error: "访客模式不支持分享" },
+      { error: "游客模式不支持分享" },
       { status: 403 },
     );
   }
@@ -57,16 +64,18 @@ export async function POST(
   const { slug } = await params;
 
   const body = await req.json().catch(() => ({}));
-  const password =
+  const requestedPasscode =
     typeof body.password === "string" && body.password.trim()
-      ? body.password.trim()
+      ? body.password.trim().toUpperCase()
       : null;
-  if (password && (password.length < 8 || password.length > 64)) {
+  if (requestedPasscode && !isValidSharePasscode(requestedPasscode)) {
     return Response.json(
-      { error: "密码长度需在 8 ~ 64 位之间" },
+      { error: "提取码必须是 4 位字母或数字" },
       { status: 400 },
     );
   }
+  const passcode =
+    requestedPasscode ?? (body.passwordProtected === true ? generateSharePasscode() : null);
   const days = Number(body.expiresInDays ?? 0);
   if (!EXPIRY_DAYS.includes(days)) {
     return Response.json({ error: "无效的有效期" }, { status: 400 });
@@ -75,7 +84,8 @@ export async function POST(
     days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
   // scrypt is intentionally expensive and synchronous; compute it before the
   // transaction so it does not hold the report row lock or a DB connection.
-  const passwordHash = password ? await hashSharePassword(password) : null;
+  const passwordHash = passcode ? await hashSharePassword(passcode) : null;
+  const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
 
   // 上限 5 条/报告：count + insert 放进同一事务并锁报告行（FOR UPDATE），
   // 并发创建会在锁上排队，杜绝「多个请求同时通过检查、插入第 6 条」的竞态。
@@ -110,9 +120,17 @@ export async function POST(
     token = generateShareToken();
     await client.query(
       `INSERT INTO report_shares
-         (id, report_id, token_hash, token_enc, password_hash, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, reportId, shareTokenHash(token), encryptShareToken(token), passwordHash, expiresAt],
+         (id, report_id, token_hash, token_enc, password_hash, password_enc, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        id,
+        reportId,
+        shareTokenHash(token),
+        encryptShareToken(token),
+        passwordHash,
+        passwordEnc,
+        expiresAt,
+      ],
     );
     await client.query("COMMIT");
   } catch (e) {
@@ -127,7 +145,8 @@ export async function POST(
     share: {
       id,
       token,
-      hasPassword: !!password,
+      hasPassword: !!passcode,
+      passcode,
       expiresAt,
       revokedAt: null,
       viewCount: 0,

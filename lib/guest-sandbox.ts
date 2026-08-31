@@ -90,7 +90,7 @@ export function verifyGuestInternalProof(proof: string | null | undefined): bool
 }
 
 /**
- * 事件驱动：发送验证码接口的响应体里附带访客验证码（仅当收件人是访客邮箱）。
+ * 事件驱动：发送验证码接口的响应体里附带游客验证码（仅当收件人是游客邮箱）。
  * 前端拿到响应后直接弹 Toast —— 验证码显示的唯一触发路径就是"用户点击发送且发送成功"，
  * 不存在任何轮询 / 后台拉取，从根上杜绝"进页面就误弹"。
  */
@@ -219,7 +219,7 @@ export async function purgeStaleGuests(): Promise<{ removed: number }> {
       removed += 1;
     } catch (error) {
       failures += 1;
-      logger.error("guest-cleanup", "清理过期访客失败，继续处理其他访客", error as Error, {
+      logger.error("guest-cleanup", "清理过期游客失败，继续处理其他游客", error as Error, {
         userId: r.user_id,
       });
     }
@@ -230,7 +230,7 @@ export async function purgeStaleGuests(): Promise<{ removed: number }> {
   return { removed };
 }
 
-// ── 工具：判断访客会话是否已过期（创建起 60 分钟，不续期）──
+// ── 工具：判断游客会话是否已过期（创建起 60 分钟，不续期）──
 
 export async function isGuestExpired(userId: string): Promise<boolean> {
   await ensureOtpMigration();
@@ -242,7 +242,7 @@ export async function isGuestExpired(userId: string): Promise<boolean> {
   return r.rows[0].e.getTime() < Date.now();
 }
 
-/** 读取访客沙箱的到期时间（非访客 / 无记录返回 null） */
+/** 读取游客沙箱的到期时间（非游客 / 无记录返回 null） */
 export async function getGuestExpiry(
   userId: string,
 ): Promise<Date | null> {
@@ -255,8 +255,8 @@ export async function getGuestExpiry(
 }
 
 /**
- * 访客会话到期强制退出：会话属于访客且已过 60 分钟 → 当场销毁沙箱并返回 true，
- * 调用方 redirect('/?guestExpired=1')（登录页会展示「访客体验已结束」提示卡）。
+ * 游客会话到期强制退出：会话属于游客且已过 60 分钟 → 当场销毁沙箱并返回 true，
+ * 调用方 redirect('/?guestExpired=1')（登录页会展示「游客体验已结束」提示卡）。
  * 页面统一由 requireSession 调用，业务 API 统一由 getApiSession 调用；
  * 因此前端计时器只是交互提醒，不是安全边界。
  */

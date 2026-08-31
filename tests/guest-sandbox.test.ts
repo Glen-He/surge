@@ -27,7 +27,7 @@ import {
   verifyGuestInternalProof,
 } from "@/lib/guest-sandbox";
 
-describe("访客共享模板沙箱", () => {
+describe("游客共享模板沙箱", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.query.mockImplementation(async (sql: string) => {
@@ -36,7 +36,7 @@ describe("访客共享模板沙箱", () => {
     });
   });
 
-  it("内部访客编排证明拒绝篡改", () => {
+  it("内部游客编排证明拒绝篡改", () => {
     vi.stubEnv("BETTER_AUTH_SECRET", "guest-proof-test-secret-at-least-32-chars");
     const proof = guestInternalProof();
     expect(verifyGuestInternalProof(proof)).toBe(true);

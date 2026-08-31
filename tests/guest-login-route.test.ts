@@ -41,7 +41,7 @@ function request() {
   });
 }
 
-describe("原子访客登录", () => {
+describe("原子游客登录", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.consumeRateLimit.mockResolvedValue({ allowed: true });

@@ -38,13 +38,21 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}));
-  const password = typeof body.password === "string" ? body.password : "";
+  const password =
+    typeof body.password === "string"
+      ? found.share.passcode
+        ? body.password.toUpperCase()
+        : body.password
+      : "";
   if (
     !password ||
     password.length > 64 ||
     !(await verifySharePassword(password, found.share.password_hash))
   ) {
-    return Response.json({ error: "密码不正确" }, { status: 401 });
+    return Response.json(
+      { error: found.share.passcode ? "提取码不正确" : "密码不正确" },
+      { status: 401 },
+    );
   }
 
   await clearUnlockRate(token, ip);

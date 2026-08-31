@@ -112,7 +112,7 @@ export async function registerWithOtp(
 }
 
 /**
- * 访客登录是一次原子服务端编排：匿名账号、固定 60 分钟租约、
+ * 游客登录是一次原子服务端编排：匿名账号、固定 60 分钟租约、
  * 五个独立模板引用全部成功后才下发会话 Cookie。客户端不再经历
  * “先登录、再初始化”的半完成状态。
  */
@@ -137,7 +137,7 @@ export async function signInAsGuest(): Promise<GuestResult> {
         error:
           raw && /[\u4e00-\u9fff]/.test(raw)
             ? raw
-            : "访客登录失败，请稍后重试",
+            : "游客登录失败，请稍后重试",
       };
     }
     return {
@@ -150,7 +150,7 @@ export async function signInAsGuest(): Promise<GuestResult> {
       ok: false,
       error:
         error instanceof DOMException && error.name === "AbortError"
-          ? "访客登录超时，请重试"
+          ? "游客登录超时，请重试"
           : "网络异常，请稍后重试",
     };
   }

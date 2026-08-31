@@ -20,9 +20,9 @@ function baseUrl(hs: Headers): string {
 }
 
 /**
- * 统一登出入口（访客 & 真实用户通用）：
- * 1) 先拿到当前 session 判断是不是访客
- * 2) 访客先彻底销毁账号/数据/私有文件，成功后才清 cookie
+ * 统一登出入口（游客 & 真实用户通用）：
+ * 1) 先拿到当前 session 判断是不是游客
+ * 2) 游客先彻底销毁账号/数据/私有文件，成功后才清 cookie
  * 3) 真实用户交给 better-auth /sign-out 撤销会话
  * 前端所有"退出登录"按钮都应调此接口代替 authClient.signOut()。
  */
@@ -34,13 +34,13 @@ export async function POST() {
   const guestId =
     session && isGuestEmail(session.user.email) ? session.user.id : null;
 
-  // 访客的“退出成功”必须等价于“数据已销毁”。若销毁失败，
+  // 游客的“退出成功”必须等价于“数据已销毁”。若销毁失败，
   // 保留原会话并返回可重试错误，不再出现前端看似退出、后台数据仍存在。
   if (guestId) {
     try {
       await destroyGuestUser(guestId);
     } catch (error) {
-      logger.error("end-session", "销毁访客沙箱失败", error as Error, {
+      logger.error("end-session", "销毁游客沙箱失败", error as Error, {
         guestId,
       });
       return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });

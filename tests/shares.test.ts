@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   generateShareId,
+  generateSharePasscode,
   generateShareToken,
   hashSharePassword,
   unlockProof,
   verifySharePassword,
+  isValidSharePasscode,
 } from "@/lib/shares";
+import {
+  shareClipboardText,
+  sharePasscodeFromHash,
+  shareUrlWithPasscode,
+} from "@/lib/share-copy";
 import {
   boardUnlockCookieName,
   boardUnlockProof,
@@ -33,6 +40,39 @@ describe("generateShareToken", () => {
 describe("generateShareId", () => {
   it("生成 32 位 hex", () => {
     expect(generateShareId()).toMatch(/^[0-9a-f]{32}$/);
+  });
+});
+
+describe("4 位分享提取码", () => {
+  it("由密码学随机源生成 4 位字母数字", () => {
+    for (let i = 0; i < 100; i++) {
+      expect(generateSharePasscode()).toMatch(/^[A-Z0-9]{4}$/);
+    }
+  });
+
+  it("严格拒绝长度或字符不符合的值", () => {
+    expect(isValidSharePasscode("A7B2")).toBe(true);
+    expect(isValidSharePasscode("abc")).toBe(false);
+    expect(isValidSharePasscode("abcd5")).toBe(false);
+    expect(isValidSharePasscode("ab_2")).toBe(false);
+  });
+
+  it("复制内容的链接自带提取码，同时保留独立提取码文案", () => {
+    expect(shareClipboardText("https://example.test/s/token", "A7B2")).toBe(
+      "链接：https://example.test/s/token#pwd=A7B2\n提取码：A7B2",
+    );
+    expect(shareClipboardText("https://example.test/s/token", null)).toBe(
+      "https://example.test/s/token",
+    );
+  });
+
+  it("提取码使用不会发送到服务端的 URL fragment，并能严格解析", () => {
+    expect(shareUrlWithPasscode("https://example.test/b/token", "A7B2")).toBe(
+      "https://example.test/b/token#pwd=A7B2",
+    );
+    expect(sharePasscodeFromHash("#pwd=a7b2")).toBe("A7B2");
+    expect(sharePasscodeFromHash("#pwd=TOO-LONG")).toBeNull();
+    expect(sharePasscodeFromHash("#other=A7B2")).toBeNull();
   });
 });
 

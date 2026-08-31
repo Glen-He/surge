@@ -46,10 +46,10 @@ export async function POST(req: Request) {
   if (newEmail === session.user.email.toLowerCase()) {
     return Response.json({ error: "新邮箱不能与当前邮箱相同" }, { status: 400 });
   }
-  // 访客模式：最终二次拦截，确保仍落在 @demo.surge 域内（防绕过）
+  // 游客模式：最终二次拦截，确保仍落在 @demo.surge 域内（防绕过）
   if (isGuestEmail(session.user.email) && !isGuestEmail(newEmail)) {
     return Response.json(
-      { error: `访客模式暂不支持修改为真实邮箱，新邮箱需为 @${GUEST_EMAIL_DOMAIN} 域` },
+      { error: `游客模式暂不支持修改为真实邮箱，新邮箱需为 @${GUEST_EMAIL_DOMAIN} 域` },
       { status: 400 },
     );
   }

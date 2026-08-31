@@ -48,9 +48,9 @@ export default function ForgotPasswordPage() {
             <h1 className="text-2xl font-semibold tracking-tight">检查你的邮箱</h1>
             {email.toLowerCase().endsWith("@" + GUEST_DOMAIN) ? (
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                检测到 <span className="font-medium text-zinc-700">访客模式</span>，无需接收邮件：
+                检测到 <span className="font-medium text-zinc-700">游客模式</span>，无需接收邮件：
                 <br />
-                页面顶部会以 <span className="font-medium text-[#0066CC]">弹窗</span> 形式直接显示“访客验证码”。
+                页面顶部会以 <span className="font-medium text-[#0066CC]">弹窗</span> 形式直接显示“游客验证码”。
               </p>
             ) : (
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">

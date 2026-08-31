@@ -7,7 +7,12 @@ import {
   ShareBoardError,
   updateShareBoard,
 } from "@/lib/share-boards";
-import { hashSharePassword } from "@/lib/shares";
+import {
+  generateSharePasscode,
+  hashSharePassword,
+  isValidSharePasscode,
+} from "@/lib/shares";
+import { encryptSharePasscode } from "@/lib/share-token-store";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +27,7 @@ export async function PATCH(
   const changes: {
     title?: string;
     passwordHash?: string | null;
+    passwordEnc?: string | null;
     disabled?: boolean;
     expiresAt?: Date | null;
   } = {};
@@ -35,15 +41,24 @@ export async function PATCH(
     }
     changes.title = title;
   }
-  if (body.password !== undefined) {
+  let passcode: string | null | undefined;
+  if (body.regeneratePassword === true) {
+    passcode = generateSharePasscode();
+    changes.passwordHash = await hashSharePassword(passcode);
+    changes.passwordEnc = encryptSharePasscode(passcode);
+  } else if (body.password !== undefined) {
     if (body.password === null || body.password === "") {
       changes.passwordHash = null;
+      changes.passwordEnc = null;
+      passcode = null;
     } else if (typeof body.password === "string") {
-      const password = body.password.trim();
-      if (password.length < 8 || password.length > 64) {
-        return Response.json({ error: "密码长度需在 8 ~ 64 位之间" }, { status: 400 });
+      const password = body.password.trim().toUpperCase();
+      if (!isValidSharePasscode(password)) {
+        return Response.json({ error: "提取码必须是 4 位字母或数字" }, { status: 400 });
       }
       changes.passwordHash = await hashSharePassword(password);
+      changes.passwordEnc = encryptSharePasscode(password);
+      passcode = password;
     } else {
       return Response.json({ error: "无效的密码设置" }, { status: 400 });
     }
@@ -66,7 +81,7 @@ export async function PATCH(
   }
   try {
     await updateShareBoard(session.user.id, id, changes);
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, passcode });
   } catch (error) {
     if (error instanceof ShareBoardError) {
       return Response.json({ error: error.message }, { status: error.status });

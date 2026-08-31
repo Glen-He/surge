@@ -8,7 +8,12 @@ import {
   parseBoardExpiry,
   ShareBoardError,
 } from "@/lib/share-boards";
-import { hashSharePassword } from "@/lib/shares";
+import {
+  generateSharePasscode,
+  hashSharePassword,
+  isValidSharePasscode,
+} from "@/lib/shares";
+import { encryptSharePasscode } from "@/lib/share-token-store";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +28,7 @@ export async function POST(req: Request) {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
   if (isGuestEmail(session.user.email)) {
-    return Response.json({ error: "访客模式不支持分享" }, { status: 403 });
+    return Response.json({ error: "游客模式不支持分享" }, { status: 403 });
   }
   const body = await req.json().catch(() => ({}));
   const title = normalizeBoardTitle(body.title);
@@ -33,24 +38,28 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const password =
+  const requestedPasscode =
     typeof body.password === "string" && body.password.trim()
-      ? body.password.trim()
+      ? body.password.trim().toUpperCase()
       : null;
-  if (password && (password.length < 8 || password.length > 64)) {
-    return Response.json({ error: "密码长度需在 8 ~ 64 位之间" }, { status: 400 });
+  if (requestedPasscode && !isValidSharePasscode(requestedPasscode)) {
+    return Response.json({ error: "提取码必须是 4 位字母或数字" }, { status: 400 });
   }
+  const passcode =
+    requestedPasscode ?? (body.passwordProtected === true ? generateSharePasscode() : null);
   const expiresAt = parseBoardExpiry(body.expiresOn);
   if (expiresAt === "invalid") {
     return Response.json({ error: "请选择未来的有效期" }, { status: 400 });
   }
   const reportSlug = typeof body.reportSlug === "string" ? body.reportSlug : undefined;
-  const passwordHash = password ? await hashSharePassword(password) : null;
+  const passwordHash = passcode ? await hashSharePassword(passcode) : null;
+  const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
   try {
     const board = await createShareBoard(
       session.user.id,
       title,
       passwordHash,
+      passwordEnc,
       expiresAt,
       reportSlug,
     );

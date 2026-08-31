@@ -11,7 +11,7 @@ import {
 } from "@/lib/guest-session-client";
 
 /**
- * 访客提示卡三件套 —— 与「访客验证码」提示同款视觉：
+ * 游客提示卡三件套 —— 与「游客验证码」提示同款视觉：
  * 磨砂玻璃卡片（rgba(240,240,245,0.95) + saturate(180%) blur(22px)），
  * 高 56px、顶部居中、无左侧竖条、无关闭按钮、自动消失（10s）。
  * 仅圆角从胶囊的 28 改为圆角矩形 16（用户认可的形态）。
@@ -266,7 +266,7 @@ export function GuestToasts() {
       <Card
         variant={{
           icon: <PersonIcon />,
-          title: "访客登录成功",
+          title: "游客登录成功",
           sub: `会话 ${welcomeTtl} 分钟`,
           subColor: "#0071E3",
         }}
@@ -278,7 +278,7 @@ export function GuestToasts() {
       <Card
         variant={{
           icon: <ClockIcon />,
-          title: "访客体验已结束",
+          title: "游客体验已结束",
           sub: "注册账号可长期保存汇报",
           subColor: "#6e6e73",
         }}
@@ -290,7 +290,7 @@ export function GuestToasts() {
       <Card
         variant={{
           icon: <ClockIcon />,
-          title: "访客会话即将结束",
+          title: "游客会话即将结束",
           sub: "5 分钟后自动退出",
           subColor: "#ff3b30",
         }}
@@ -301,10 +301,10 @@ export function GuestToasts() {
 }
 
 /**
- * 访客会话守望器（服务端渲染进页面，仅访客会话渲染）：
+ * 游客会话守望器（服务端渲染进页面，仅游客会话渲染）：
  * - 剩余 ≤5 分钟：弹「即将结束」提醒卡（10 秒自动消失）
- * - 到点：POST end-session（销毁访客沙箱 + 清 cookie）→ 跳 /?guestExpired=1
- *   （登录页的 GuestToasts 再展示「访客体验已结束」卡）
+ * - 到点：POST end-session（销毁游客沙箱 + 清 cookie）→ 跳 /?guestExpired=1
+ *   （登录页的 GuestToasts 再展示「游客体验已结束」卡）
  * - visibilitychange：合盖/休眠回来后立即复查，过期即走退出流程
  */
 export function GuestSessionWatcher({ expiresAt }: { expiresAt: string }) {

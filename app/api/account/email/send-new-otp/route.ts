@@ -40,10 +40,10 @@ export async function POST(req: Request) {
     return Response.json({ error: "新邮箱不能与当前邮箱相同" }, { status: 400 });
   }
 
-  // 访客模式下禁止改成真实域名邮箱（防止误发 SMTP + 刷爆配额），只能继续保留 @demo.surge 域
+  // 游客模式下禁止改成真实域名邮箱（防止误发 SMTP + 刷爆配额），只能继续保留 @demo.surge 域
   if (isGuestEmail(originalEmail) && !isGuestEmail(newEmail)) {
     return Response.json(
-      { error: `访客模式暂不支持修改为真实邮箱，新邮箱需为 @${GUEST_EMAIL_DOMAIN} 域名` },
+      { error: `游客模式暂不支持修改为真实邮箱，新邮箱需为 @${GUEST_EMAIL_DOMAIN} 域名` },
       { status: 400 },
     );
   }

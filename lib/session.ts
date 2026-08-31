@@ -4,10 +4,17 @@ import { auth } from "@/lib/auth";
 import { expireGuestIfNeeded } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
 
+/** Public pages may recognize a signed-in owner without requiring login. */
+export async function getOptionalSession() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (session && (await expireGuestIfNeeded(session))) return null;
+  return session;
+}
+
 /**
  * 服务端页面统一鉴权（DAL 层，Next.js 官方认证指南推荐的集中 session 校验）：
  * - 无会话 → 跳登录页
- * - 访客沙箱已到期 → 销毁沙箱并带「访客体验已结束」提示跳回
+ * - 游客沙箱已到期 → 销毁沙箱并带「游客体验已结束」提示跳回
  *
  * 弹回时记录 cookie 名诊断日志：区分「请求根本没带 cookie」（浏览器侧
  * cookie 传播/时序问题）与「带了 cookie 但服务端判无效」（session 失效、

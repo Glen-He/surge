@@ -11,6 +11,7 @@ import {
 } from "@/lib/share-boards";
 import { ShareBoardPasswordGate } from "@/components/share-board-password-gate";
 import { ShareBoardPublic } from "@/components/share-board-public";
+import { getOptionalSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -29,16 +30,24 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
   const { token } = await params;
   const board = await findPublicShareBoard(token);
   if (!board) return <InvalidBoard />;
+  const session = await getOptionalSession();
+  const isOwner = session?.user.id === board.ownerId;
 
-  if (board.passwordHash) {
+  if (board.passwordHash && !isOwner) {
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
     if (!verifyBoardUnlockProof(token, board.accessEpoch, proof)) {
-      return <ShareBoardPasswordGate token={token} title={board.title} />;
+      return (
+        <ShareBoardPasswordGate
+          token={token}
+          title={board.title}
+          usesPasscode={board.usesPasscode}
+        />
+      );
     }
   }
 
   const ip = clientIp(await headers());
-  if (await shouldCountBoardView(token, ip).catch(() => false)) {
+  if (!isOwner && await shouldCountBoardView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementBoardView(token).catch((error) => {
         logger.warn("board-view", "分享面板浏览量记录失败", error as Error);

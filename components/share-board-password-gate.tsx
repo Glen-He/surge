@@ -1,36 +1,52 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
+import { useAutoSharePasscode } from "@/components/use-auto-share-passcode";
 
-export function ShareBoardPasswordGate({ token, title }: { token: string; title: string }) {
-  const router = useRouter();
+export function ShareBoardPasswordGate({
+  token,
+  title,
+  usesPasscode,
+}: {
+  token: string;
+  title: string;
+  usesPasscode: boolean;
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const inFlight = useRef(false);
 
-  async function submit() {
-    if (!password || loading) return;
+  const submit = useCallback(async (providedPassword?: string) => {
+    const nextPassword = providedPassword ?? password;
+    if (!nextPassword || inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
     setError("");
     try {
       const response = await fetch(`/api/share-board/${token}/unlock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: nextPassword }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(data?.error ?? "密码不正确");
+        setError(data?.error ?? (usesPasscode ? "提取码不正确" : "密码不正确"));
         return;
       }
-      router.refresh();
+      window.location.replace(`${window.location.pathname}${window.location.search}`);
     } catch {
       setError("网络异常，请重试");
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
-  }
+  }, [password, token, usesPasscode]);
+
+  useAutoSharePasscode(usesPasscode, (passcode) => {
+    setPassword(passcode);
+    void submit(passcode);
+  });
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-[#f5f5f7] px-6">
@@ -42,23 +58,32 @@ export function ShareBoardPasswordGate({ token, title }: { token: string; title:
           </svg>
         </div>
         <h1 className="text-center text-[17px] font-semibold text-[#1d1d1f]">{title}</h1>
-        <p className="mt-1.5 text-center text-[13px] text-[#6e6e73]">该分享面板已加密，请输入访问密码</p>
+        <p className="mt-1.5 text-center text-[13px] text-[#6e6e73]">
+          {usesPasscode ? "请输入分享者提供的 4 位提取码" : "该分享面板已加密，请输入访问密码"}
+        </p>
         <input
-          type="password"
+          type={usesPasscode ? "text" : "password"}
           value={password}
           onChange={(event) => {
-            setPassword(event.target.value);
+            setPassword(
+              usesPasscode
+                ? event.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4)
+                : event.target.value,
+            );
             setError("");
           }}
           onKeyDown={(event) => event.key === "Enter" && void submit()}
-          placeholder="访问密码"
+          placeholder={usesPasscode ? "4 位提取码" : "访问密码"}
+          maxLength={usesPasscode ? 4 : 64}
+          autoCapitalize={usesPasscode ? "characters" : "none"}
+          autoComplete="off"
           autoFocus
-          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+          className={`mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3] ${usesPasscode ? "tracking-[0.24em]" : ""}`}
         />
         <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
         <button
           type="button"
-          onClick={submit}
+          onClick={() => void submit()}
           disabled={loading || !password}
           className="mt-4 h-[44px] w-full rounded-full bg-[#0071e3] text-[15px] font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
         >

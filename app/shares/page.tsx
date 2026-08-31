@@ -27,7 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function SharesPage() {
-  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
 
   const [rows, boards] = await Promise.all([
@@ -71,6 +71,7 @@ export default async function SharesPage() {
             token: board.token,
             title: board.title,
             hasPassword: board.hasPassword,
+            passcode: board.passcode,
             disabled: board.disabled,
             viewCount: board.viewCount,
             itemCount: board.itemCount,
@@ -81,7 +82,7 @@ export default async function SharesPage() {
 
         <div className="mb-5">
           <h2 className="text-[21px] font-semibold tracking-[-0.01em]">分享链接</h2>
-          <p className="mt-1 text-[13px] text-[#6e6e73]">适合只发送一份汇报，继续沿用原来的独立密码和有效期。</p>
+          <p className="mt-1 text-[13px] text-[#6e6e73]">适合只发送一份汇报，可使用独立的 4 位提取码和有效期。</p>
         </div>
 
         {rows.length === 0 ? (
@@ -119,7 +120,11 @@ export default async function SharesPage() {
                         </Link>
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-[#6e6e73]">
-                        {s.password_hash ? "🔐 密码" : "公开"}
+                        {s.password_hash
+                          ? s.passcode
+                            ? `提取码 ${s.passcode}`
+                            : "密码保护"
+                          : "公开"}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-[#6e6e73]">
                         {s.expires_at ? fmtDate(s.expires_at) : "永久"}
@@ -134,6 +139,7 @@ export default async function SharesPage() {
                         <ShareRowActions
                           shareId={s.id}
                           token={s.token}
+                          passcode={s.passcode}
                           active={st === "active"}
                         />
                       </td>

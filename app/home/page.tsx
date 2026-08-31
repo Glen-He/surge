@@ -8,10 +8,10 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页（弹回诊断日志见 lib/session）
+  // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页（弹回诊断日志见 lib/session）
   const session = await requireSession();
 
-  // 访客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）
+  // 游客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）
   const guestExpiry = isGuestEmail(session.user.email)
     ? await getGuestExpiry(session.user.id)
     : null;

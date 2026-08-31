@@ -69,6 +69,7 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     INITIAL_LOGIN_STATE,
   );
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const isSignUp = mode === "signup";
   const authBusy = loading || guestLoading || loginPending;
@@ -78,6 +79,10 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     (!isSignUp && loginState.submissionId > dismissedLoginSubmissionId
       ? loginState.error
       : "");
+
+  useEffect(() => {
+    formRef.current?.setAttribute("data-hydrated", "true");
+  }, []);
 
   // 验证码发送后的 60s 倒计时
   useEffect(() => {
@@ -162,7 +167,7 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
         return;
       }
       // 落标记：整页跳到 /home 后由布局里的 GuestToasts 展示
-      // 「访客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
+      // 「游客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
       try {
         sessionStorage.setItem(GUEST_WELCOME_KEY, String(r.ttlMinutes));
         rememberGuestExpiry(r.expiresAt);
@@ -298,6 +303,8 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
               </div>
 
               <form
+                ref={formRef}
+                data-testid="auth-form"
                 action={loginAction}
                 onSubmit={(e) => {
                   if (authBusy) {
@@ -513,7 +520,7 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                   {guestLoading
                     ? authSlow
                       ? "网络较慢，仍在准备…"
-                      : "正在准备访客环境…"
+                      : "正在准备游客环境…"
                     : "游客登录"}
                 </button>
               </form>

@@ -37,7 +37,7 @@ async function runGuestExpiryMaintenance(): Promise<void> {
     );
     if (lease.allowed) await purgeStaleGuests();
   } catch (error) {
-    logger.error("guest-cleanup", "访客过期扫描失败", error as Error);
+    logger.error("guest-cleanup", "游客过期扫描失败", error as Error);
   } finally {
     guestExpiryRunning = false;
   }

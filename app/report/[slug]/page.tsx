@@ -22,7 +22,7 @@ export default async function ReportPage({
 }) {
   const { slug } = await params;
 
-  // 鉴权：未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  // 鉴权：未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
 
   // 归属校验：从数据库确认该报告属于当前用户

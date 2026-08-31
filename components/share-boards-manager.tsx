@@ -4,12 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/modal";
 import { ShareManagementEmptyState } from "@/components/share-management-empty-state";
+import { SharePasscodeControl } from "@/components/share-passcode-control";
+import { shareClipboardText } from "@/lib/share-copy";
 
 export type ManagedBoard = {
   id: string;
   token: string;
   title: string;
   hasPassword: boolean;
+  passcode: string | null;
   disabled: boolean;
   viewCount: number;
   itemCount: number;
@@ -40,14 +43,14 @@ export function ShareBoardsManager({
   const [boards, setBoards] = useState(initialBoards);
   const [newOpen, setNewOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordProtected, setNewPasswordProtected] = useState(false);
   const [newExpiresOn, setNewExpiresOn] = useState("");
   const [newError, setNewError] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ManagedBoard | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editPassword, setEditPassword] = useState("");
-  const [clearPassword, setClearPassword] = useState(false);
+  const [editPasswordProtected, setEditPasswordProtected] = useState(false);
+  const [regeneratePassword, setRegeneratePassword] = useState(false);
   const [editDisabled, setEditDisabled] = useState(false);
   const [editExpiresOn, setEditExpiresOn] = useState("");
   const [editError, setEditError] = useState("");
@@ -64,7 +67,11 @@ export function ShareBoardsManager({
       const response = await fetch("/api/share-boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle, password: newPassword || null, expiresOn: newExpiresOn || null }),
+        body: JSON.stringify({
+          title: newTitle,
+          passwordProtected: newPasswordProtected,
+          expiresOn: newExpiresOn || null,
+        }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -73,7 +80,7 @@ export function ShareBoardsManager({
       }
       setBoards((current) => [{ ...data.board, items: [] }, ...current]);
       setNewTitle("");
-      setNewPassword("");
+      setNewPasswordProtected(false);
       setNewExpiresOn("");
       setNewOpen(false);
     } finally {
@@ -82,7 +89,9 @@ export function ShareBoardsManager({
   }
 
   async function copyBoard(board: ManagedBoard) {
-    await copyText(`${location.origin}/b/${board.token}`);
+    await copyText(
+      shareClipboardText(`${location.origin}/b/${board.token}`, board.passcode),
+    );
     setCopiedId(board.id);
     setTimeout(() => setCopiedId(null), 2000);
   }
@@ -90,8 +99,8 @@ export function ShareBoardsManager({
   function openSettings(board: ManagedBoard) {
     setEditing(board);
     setEditTitle(board.title);
-    setEditPassword("");
-    setClearPassword(false);
+    setEditPasswordProtected(board.hasPassword);
+    setRegeneratePassword(false);
     setEditDisabled(board.disabled);
     setEditExpiresOn(board.expiresAt ? board.expiresAt.slice(0, 10) : "");
     setEditError("");
@@ -106,8 +115,8 @@ export function ShareBoardsManager({
       disabled: editDisabled,
       expiresOn: editExpiresOn || null,
     };
-    if (clearPassword) body.password = null;
-    else if (editPassword) body.password = editPassword;
+    if (!editPasswordProtected) body.password = null;
+    else if (!editing.hasPassword || regeneratePassword) body.regeneratePassword = true;
     try {
       const response = await fetch(`/api/share-boards/${editing.id}`, {
         method: "PATCH",
@@ -125,7 +134,10 @@ export function ShareBoardsManager({
               ...board,
               title: editTitle.trim(),
               disabled: editDisabled,
-              hasPassword: clearPassword ? false : editPassword ? true : board.hasPassword,
+              hasPassword: editPasswordProtected,
+              passcode: !editPasswordProtected
+                ? null
+                : data?.passcode ?? board.passcode,
               expiresAt: editExpiresOn ? `${editExpiresOn}T23:59:59.999+08:00` : null,
             }
           : board,
@@ -231,7 +243,7 @@ export function ShareBoardsManager({
                       {board.disabled ? "已停用" : "生效中"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.hasPassword ? "密码保护" : "无需密码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
+                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.hasPassword ? board.passcode ? `提取码 ${board.passcode}` : "密码保护" : "无需提取码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
                 </div>
                 <button type="button" onClick={() => openSettings(board)} className="h-8 rounded-full bg-[#f2f2f7] px-3 text-[12px] font-medium hover:bg-[#e8e8ed]">设置</button>
               </div>
@@ -256,22 +268,41 @@ export function ShareBoardsManager({
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <button type="button" onClick={() => copyBoard(board)} disabled={board.disabled} className="text-[13px] font-semibold text-[#0071e3] disabled:text-[#86868b]">
-                  {copiedId === board.id ? "已复制" : "复制面板链接"}
+              <div className="mt-4 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => copyBoard(board)}
+                  disabled={board.disabled}
+                  className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[#f2f2f7] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#e8e8ed] disabled:text-[#86868b] disabled:opacity-60"
+                >
+                  {copiedId === board.id ? "已复制" : "复制链接"}
                 </button>
-                {!board.disabled && <Link href={`/b/${board.token}`} target="_blank" rel="noreferrer" className="text-[12px] text-[#6e6e73] hover:text-[#1d1d1f]">打开面板</Link>}
+                {!board.disabled && (
+                  <Link
+                    href={`/b/${board.token}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 w-[96px] items-center justify-center gap-1 rounded-full bg-[#0071e3] text-[12px] font-semibold text-white transition-colors hover:bg-[#0077ed]"
+                  >
+                    打开面板
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3" aria-hidden="true">
+                      <path d="M14 5h5v5M19 5l-8 8" />
+                      <path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+                    </svg>
+                  </Link>
+                )}
               </div>
             </article>
           ))}
         </div>
       )}
 
-      <Modal open={newOpen} onClose={() => setNewOpen(false)} title="新建分享面板" plainHeader busy={creating} dirty={!!newTitle || !!newPassword}>
+      <Modal open={newOpen} onClose={() => setNewOpen(false)} title="新建分享面板" plainHeader busy={creating} dirty={!!newTitle || newPasswordProtected || !!newExpiresOn}>
         <label className="block text-[13px] font-medium">面板名称</label>
         <input value={newTitle} onChange={(event) => { setNewTitle(event.target.value); setNewError(""); }} maxLength={40} placeholder="例如：课题组周会" className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
-        <label className="mt-4 block text-[13px] font-medium">访问密码（可选）</label>
-        <input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setNewError(""); }} placeholder="留空则无需密码" className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
+        <div className="mt-4">
+          <SharePasscodeControl enabled={newPasswordProtected} onChange={(enabled) => { setNewPasswordProtected(enabled); setNewError(""); }} disabled={creating} />
+        </div>
         <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
         <input type="date" value={newExpiresOn} min={minExpiryDate} onChange={(event) => { setNewExpiresOn(event.target.value); setNewError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
         <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{newError}</p>
@@ -281,19 +312,36 @@ export function ShareBoardsManager({
         </div>
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="面板设置" plainHeader busy={saving} dirty={!!editing && (editTitle !== editing.title || !!editPassword || clearPassword || editDisabled !== editing.disabled || editExpiresOn !== (editing.expiresAt?.slice(0, 10) ?? ""))}>
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="面板设置" plainHeader busy={saving} dirty={!!editing && (editTitle !== editing.title || editPasswordProtected !== editing.hasPassword || regeneratePassword || editDisabled !== editing.disabled || editExpiresOn !== (editing.expiresAt?.slice(0, 10) ?? ""))}>
         {editing && (
           <>
             <label className="block text-[13px] font-medium">面板名称</label>
             <input value={editTitle} onChange={(event) => { setEditTitle(event.target.value); setEditError(""); }} maxLength={40} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
-            <label className="mt-4 block text-[13px] font-medium">更换访问密码</label>
-            <input type="password" value={editPassword} disabled={clearPassword} onChange={(event) => { setEditPassword(event.target.value); setEditError(""); }} placeholder={editing.hasPassword ? "留空则保持原密码" : "留空则无需密码"} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3] disabled:bg-[#f5f5f7]" />
+            <div className="mt-4">
+              <SharePasscodeControl
+                enabled={editPasswordProtected}
+                onChange={(enabled) => {
+                  setEditPasswordProtected(enabled);
+                  setRegeneratePassword(enabled && !editing.hasPassword);
+                  setEditError("");
+                }}
+                disabled={saving}
+              />
+              <div className="mt-2 flex h-[18px] items-center text-[12px] leading-[18px] text-[#6e6e73]">
+                {editPasswordProtected ? (
+                  regeneratePassword || !editing.hasPassword ? (
+                    <span>保存后自动生成新的 4 位提取码</span>
+                  ) : (
+                    <button type="button" onClick={() => setRegeneratePassword(true)} className="font-semibold text-[#0071e3]">
+                      重新生成提取码
+                    </button>
+                  )
+                ) : null}
+              </div>
+            </div>
             <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
             <input type="date" value={editExpiresOn} min={minExpiryDate} onChange={(event) => { setEditExpiresOn(event.target.value); setEditError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
             <div className="mt-3 flex flex-wrap gap-4">
-              {editing.hasPassword && (
-                <label className="flex items-center gap-2 text-[13px] text-[#6e6e73]"><input type="checkbox" checked={clearPassword} onChange={(event) => setClearPassword(event.target.checked)} />取消密码保护</label>
-              )}
               <label className="flex items-center gap-2 text-[13px] text-[#6e6e73]"><input type="checkbox" checked={editDisabled} onChange={(event) => setEditDisabled(event.target.checked)} />暂停公开访问</label>
             </div>
             <div className="mt-4 rounded-[12px] bg-[#f9f9fb] p-3">

@@ -195,7 +195,7 @@ function PasswordChangeDialog({
         return;
       }
       applyOtpRetry(data, setDailyLimit, setCooldown, 60);
-      // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
+      // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
       setOtpSending(false);

@@ -28,12 +28,12 @@ export async function POST(req: Request) {
     return Response.json({ error: v.error }, { status: 400 });
   }
 
-  // 访客：跳过 15 天冷却，直接销毁沙箱（DB 级联 + 磁盘目录），前端按 redirectTo 跳登录
+  // 游客：跳过 15 天冷却，直接销毁沙箱（DB 级联 + 磁盘目录），前端按 redirectTo 跳登录
   if (isGuestEmail(session.user.email)) {
     try {
       await destroyGuestUser(session.user.id);
     } catch (error) {
-      logger.error("deletion/schedule", "销毁访客沙箱失败", error as Error, {
+      logger.error("deletion/schedule", "销毁游客沙箱失败", error as Error, {
         userId: session.user.id,
       });
       return Response.json({ error: "删除失败，请重试" }, { status: 500 });
