@@ -43,6 +43,17 @@ describe("reportDocCsp", () => {
     expect(csp).toContain("frame-ancestors https://surge.example");
     expect(csp).toContain("form-action 'none'");
   });
+
+  it("隐私模式不允许任何外部 HTTPS 资源", () => {
+    const csp = reportDocCsp(
+      "https://reports.example/r/CAP123",
+      "https://surge.example",
+      false,
+    );
+    expect(csp).not.toMatch(/(?:^|[ ;])https:(?:[ ;]|$)/);
+    expect(csp).toContain("connect-src https://reports.example/r/CAP123/");
+    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob:");
+  });
 });
 
 describe("报告内容域", () => {

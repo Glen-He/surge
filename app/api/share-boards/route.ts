@@ -5,6 +5,7 @@ import {
   listShareBoards,
   MAX_BOARD_TITLE_LENGTH,
   normalizeBoardTitle,
+  parseBoardExpiry,
   ShareBoardError,
 } from "@/lib/share-boards";
 import { hashSharePassword } from "@/lib/shares";
@@ -36,8 +37,12 @@ export async function POST(req: Request) {
     typeof body.password === "string" && body.password.trim()
       ? body.password.trim()
       : null;
-  if (password && (password.length < 4 || password.length > 64)) {
-    return Response.json({ error: "密码长度需在 4 ~ 64 位之间" }, { status: 400 });
+  if (password && (password.length < 8 || password.length > 64)) {
+    return Response.json({ error: "密码长度需在 8 ~ 64 位之间" }, { status: 400 });
+  }
+  const expiresAt = parseBoardExpiry(body.expiresOn);
+  if (expiresAt === "invalid") {
+    return Response.json({ error: "请选择未来的有效期" }, { status: 400 });
   }
   const reportSlug = typeof body.reportSlug === "string" ? body.reportSlug : undefined;
   const passwordHash = password ? await hashSharePassword(password) : null;
@@ -46,6 +51,7 @@ export async function POST(req: Request) {
       session.user.id,
       title,
       passwordHash,
+      expiresAt,
       reportSlug,
     );
     return Response.json({ ok: true, board });

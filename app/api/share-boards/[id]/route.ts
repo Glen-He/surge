@@ -3,6 +3,7 @@ import {
   deleteShareBoard,
   MAX_BOARD_TITLE_LENGTH,
   normalizeBoardTitle,
+  parseBoardExpiry,
   ShareBoardError,
   updateShareBoard,
 } from "@/lib/share-boards";
@@ -18,7 +19,12 @@ export async function PATCH(
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const changes: { title?: string; passwordHash?: string | null; disabled?: boolean } = {};
+  const changes: {
+    title?: string;
+    passwordHash?: string | null;
+    disabled?: boolean;
+    expiresAt?: Date | null;
+  } = {};
   if (body.title !== undefined) {
     const title = normalizeBoardTitle(body.title);
     if (!title) {
@@ -34,13 +40,20 @@ export async function PATCH(
       changes.passwordHash = null;
     } else if (typeof body.password === "string") {
       const password = body.password.trim();
-      if (password.length < 4 || password.length > 64) {
-        return Response.json({ error: "密码长度需在 4 ~ 64 位之间" }, { status: 400 });
+      if (password.length < 8 || password.length > 64) {
+        return Response.json({ error: "密码长度需在 8 ~ 64 位之间" }, { status: 400 });
       }
       changes.passwordHash = await hashSharePassword(password);
     } else {
       return Response.json({ error: "无效的密码设置" }, { status: 400 });
     }
+  }
+  if (body.expiresOn !== undefined) {
+    const expiresAt = parseBoardExpiry(body.expiresOn);
+    if (expiresAt === "invalid") {
+      return Response.json({ error: "请选择未来的有效期" }, { status: 400 });
+    }
+    changes.expiresAt = expiresAt;
   }
   if (body.disabled !== undefined) {
     if (typeof body.disabled !== "boolean") {

@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { GuestOtpModal } from "@/components/guest-otp-modal";
 import { GuestToasts } from "@/components/guest-toasts";
+import { connection } from "next/server";
 
 export const metadata: Metadata = {
   title: "工作汇报系统",
@@ -17,7 +18,10 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // A per-request CSP nonce is attached by proxy.ts. Waiting for the incoming
+  // request prevents a build-time HTML shell from carrying a stale nonce.
+  await connection();
   return (
     <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">

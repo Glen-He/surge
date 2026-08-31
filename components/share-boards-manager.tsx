@@ -13,6 +13,7 @@ export type ManagedBoard = {
   disabled: boolean;
   viewCount: number;
   itemCount: number;
+  expiresAt: string | null;
   items: { slug: string; date: string; title: string }[];
 };
 
@@ -29,11 +30,18 @@ async function copyText(value: string) {
   }
 }
 
-export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBoard[] }) {
+export function ShareBoardsManager({
+  initialBoards,
+  minExpiryDate,
+}: {
+  initialBoards: ManagedBoard[];
+  minExpiryDate: string;
+}) {
   const [boards, setBoards] = useState(initialBoards);
   const [newOpen, setNewOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newExpiresOn, setNewExpiresOn] = useState("");
   const [newError, setNewError] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ManagedBoard | null>(null);
@@ -41,6 +49,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
   const [editPassword, setEditPassword] = useState("");
   const [clearPassword, setClearPassword] = useState(false);
   const [editDisabled, setEditDisabled] = useState(false);
+  const [editExpiresOn, setEditExpiresOn] = useState("");
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<ManagedBoard | null>(null);
@@ -55,7 +64,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
       const response = await fetch("/api/share-boards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle, password: newPassword || null }),
+        body: JSON.stringify({ title: newTitle, password: newPassword || null, expiresOn: newExpiresOn || null }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -65,6 +74,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
       setBoards((current) => [{ ...data.board, items: [] }, ...current]);
       setNewTitle("");
       setNewPassword("");
+      setNewExpiresOn("");
       setNewOpen(false);
     } finally {
       setCreating(false);
@@ -83,6 +93,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
     setEditPassword("");
     setClearPassword(false);
     setEditDisabled(board.disabled);
+    setEditExpiresOn(board.expiresAt ? board.expiresAt.slice(0, 10) : "");
     setEditError("");
   }
 
@@ -93,6 +104,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
     const body: Record<string, unknown> = {
       title: editTitle,
       disabled: editDisabled,
+      expiresOn: editExpiresOn || null,
     };
     if (clearPassword) body.password = null;
     else if (editPassword) body.password = editPassword;
@@ -114,6 +126,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
               title: editTitle.trim(),
               disabled: editDisabled,
               hasPassword: clearPassword ? false : editPassword ? true : board.hasPassword,
+              expiresAt: editExpiresOn ? `${editExpiresOn}T23:59:59.999+08:00` : null,
             }
           : board,
       ));
@@ -218,7 +231,7 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
                       {board.disabled ? "已停用" : "生效中"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.hasPassword ? "密码保护" : "无需密码"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
+                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.hasPassword ? "密码保护" : "无需密码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
                 </div>
                 <button type="button" onClick={() => openSettings(board)} className="h-8 rounded-full bg-[#f2f2f7] px-3 text-[12px] font-medium hover:bg-[#e8e8ed]">设置</button>
               </div>
@@ -259,6 +272,8 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
         <input value={newTitle} onChange={(event) => { setNewTitle(event.target.value); setNewError(""); }} maxLength={40} placeholder="例如：课题组周会" className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
         <label className="mt-4 block text-[13px] font-medium">访问密码（可选）</label>
         <input type="password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setNewError(""); }} placeholder="留空则无需密码" className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
+        <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
+        <input type="date" value={newExpiresOn} min={minExpiryDate} onChange={(event) => { setNewExpiresOn(event.target.value); setNewError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
         <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{newError}</p>
         <div className="mt-4 flex justify-end gap-2.5">
           <button type="button" onClick={() => setNewOpen(false)} className="btn-secondary">取消</button>
@@ -266,13 +281,15 @@ export function ShareBoardsManager({ initialBoards }: { initialBoards: ManagedBo
         </div>
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="面板设置" plainHeader busy={saving} dirty={!!editing && (editTitle !== editing.title || !!editPassword || clearPassword || editDisabled !== editing.disabled)}>
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="面板设置" plainHeader busy={saving} dirty={!!editing && (editTitle !== editing.title || !!editPassword || clearPassword || editDisabled !== editing.disabled || editExpiresOn !== (editing.expiresAt?.slice(0, 10) ?? ""))}>
         {editing && (
           <>
             <label className="block text-[13px] font-medium">面板名称</label>
             <input value={editTitle} onChange={(event) => { setEditTitle(event.target.value); setEditError(""); }} maxLength={40} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
             <label className="mt-4 block text-[13px] font-medium">更换访问密码</label>
             <input type="password" value={editPassword} disabled={clearPassword} onChange={(event) => { setEditPassword(event.target.value); setEditError(""); }} placeholder={editing.hasPassword ? "留空则保持原密码" : "留空则无需密码"} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3] disabled:bg-[#f5f5f7]" />
+            <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
+            <input type="date" value={editExpiresOn} min={minExpiryDate} onChange={(event) => { setEditExpiresOn(event.target.value); setEditError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
             <div className="mt-3 flex flex-wrap gap-4">
               {editing.hasPassword && (
                 <label className="flex items-center gap-2 text-[13px] text-[#6e6e73]"><input type="checkbox" checked={clearPassword} onChange={(event) => setClearPassword(event.target.checked)} />取消密码保护</label>

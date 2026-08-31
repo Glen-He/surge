@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { destroyGuestUser, isGuestEmail } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
 import { ensureOtpMigration } from "@/lib/schema";
+import { internalAuthProof } from "@/lib/internal-auth-proof";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,8 @@ function baseUrl(hs: Headers): string {
 /**
  * 统一登出入口（访客 & 真实用户通用）：
  * 1) 先拿到当前 session 判断是不是访客
- * 2) 调 better-auth 默认 /sign-out 注销会话（转发 cookie）
- * 3) 若是访客：彻底销毁 DB 记录 + 磁盘报告目录（CASCADE 全清）
+ * 2) 访客先彻底销毁账号/数据/私有文件，成功后才清 cookie
+ * 3) 真实用户交给 better-auth /sign-out 撤销会话
  * 前端所有"退出登录"按钮都应调此接口代替 authClient.signOut()。
  */
 export async function POST() {
@@ -33,51 +34,69 @@ export async function POST() {
   const guestId =
     session && isGuestEmail(session.user.email) ? session.user.id : null;
 
-  // 1) 调用 better-auth 原生 sign-out，让它负责写 Set-Cookie 清空会话
-  const signOutUrl = `${baseUrl(hs)}/api/auth/sign-out`;
-  const proxyHeaders = new Headers({
-    "content-type": "application/json",
-    accept: "application/json",
-  });
-  for (const [k, v] of hs.entries()) {
-    if (/^(cookie|host|x-forwarded|origin|referer)$/i.test(k)) {
-      proxyHeaders.set(k, v);
-    }
-  }
-  proxyHeaders.set("x-forwarded-proto", hs.get("x-forwarded-proto") ?? "http");
-  const signOutReq = new Request(signOutUrl, {
-    method: "POST",
-    headers: proxyHeaders,
-    body: "{}",
-  });
-  let signOutResp: Response;
-  try {
-    signOutResp = await auth.handler(signOutReq as Request);
-    await signOutResp.text(); // consume body
-    if (!signOutResp.ok) {
-      logger.error("end-session", "better-auth 服务端会话撤销失败", {
-        status: signOutResp.status,
+  // 访客的“退出成功”必须等价于“数据已销毁”。若销毁失败，
+  // 保留原会话并返回可重试错误，不再出现前端看似退出、后台数据仍存在。
+  if (guestId) {
+    try {
+      await destroyGuestUser(guestId);
+    } catch (error) {
+      logger.error("end-session", "销毁访客沙箱失败", error as Error, {
+        guestId,
       });
       return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
     }
-  } catch (error) {
-    logger.error("end-session", "better-auth 服务端会话撤销异常", error as Error);
-    return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
   }
 
-  // 2) 若是访客 → 销毁沙箱（删 user、级联 reports/sessions/otp_codes/account_changes、磁盘目录）
-  if (guestId) {
-    try { await destroyGuestUser(guestId); } catch (e) { logger.warn("end-session", "销毁访客沙箱失败", e as Error, { guestId }); }
+  // 真实用户调用 better-auth 原生 sign-out，让它负责写 Set-Cookie。
+  let signOutResp: Response | null = null;
+  if (!guestId) {
+    const signOutUrl = `${baseUrl(hs)}/api/auth/sign-out`;
+    const proxyHeaders = new Headers({
+      "content-type": "application/json",
+      accept: "application/json",
+    });
+    for (const [k, v] of hs.entries()) {
+      if (/^(cookie|host|x-forwarded|origin|referer)$/i.test(k)) {
+        proxyHeaders.set(k, v);
+      }
+    }
+    proxyHeaders.set(
+      "x-forwarded-proto",
+      hs.get("x-forwarded-proto") ?? "http",
+    );
+    proxyHeaders.set(
+      "x-surge-end-session-proof",
+      internalAuthProof("end-session"),
+    );
+    const signOutReq = new Request(signOutUrl, {
+      method: "POST",
+      headers: proxyHeaders,
+      body: "{}",
+    });
+    try {
+      signOutResp = await auth.handler(signOutReq as Request);
+      await signOutResp.text(); // consume body
+      if (!signOutResp.ok) {
+        logger.error("end-session", "better-auth 服务端会话撤销失败", {
+          status: signOutResp.status,
+        });
+        return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
+      }
+    } catch (error) {
+      logger.error("end-session", "better-auth 服务端会话撤销异常", error as Error);
+      return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
+    }
   }
 
-  // 3) 兜底：再清一次前端的 better-auth cookie（防止 handler 返回没有清除干净）。
+  // 兜底：再清一次前端的 better-auth cookie。
   //    Secure 必须与当前站点协议一致：生产 HTTPS 使用 Secure，本地 HTTP
   //    不使用，否则浏览器会拒绝本地的清理指令，留下无法覆盖的旧会话。
   const resp = NextResponse.json({ ok: true });
   const secureCookie = new URL(baseUrl(hs)).protocol === "https:";
-  const setCookies =
-    (signOutResp.headers as Headers).getSetCookie?.() ??
-    ((signOutResp.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/)) ?? []);
+  const setCookies = signOutResp
+    ? signOutResp.headers.getSetCookie?.() ??
+      (signOutResp.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/) ?? [])
+    : [];
   for (const sc of setCookies) resp.headers.append("set-cookie", sc);
   for (const c of (await nextCookies()).getAll()) {
     if (/better_auth|authjs|session/i.test(c.name)) {

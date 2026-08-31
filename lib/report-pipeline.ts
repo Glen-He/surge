@@ -22,19 +22,21 @@ import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 export function reportDocCsp(
   capBase: string,
   frameAncestor: string,
+  externalNetworkEnabled = true,
 ): string {
+  const external = externalNetworkEnabled ? " https:" : "";
   return [
     `sandbox ${REPORT_SANDBOX_TOKENS}`,
     "default-src 'none'",
-    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/ https:`,
-    `style-src 'unsafe-inline' ${capBase}/ https:`,
-    `img-src ${capBase}/ data: blob: https:`,
-    `font-src ${capBase}/ data: https:`,
-    `media-src ${capBase}/ data: blob: https:`,
+    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/${external}`,
+    `style-src 'unsafe-inline' ${capBase}/${external}`,
+    `img-src ${capBase}/ data: blob:${external}`,
+    `font-src ${capBase}/ data:${external}`,
+    `media-src ${capBase}/ data: blob:${external}`,
     // 嵌入式 PDF 预览等场景：允许报告内嵌 <iframe> 指向 capability 目录
-    `frame-src ${capBase}/ https:`,
-    `connect-src ${capBase}/ https:`,
-    `worker-src ${capBase}/ blob: https:`,
+    `frame-src ${capBase}/${external}`,
+    `connect-src ${capBase}/${external}`,
+    `worker-src ${capBase}/ blob:${external}`,
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

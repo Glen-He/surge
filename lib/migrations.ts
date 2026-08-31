@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { db } from "./db";
 import { logger } from "./logger";
 
@@ -338,6 +339,138 @@ const SHARE_BOARDS: Migration = {
 
 MIGRATIONS.push(SHARE_BOARDS);
 
+// ── v13：访客示例改为共享只读模板引用 ──
+// template_key 为 NULL 时，报告内容位于用户独立目录；非 NULL 时，
+// 只能由服务端映射到代码库内的允许列表模板。模板字节只存一份，
+// 访客的标题、排序、revision 等仍是独立数据库记录。替换文件时
+// 应用将 template_key 清空，自动转为用户私有副本（copy-on-write）。
+const REPORT_TEMPLATE_REFERENCE: Migration = {
+  version: 13,
+  name: "report-template-reference",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS template_key TEXT`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_template_key_safe`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_template_key_safe
+       CHECK (template_key IS NULL OR template_key ~ '^tpl-[0-9]{2}$')`,
+    `CREATE INDEX IF NOT EXISTS reports_template_key
+       ON reports (template_key) WHERE template_key IS NOT NULL`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_TEMPLATE_REFERENCE);
+
+// ── v14：不可变报告版本 + 跨实例上传租约──
+// storage_key 指向用户目录下不可变的 artifacts/<key>。替换文件时先发布
+// 新目录，再用一次 UPDATE 切换数据库指针；无论进程在哪一步崩溃，旧
+// capability 都不会读取到新字节。NULL 保留给共享模板和旧版 slug 目录，
+// 由后台清理任务渐进回收，不需要停机搬迁历史文件。
+const IMMUTABLE_REPORT_STORAGE: Migration = {
+  version: 14,
+  name: "immutable-report-storage",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS storage_key TEXT`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_storage_key_safe`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_storage_key_safe
+       CHECK (storage_key IS NULL OR storage_key ~ '^a_[0-9a-f]{32}$')`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS reports_storage_key_unique
+       ON reports (user_id, storage_key) WHERE storage_key IS NOT NULL`,
+    `CREATE TABLE IF NOT EXISTS upload_leases (
+       slot_id    INTEGER PRIMARY KEY,
+       holder     TEXT NOT NULL UNIQUE,
+       expires_at TIMESTAMPTZ NOT NULL,
+       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS upload_leases_expiry
+       ON upload_leases (expires_at)`,
+  ],
+};
+
+MIGRATIONS.push(IMMUTABLE_REPORT_STORAGE);
+
+// ── v15：生命周期清理索引──
+// 后台按过期时间小批量删除，索引避免数据增长后维护任务扫描整表。
+const RETENTION_CLEANUP_INDEXES: Migration = {
+  version: 15,
+  name: "retention-cleanup-indexes",
+  statements: [
+    `CREATE INDEX IF NOT EXISTS security_logs_created_at
+       ON security_logs (created_at)`,
+    `CREATE INDEX IF NOT EXISTS otp_codes_expires_at
+       ON otp_codes (expires_at)`,
+    `CREATE INDEX IF NOT EXISTS account_changes_expires_at
+       ON account_changes (expires_at)`,
+    `CREATE INDEX IF NOT EXISTS verification_expires_at
+       ON verification ("expiresAt")`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_one_content_source`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_one_content_source
+       CHECK (template_key IS NULL OR storage_key IS NULL)`,
+  ],
+};
+
+MIGRATIONS.push(RETENTION_CLEANUP_INDEXES);
+
+const SHARE_CREDENTIAL_HARDENING: Migration = {
+  version: 16,
+  name: "share-credential-hardening",
+  statements: [
+    `ALTER TABLE report_shares ADD COLUMN IF NOT EXISTS token_hash TEXT`,
+    `ALTER TABLE report_shares ADD COLUMN IF NOT EXISTS token_enc TEXT`,
+    `ALTER TABLE report_shares ALTER COLUMN token DROP NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS report_shares_token_hash_unique
+       ON report_shares (token_hash) WHERE token_hash IS NOT NULL`,
+    `ALTER TABLE share_boards ADD COLUMN IF NOT EXISTS token_hash TEXT`,
+    `ALTER TABLE share_boards ADD COLUMN IF NOT EXISTS token_enc TEXT`,
+    `ALTER TABLE share_boards ADD COLUMN IF NOT EXISTS access_epoch INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE share_boards ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
+    `ALTER TABLE share_boards ALTER COLUMN token DROP NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS share_boards_token_hash_unique
+       ON share_boards (token_hash) WHERE token_hash IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS share_boards_expires_at
+       ON share_boards (expires_at) WHERE expires_at IS NOT NULL`,
+  ],
+};
+
+MIGRATIONS.push(SHARE_CREDENTIAL_HARDENING);
+
+const MAINTENANCE_STATE: Migration = {
+  version: 17,
+  name: "maintenance-state",
+  statements: [
+    `CREATE TABLE IF NOT EXISTS maintenance_state (
+       name TEXT PRIMARY KEY,
+       last_started_at TIMESTAMPTZ,
+       last_succeeded_at TIMESTAMPTZ,
+       last_error TEXT,
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+  ],
+};
+
+MIGRATIONS.push(MAINTENANCE_STATE);
+
+const REPORT_PRIVACY_MODE: Migration = {
+  version: 18,
+  name: "report-privacy-mode",
+  statements: [
+    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS external_network_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_PRIVACY_MODE);
+
+// ── v19：新报告外部网络安全默认值──
+// v18 以 TRUE 回填存量报告，避免升级后页面突然断网。
+// 本迁移只改之后新行的 DB 默认值，存量值保持不变。
+const REPORT_PRIVACY_DEFAULT: Migration = {
+  version: 19,
+  name: "report-privacy-default",
+  statements: [
+    `ALTER TABLE reports ALTER COLUMN external_network_enabled SET DEFAULT FALSE`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_PRIVACY_DEFAULT);
+
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;
 
@@ -349,22 +482,44 @@ async function run(): Promise<void> {
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       version    INT PRIMARY KEY,
       name       TEXT NOT NULL,
+      checksum   TEXT,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    await client.query(`ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT`);
     await client.query("SELECT pg_advisory_lock($1)", [ADVISORY_LOCK_KEY]);
-    const { rows } = await client.query<{ version: number }>(
-      "SELECT version FROM schema_migrations",
+    const { rows } = await client.query<{ version: number; name: string; checksum: string | null }>(
+      "SELECT version, name, checksum FROM schema_migrations",
     );
-    const done = new Set(rows.map((r) => r.version));
+    const done = new Map(rows.map((r) => [r.version, r]));
 
     for (const m of MIGRATIONS) {
-      if (done.has(m.version)) continue;
+      const checksum = createHash("sha256")
+        .update(m.name)
+        .update("\0")
+        .update(m.statements.join("\0"))
+        .digest("hex");
+      const existing = done.get(m.version);
+      if (existing) {
+        if (existing.name !== m.name) {
+          throw new Error(`迁移 v${m.version} 名称已发生变化`);
+        }
+        if (existing.checksum && existing.checksum !== checksum) {
+          throw new Error(`迁移 v${m.version} 内容已被修改；已应用迁移必须保持不可变`);
+        }
+        if (!existing.checksum) {
+          await client.query(
+            "UPDATE schema_migrations SET checksum = $2 WHERE version = $1 AND checksum IS NULL",
+            [m.version, checksum],
+          );
+        }
+        continue;
+      }
       await client.query("BEGIN");
       try {
         for (const sql of m.statements) await client.query(sql);
         await client.query(
-          "INSERT INTO schema_migrations (version, name) VALUES ($1, $2)",
-          [m.version, m.name],
+          "INSERT INTO schema_migrations (version, name, checksum) VALUES ($1, $2, $3)",
+          [m.version, m.name, checksum],
         );
         await client.query("COMMIT");
         logger.info("migrations", `已应用 v${m.version} ${m.name}`);

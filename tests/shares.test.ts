@@ -10,6 +10,7 @@ import {
   boardUnlockCookieName,
   boardUnlockProof,
   normalizeBoardTitle,
+  parseBoardExpiry,
   verifyBoardUnlockProof,
 } from "@/lib/share-boards";
 
@@ -82,12 +83,21 @@ describe("分享面板边界", () => {
     expect(normalizeBoardTitle("面".repeat(41))).toBeNull();
   });
 
+  it("有效期严格校验日历日并按上海时间当日末到期", () => {
+    expect(parseBoardExpiry("2026-02-30", 0)).toBe("invalid");
+    expect(parseBoardExpiry("not-a-date", 0)).toBe("invalid");
+    expect(parseBoardExpiry("2026-08-31", 0)).toEqual(
+      new Date("2026-08-31T23:59:59.999+08:00"),
+    );
+  });
+
   it("面板解锁凭证与单独链接分属不同命名空间", () => {
     const token = "same-token";
-    const proof = boardUnlockProof(token);
+    const proof = boardUnlockProof(token, 0);
     expect(proof).not.toBe(unlockProof(token));
-    expect(verifyBoardUnlockProof(token, proof)).toBe(true);
-    expect(verifyBoardUnlockProof(token, unlockProof(token))).toBe(false);
+    expect(verifyBoardUnlockProof(token, 0, proof)).toBe(true);
+    expect(verifyBoardUnlockProof(token, 0, unlockProof(token))).toBe(false);
+    expect(verifyBoardUnlockProof(token, 1, proof)).toBe(false);
     expect(boardUnlockCookieName(token)).toBe(`board_${token}`);
   });
 });

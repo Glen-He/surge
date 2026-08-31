@@ -32,7 +32,7 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
 
   if (board.passwordHash) {
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
-    if (!verifyBoardUnlockProof(token, proof)) {
+    if (!verifyBoardUnlockProof(token, board.accessEpoch, proof)) {
       return <ShareBoardPasswordGate token={token} title={board.title} />;
     }
   }
