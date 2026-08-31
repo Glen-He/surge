@@ -53,7 +53,7 @@ export default async function ShareBoardReportPage({
       : undefined,
   );
   return (
-    <main className="report-viewer-shell report-viewer-shell--page-flow">
+    <main className="report-viewer-shell">
       <header className="rpt-sys-head">
         <h1 className="rpt-sys-title">{found.reportTitle}</h1>
         <Link href={`/b/${token}`} className="rpt-sys-back">
@@ -63,7 +63,7 @@ export default async function ShareBoardReportPage({
           返回
         </Link>
       </header>
-      <ReportFrame src={reportDocumentUrl(capability)} title={found.reportTitle} flowWithPage />
+      <ReportFrame src={reportDocumentUrl(capability)} title={found.reportTitle} />
     </main>
   );
 }

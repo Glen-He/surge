@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptSharePasscode, decryptShareToken } from "@/lib/share-token-store";
+import { reportDir } from "@/lib/report-storage";
 
 const fixture = {
   userId: "",
@@ -34,10 +36,20 @@ test.beforeAll(async () => {
      VALUES ($1, $2, $3, $4, $5, '2026-08-31', '', '', '', 0)`,
     [fixture.reportId, user.id, fixture.reportSlug, randomUUID(), fixture.reportTitle],
   );
+  const dir = reportDir(user.id, fixture.reportSlug);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    `${dir}/report.html`,
+    "<!doctype html><html><body><main style='height:1200px'>report</main></body></html>",
+  );
 });
 
 test.afterAll(async () => {
   if (fixture.userId) {
+    await fs.rm(reportDir(fixture.userId, fixture.reportSlug), {
+      recursive: true,
+      force: true,
+    });
     await db.query(`DELETE FROM "user" WHERE id = $1`, [fixture.userId]);
   }
 });
@@ -84,6 +96,13 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await page.locator("form").getByRole("button", { name: "登录", exact: true }).click();
 
   await expect(page).toHaveURL(/\/home$/);
+  await page.goto(`/report/${fixture.reportSlug}`);
+  const embeddedReport = page.frameLocator(`iframe[title="${fixture.reportTitle}"]`);
+  await embeddedReport.getByRole("button", { name: "分享" }).click();
+  await expect(page.getByRole("tabpanel", { name: "分享面板" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.goto("/home");
+
   const before = await db.query<{ count: string }>(
     `SELECT count(*)::text AS count FROM "session" WHERE "userId" = $1`,
     [fixture.userId],
@@ -246,7 +265,11 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(page.getByRole("heading", { name: "带密码的测试面板" })).toBeVisible();
   await expect(page.getByPlaceholder("4 位提取码")).toBeHidden();
   await page.goto(`/s/${shareToken}`);
-  await expect(page.getByRole("heading", { name: fixture.reportTitle })).toBeVisible();
+  await expect(
+    page
+      .frameLocator(`iframe[title="${fixture.reportTitle}"]`)
+      .getByRole("heading", { name: fixture.reportTitle }),
+  ).toBeVisible();
   await expect(page.getByPlaceholder("4 位提取码")).toBeHidden();
 
   // 未登录访问者从自带提取码的链接进入时自动解锁，fragment 随即清除。
@@ -260,7 +283,11 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(visitor.getByPlaceholder("4 位提取码")).toBeHidden();
   expect(new URL(visitor.url()).hash).toBe("");
   await visitor.goto(`${origin}/s/${shareToken}#pwd=${sharePasscode}`);
-  await expect(visitor.getByRole("heading", { name: fixture.reportTitle })).toBeVisible();
+  await expect(
+    visitor
+      .frameLocator(`iframe[title="${fixture.reportTitle}"]`)
+      .getByRole("heading", { name: fixture.reportTitle }),
+  ).toBeVisible();
   await expect(visitor.getByPlaceholder("4 位提取码")).toBeHidden();
   expect(new URL(visitor.url()).hash).toBe("");
   await visitorContext.close();

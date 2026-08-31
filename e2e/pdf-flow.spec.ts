@@ -83,9 +83,9 @@ test.afterAll(async () => {
 
 test("独立内容域报告保留视口、PDF 与外链能力", async ({ page }) => {
   await page.goto(`/s/${fixture.token}`);
-  await expect(page.getByRole("heading", { name: fixture.title })).toBeVisible();
   const frame = page.locator(`iframe[title="${fixture.title}"]`);
   const report = page.frameLocator(`iframe[title="${fixture.title}"]`);
+  await expect(frame).toBeVisible();
   await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/r\//);
   const reportSrc = await frame.getAttribute("src");
   const reportResponse = await page.request.get(reportSrc!);
@@ -102,6 +102,18 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
   expect(await report.locator("body").evaluate(() => window.innerHeight)).toBe(
     Math.round(frameBox!.height),
   );
+  const reportHeader = report.locator("[data-surge-report-header]");
+  await expect
+    .poll(() =>
+      reportHeader.evaluate(
+        (element) => element.shadowRoot?.querySelector("h1")?.textContent ?? "",
+      ),
+    )
+    .toBe(fixture.title);
+  const initialHeaderBox = await reportHeader.boundingBox();
+  await report.locator("body").evaluate(() => window.scrollTo(0, 140));
+  const scrolledHeaderBox = await reportHeader.boundingBox();
+  expect((initialHeaderBox?.y ?? 0) - (scrolledHeaderBox?.y ?? 0)).toBeGreaterThan(120);
   await expect(report.locator("#local-data")).toHaveText("loaded");
   await expect(report.locator("#worker-data")).toHaveText("42");
   await expect(report.locator("#media-type")).toHaveText("video/mp4");
@@ -125,10 +137,16 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
     report.locator("#modal").click(),
   ]);
 
+  await page.route(/\/paper\.pdf$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.continue();
+  });
   await report.locator("#preview").click();
   const preview = page.locator("iframe.report-pdf-preview");
   await expect(preview).toBeVisible();
   await expect(preview).toHaveAttribute("src", /\/r\/[^/]+\/paper\.pdf$/);
+  await expect(page.getByRole("status")).toContainText("正在加载 PDF");
+  await expect(page.getByRole("status")).toBeHidden({ timeout: 7_000 });
 
   await page.getByRole("button", { name: "关闭" }).click();
   const downloadPromise = page.waitForEvent("download");

@@ -105,7 +105,10 @@ describe("报告资源路由缓存", () => {
       "frame-ancestors https://surge.example",
     );
     expect(response.headers.get("permissions-policy")).toContain("camera=()");
-    expect(await response.text()).toContain("__surgeReportHeight");
+    const html = await response.text();
+    expect(html).not.toContain("__surgeReportHeight");
+    expect(html).toContain("__surgeReportHeaderReady");
+    expect(html).toContain("data-surge-report-header");
   });
 
   it("直接放行外部 HTTPS 网页能力，媒体使用正确 MIME", async () => {
