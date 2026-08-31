@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    env: {
+      REPORTS_DATA_DIR: "/tmp/surge-vitest-reports",
+    },
   },
   resolve: {
     alias: {

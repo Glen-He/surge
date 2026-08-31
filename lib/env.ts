@@ -8,6 +8,7 @@ function required(name: string, minLength = 1): string {
 
 /** Fail fast for production-only deployment invariants. */
 export function validateProductionEnvironment(): void {
+  required("REPORTS_DATA_DIR");
   const registrationMode = process.env.REGISTRATION_MODE?.trim().toLowerCase();
   if (registrationMode && registrationMode !== "open" && registrationMode !== "closed") {
     throw new Error("REGISTRATION_MODE 只能是 open 或 closed");

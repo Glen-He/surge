@@ -12,7 +12,7 @@ import {
 // - 到期后 purgeExpiredDeletions() 物理删除 user 行，
 //   reports / account_changes / session / account 均 ON DELETE CASCADE 连带清除；
 //   邮箱 OTP、验证记录和含邮箱/IP 的安全日志在同一事务内主动清除。
-export const DELETION_COOLING_DAYS = 15;
+const DELETION_COOLING_DAYS = 15;
 
 export async function getDeletionRequestedAt(
   userId: string,
@@ -50,9 +50,10 @@ export async function purgeExpiredDeletions(): Promise<void> {
   const { rows } = await db.query<{ id: string }>(
     `SELECT id FROM "user"
      WHERE deletion_requested_at IS NOT NULL
-       AND deletion_requested_at + INTERVAL '15 days' <= NOW()
+       AND deletion_requested_at + ($1::integer * INTERVAL '1 day') <= NOW()
      ORDER BY deletion_requested_at ASC
      LIMIT 100`,
+    [DELETION_COOLING_DAYS],
   );
   let failures = 0;
   for (const row of rows) {
@@ -91,10 +92,10 @@ export async function deleteUserPermanently(
           ? `SELECT email FROM "user"
              WHERE id = $1
                AND deletion_requested_at IS NOT NULL
-               AND deletion_requested_at + INTERVAL '15 days' <= NOW()
+               AND deletion_requested_at + ($2::integer * INTERVAL '1 day') <= NOW()
              FOR UPDATE`
           : `SELECT email FROM "user" WHERE id = $1 FOR UPDATE`,
-        [userId],
+        reason === "account" ? [userId, DELETION_COOLING_DAYS] : [userId],
       );
       const email = user.rows[0]?.email;
       if (!email) {
@@ -160,7 +161,7 @@ export async function deleteUserPermanently(
   }, { global: false });
 }
 
-/** Remove short-lived credentials and trim personal audit data by policy. */
+/** 清理短期凭证，并按保留策略裁剪包含个人信息的审计数据。 */
 export async function purgeExpiredPersonalSecurityData(): Promise<void> {
   const retentionDays = Number(process.env.SECURITY_LOG_RETENTION_DAYS ?? 90);
   const days =

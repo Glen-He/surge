@@ -1,8 +1,8 @@
 import { internalAuthProof, verifyInternalAuthProof } from "./internal-auth-proof";
 
-export type RegistrationMode = "open" | "closed";
+type RegistrationMode = "open" | "closed";
 
-export function registrationMode(): RegistrationMode {
+function registrationMode(): RegistrationMode {
   const configured = process.env.REGISTRATION_MODE?.trim().toLowerCase();
   if (configured === "open" || configured === "closed") return configured;
   // Public account creation is deny-by-default in production. Local

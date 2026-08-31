@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { destroyGuestUser, isGuestEmail } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
-import { ensureOtpMigration } from "@/lib/schema";
 import { internalAuthProof } from "@/lib/internal-auth-proof";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +26,6 @@ function baseUrl(hs: Headers): string {
  * 前端所有"退出登录"按钮都应调此接口代替 authClient.signOut()。
  */
 export async function POST() {
-  await ensureOtpMigration();
   const hs = await nextHeaders();
 
   const session = await auth.api.getSession({ headers: hs });

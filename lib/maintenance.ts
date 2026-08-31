@@ -11,7 +11,6 @@ import { logger } from "./logger";
 import {
   purgeOrphanedReportStorage,
   purgeTrash,
-  reconcileReportSizes,
 } from "./report-storage";
 import { db } from "./db";
 
@@ -67,7 +66,6 @@ export async function runMaintenance(): Promise<boolean> {
       ["个人安全数据保留期清理", purgeExpiredPersonalSecurityData],
       ["到期账号清理", purgeExpiredDeletions],
       ["回收区恢复", purgeTrash],
-      ["历史报告容量校准", reconcileReportSizes],
       ["孤儿存储清理", purgeOrphanedReportStorage],
     ];
     const failures: string[] = [];

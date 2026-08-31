@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { constants, promises as fs } from "node:fs";
-import { REPORT_USERS_DIR } from "@/lib/report-storage";
+import { REPORT_DATA_DIR } from "@/lib/report-storage";
 import {
   availableBytes,
   STORAGE_MIN_FREE_BYTES,
@@ -15,8 +15,8 @@ export async function GET() {
         `SELECT last_succeeded_at, last_error FROM maintenance_state WHERE name = 'full'`,
       ),
       (async () => {
-        await fs.access(REPORT_USERS_DIR, constants.R_OK | constants.W_OK);
-        return availableBytes(REPORT_USERS_DIR);
+        await fs.access(REPORT_DATA_DIR, constants.R_OK | constants.W_OK);
+        return availableBytes(REPORT_DATA_DIR);
       })(),
     ]);
     if (freeBytes < STORAGE_MIN_FREE_BYTES) throw new Error("storage low");

@@ -1,6 +1,5 @@
 import { getApiSession } from "@/lib/api-session";
 import { db } from "@/lib/db";
-import { ensureOtpMigration } from "@/lib/schema";
 import { isGuestEmail } from "@/lib/guest-sandbox";
 import {
   generateShareId,
@@ -90,7 +89,6 @@ export async function POST(
   // 上限 5 条/报告：count + insert 放进同一事务并锁报告行（FOR UPDATE），
   // 并发创建会在锁上排队，杜绝「多个请求同时通过检查、插入第 6 条」的竞态。
   // 撤销是物理删除，删除后名额立即释放。
-  await ensureOtpMigration();
   const client = await db.connect();
   let id: string;
   let token: string;

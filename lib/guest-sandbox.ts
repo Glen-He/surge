@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import { db } from "./db";
-import { ensureOtpMigration } from "./schema";
 import { newRevisionId } from "./report-capability";
 import {
   demoTemplateDir,
@@ -127,7 +126,6 @@ export async function initializeGuestSandbox(
   userId: string,
   ttlMinutes = GUEST_TTL_MINUTES,
 ): Promise<Date> {
-  await ensureOtpMigration();
   await validateDemoTemplates();
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
   const ordered = [...DEMO_TEMPLATES]
@@ -197,7 +195,6 @@ export async function destroyGuestUser(userId: string): Promise<void> {
 }
 
 export async function purgeStaleGuests(): Promise<{ removed: number }> {
-  await ensureOtpMigration();
   const stale = await db.query<{ user_id: string }>(
     `SELECT u.id AS user_id
      FROM "user" u
@@ -232,8 +229,7 @@ export async function purgeStaleGuests(): Promise<{ removed: number }> {
 
 // ── 工具：判断游客会话是否已过期（创建起 60 分钟，不续期）──
 
-export async function isGuestExpired(userId: string): Promise<boolean> {
-  await ensureOtpMigration();
+async function isGuestExpired(userId: string): Promise<boolean> {
   const r = await db.query<{ e: Date }>(
     `SELECT expires_at AS e FROM guest_sessions WHERE user_id = $1 LIMIT 1`,
     [userId],
@@ -246,7 +242,6 @@ export async function isGuestExpired(userId: string): Promise<boolean> {
 export async function getGuestExpiry(
   userId: string,
 ): Promise<Date | null> {
-  await ensureOtpMigration();
   const r = await db.query<{ e: Date }>(
     `SELECT expires_at AS e FROM guest_sessions WHERE user_id = $1 LIMIT 1`,
     [userId],

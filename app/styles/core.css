@@ -193,8 +193,7 @@ button {
 }
 .input-error:focus-visible,
 .auth-input-error:focus-visible,
-.project-input-error:focus-visible,
-.otp-error:focus-visible {
+.project-input-error:focus-visible {
   border-color: var(--danger);
   box-shadow: none;
 }
@@ -604,25 +603,6 @@ button {
   }
 }
 
-@keyframes shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-5px);
-  }
-  40% {
-    transform: translateX(5px);
-  }
-  60% {
-    transform: translateX(-4px);
-  }
-  80% {
-    transform: translateX(4px);
-  }
-}
-
 .animate-fade-up {
   animation: fade-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -634,10 +614,6 @@ button {
 /* 步骤切换：fade + translateX 8px */
 .animate-step {
   animation: step-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.animate-shake {
-  animation: shake 0.28s ease;
 }
 
 /* ============ 安全操作 Modal ============ */
@@ -954,13 +930,6 @@ button {
   color: var(--accent-hover);
 }
 
-/* OTP 外壳（错误时整体变红 + shake 由组件触发） */
-.otp-shell {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
-
 @media (max-width: 600px) {
   .security-modal {
     width: calc(100vw - 24px);
@@ -987,9 +956,6 @@ button {
     padding: 20px 20px 24px;
   }
 
-  .otp-shell {
-    gap: 6px;
-  }
 }
 
 /* ============ 手机响应式 ============ */

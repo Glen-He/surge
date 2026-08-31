@@ -11,7 +11,6 @@ import {
   isGuestEmail,
 } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
-import { ensureOtpMigration } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +44,6 @@ export async function POST(req: Request) {
   let stage = "rate-limit";
 
   try {
-    await ensureOtpMigration();
     const rate = await consumeSharedRateLimit(
       "guest-init",
       clientIp(req.headers),

@@ -2,7 +2,6 @@ import type { PoolClient } from "pg";
 import { db } from "./db";
 import { consumeSharedRateLimit } from "./db-rate-limit";
 import { fallbackTagColor, isTagColor } from "./tag-colors";
-import { ensureOtpMigration } from "./schema";
 import {
   generateShareId,
   generateShareToken,
@@ -13,12 +12,11 @@ import {
   decryptSharePasscode,
   decryptShareToken,
   encryptShareToken,
-  ensureShareTokensProtected,
   shareTokenHash,
 } from "./share-token-store";
 
-export const MAX_SHARE_BOARDS = 20;
-export const MAX_BOARD_ITEMS = 100;
+const MAX_SHARE_BOARDS = 20;
+const MAX_BOARD_ITEMS = 100;
 export const MAX_BOARD_TITLE_LENGTH = 40;
 
 export type ShareBoardSummary = {
@@ -53,8 +51,7 @@ export type ShareBoardManageView = ShareBoardSummary & {
 type BoardRow = {
   id: string;
   user_id: string;
-  token: string | null;
-  token_enc: string | null;
+  token_enc: string;
   title: string;
   password_hash: string | null;
   password_enc: string | null;
@@ -124,11 +121,9 @@ export function parseBoardExpiry(
 }
 
 function toSummary(row: BoardRow): ShareBoardSummary {
-  const token = row.token ?? (row.token_enc ? decryptShareToken(row.token_enc) : "");
-  if (!token) throw new Error("share board token is unavailable");
   return {
     id: row.id,
-    token,
+    token: decryptShareToken(row.token_enc),
     title: row.title,
     hasPassword: !!row.password_hash,
     passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
@@ -158,8 +153,6 @@ export function verifyBoardUnlockProof(
 }
 
 export async function listShareBoards(userId: string): Promise<ShareBoardSummary[]> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const result = await db.query<BoardRow>(
     `SELECT b.*, count(i.id)::text AS item_count
        FROM share_boards b
@@ -202,8 +195,6 @@ export async function listShareBoardsForReport(
   userId: string,
   slug: string,
 ): Promise<(ShareBoardSummary & { included: boolean })[] | null> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const own = await db.query<{ id: string }>(
     `SELECT id FROM reports WHERE user_id = $1 AND slug = $2 LIMIT 1`,
     [userId, slug],
@@ -233,8 +224,6 @@ export async function createShareBoard(
   expiresAt: Date | null,
   initialReportSlug?: string,
 ): Promise<ShareBoardSummary> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const client = await db.connect();
   const id = generateShareId();
   const token = generateShareToken();
@@ -326,7 +315,6 @@ export async function setBoardMembership(
   slug: string,
   included: boolean,
 ): Promise<void> {
-  await ensureOtpMigration();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -383,7 +371,6 @@ export async function updateShareBoard(
     expiresAt?: Date | null;
   },
 ): Promise<void> {
-  await ensureOtpMigration();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -427,8 +414,6 @@ export async function updateShareBoard(
 }
 
 export async function rotateShareBoardToken(userId: string, boardId: string): Promise<string> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const client = await db.connect();
   const token = generateShareToken();
   try {
@@ -437,7 +422,7 @@ export async function rotateShareBoardToken(userId: string, boardId: string): Pr
     await bumpBoardReportEpochs(client, boardId);
     await client.query(
       `UPDATE share_boards
-       SET token = NULL, token_hash = $3, token_enc = $4,
+       SET token_hash = $3, token_enc = $4,
            access_epoch = access_epoch + 1, updated_at = NOW()
        WHERE id = $1 AND user_id = $2`,
       [boardId, userId, shareTokenHash(token), encryptShareToken(token)],
@@ -453,7 +438,6 @@ export async function rotateShareBoardToken(userId: string, boardId: string): Pr
 }
 
 export async function deleteShareBoard(userId: string, boardId: string): Promise<void> {
-  await ensureOtpMigration();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -493,8 +477,6 @@ function itemFromRow(row: {
 }
 
 export async function findPublicShareBoard(token: string): Promise<PublicShareBoard | null> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const board = await db.query<BoardRow>(
     `SELECT * FROM share_boards
      WHERE token_hash = $1 AND disabled_at IS NULL
@@ -538,8 +520,6 @@ export async function findPublicBoardReport(
   token: string,
   itemId: string,
 ): Promise<PublicBoardReport | null> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const result = await db.query<{
     board_id: string;
     board_owner_id: string;
@@ -584,7 +564,6 @@ export async function findPublicBoardReport(
 }
 
 export async function incrementBoardView(token: string): Promise<void> {
-  await ensureShareTokensProtected();
   await db.query(`UPDATE share_boards SET view_count = view_count + 1 WHERE token_hash = $1`, [shareTokenHash(token)]);
 }
 

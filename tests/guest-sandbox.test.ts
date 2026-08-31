@@ -13,9 +13,6 @@ vi.mock("@/lib/db", () => ({
     })),
   },
 }));
-vi.mock("@/lib/schema", () => ({
-  ensureOtpMigration: vi.fn(async () => {}),
-}));
 vi.mock("@/lib/account-deletion", () => ({
   deleteUserPermanently: vi.fn(async () => true),
 }));

@@ -51,8 +51,7 @@ compose.dev.yml
 .workbuddy/
 tmp/
 
-# 运行时用户数据（部署后由上传生成，不进 git）
-reports/users/
+# 运行时用户数据由 REPORTS_DATA_DIR 指向 checkout 外部目录，不进 Git。
 !reports/_shared/
 reports_local/
 .runtime/

@@ -6,7 +6,6 @@ import {
 } from "crypto";
 import { db } from "./db";
 import nodemailer from "nodemailer";
-import { ensureOtpMigration } from "./schema";
 import { logger } from "./logger";
 import { isGuestEmail } from "./guest-sandbox";
 
@@ -65,7 +64,6 @@ export async function checkOtpRateLimit(opts: {
   // 游客与真实邮箱统一频控（60s 冷却 + 自然日 10 次）：
   // 游客虽不消耗 SMTP 配额，但接口层同样不能只靠前端按钮挡连点；
   // 每个游客 email 唯一，频控互不影响。
-  await ensureOtpMigration();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -474,26 +472,4 @@ export async function getUserVersion(userId: string): Promise<number> {
     [userId],
   );
   return Number(r.rows[0]?.version ?? 0);
-}
-
-// 多设备并发安全的邮箱更新：
-// 只有当 email 仍等于 originalEmail 且 version 未变化时才执行，否则拒绝
-export async function updateEmailWithVersion(opts: {
-  userId: string;
-  originalEmail: string;
-  expectedVersion: number;
-  newEmail: string;
-}): Promise<boolean> {
-  const r = await db.query(
-    `UPDATE "user"
-     SET email = $1, version = version + 1, "updatedAt" = NOW()
-     WHERE id = $2 AND email = $3 AND version = $4`,
-    [
-      opts.newEmail.toLowerCase().trim(),
-      opts.userId,
-      opts.originalEmail.toLowerCase().trim(),
-      opts.expectedVersion,
-    ],
-  );
-  return (r.rowCount ?? 0) === 1;
 }

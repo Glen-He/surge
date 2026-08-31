@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptSharePasscode, decryptShareToken } from "@/lib/share-token-store";
-import { reportDir } from "@/lib/report-storage";
+import { reportArtifactDir } from "@/lib/report-storage";
 
 const fixture = {
   userId: "",
@@ -12,6 +12,7 @@ const fixture = {
   password: "Strong-login-password-2026!",
   reportId: randomUUID(),
   reportSlug: `share_ui_${randomUUID().slice(0, 8)}`,
+  storageKey: `a_${randomUUID().replaceAll("-", "")}`,
   reportTitle: "分享弹窗布局测试",
 };
 
@@ -30,23 +31,34 @@ test.beforeAll(async () => {
      VALUES ($1, $2, 'credential', $2, $3, NOW())`,
     [randomUUID(), user.id, passwordHash],
   );
+  const reportHtml =
+    "<!doctype html><html><body><main style='height:1200px'>report</main></body></html>";
   await db.query(
     `INSERT INTO reports
-       (id, user_id, slug, revision_id, title, date, tag, description, keywords, size_bytes)
-     VALUES ($1, $2, $3, $4, $5, '2026-08-31', '', '', '', 0)`,
-    [fixture.reportId, user.id, fixture.reportSlug, randomUUID(), fixture.reportTitle],
+       (id, user_id, slug, revision_id, title, date, tag, description, keywords,
+        size_bytes, storage_key)
+     VALUES ($1, $2, $3, $4, $5, '2026-08-31', '', '', '', $6, $7)`,
+    [
+      fixture.reportId,
+      user.id,
+      fixture.reportSlug,
+      randomUUID(),
+      fixture.reportTitle,
+      Buffer.byteLength(reportHtml),
+      fixture.storageKey,
+    ],
   );
-  const dir = reportDir(user.id, fixture.reportSlug);
+  const dir = reportArtifactDir(user.id, fixture.storageKey);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(
     `${dir}/report.html`,
-    "<!doctype html><html><body><main style='height:1200px'>report</main></body></html>",
+    reportHtml,
   );
 });
 
 test.afterAll(async () => {
   if (fixture.userId) {
-    await fs.rm(reportDir(fixture.userId, fixture.reportSlug), {
+    await fs.rm(reportArtifactDir(fixture.userId, fixture.storageKey), {
       recursive: true,
       force: true,
     });

@@ -62,6 +62,10 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('reports', 'external_network_enabled'),
            ('report_shares', 'token_hash'),
            ('report_shares', 'token_enc'),
+           ('report_shares', 'token'),
+           ('share_boards', 'token_hash'),
+           ('share_boards', 'token_enc'),
+           ('share_boards', 'token'),
            ('share_boards', 'access_epoch'),
            ('share_boards', 'expires_at')
          )`,
@@ -78,16 +82,40 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.get("reports.size_bytes")).toBe("NO");
     expect(columns.has("reports.storage_key")).toBe(true);
     expect(columns.get("reports.external_network_enabled")).toBe("NO");
-    expect(columns.has("report_shares.token_hash")).toBe(true);
-    expect(columns.has("report_shares.token_enc")).toBe(true);
+    expect(columns.get("report_shares.token_hash")).toBe("NO");
+    expect(columns.get("report_shares.token_enc")).toBe("NO");
+    expect(columns.has("report_shares.token")).toBe(false);
+    expect(columns.get("share_boards.token_hash")).toBe("NO");
+    expect(columns.get("share_boards.token_enc")).toBe("NO");
+    expect(columns.has("share_boards.token")).toBe(false);
     expect(columns.get("share_boards.access_epoch")).toBe("NO");
     expect(columns.has("share_boards.expires_at")).toBe(true);
+    const reportConstraints = await database.query<{
+      conname: string;
+      convalidated: boolean;
+    }>(
+      `SELECT conname, convalidated
+       FROM pg_constraint
+       WHERE conrelid = 'reports'::regclass
+         AND conname IN (
+           'reports_exactly_one_content_source',
+           'reports_storage_size_positive'
+         )`,
+    );
+    expect(
+      Object.fromEntries(
+        reportConstraints.rows.map((row) => [row.conname, row.convalidated]),
+      ),
+    ).toEqual({
+      reports_exactly_one_content_source: true,
+      reports_storage_size_positive: true,
+    });
     const migrationIntegrity = await database.query<{ total: string; protected: string }>(
       `SELECT count(*)::text AS total,
               count(*) FILTER (WHERE checksum ~ '^[0-9a-f]{64}$')::text AS protected
        FROM schema_migrations`,
     );
-    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(19);
+    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(22);
     expect(migrationIntegrity.rows[0]?.protected).toBe(
       migrationIntegrity.rows[0]?.total,
     );
@@ -202,9 +230,16 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     await expect(
       database.query(
         `INSERT INTO reports
-           (id, user_id, slug, revision_id, title, date, tag, description, keywords)
-         VALUES ($1, $2, $3, $4, 'invalid-date', 'not-a-date', '', '', '')`,
-        [crypto.randomUUID(), userId, `bad-date-${crypto.randomUUID()}`, crypto.randomUUID()],
+           (id, user_id, slug, revision_id, title, date, tag, description, keywords,
+            size_bytes, storage_key)
+         VALUES ($1, $2, $3, $4, 'invalid-date', 'not-a-date', '', '', '', 1, $5)`,
+        [
+          crypto.randomUUID(),
+          userId,
+          `bad-date-${crypto.randomUUID()}`,
+          crypto.randomUUID(),
+          `a_${crypto.randomUUID().replaceAll("-", "")}`,
+        ],
       ),
     ).rejects.toMatchObject({ code: "23514" });
   });
@@ -218,33 +253,26 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
   });
 
   it("启动回收能区分未提交和已提交的跨存储删除", async () => {
-    const {
-      moveReportDirToTrash,
-      purgeTrash,
-      reportDir,
-    } = await import("@/lib/report-storage");
-    const slug = `recovery-${crypto.randomUUID()}`;
-    const dir = reportDir(userId, slug);
-    await database.query(
-      `INSERT INTO reports
-         (id, user_id, slug, revision_id, title, date, tag, description, keywords)
-       VALUES ($1, $2, $3, $4, 'recovery', '2026-08-25', '', '', '')`,
-      [crypto.randomUUID(), userId, slug, crypto.randomUUID()],
+    const { moveUserDirToTrash, purgeTrash, userReportsDir } = await import(
+      "@/lib/report-storage"
     );
+    const recoveryUser = await context.internalAdapter.createUser({
+      name: "Recovery Test",
+      email: `recovery-${crypto.randomUUID()}@example.test`,
+      emailVerified: true,
+    });
+    const dir = userReportsDir(recoveryUser.id);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(`${dir}/report.html`, "ok");
 
-    // Crash before DB delete: the row remains, so startup restores the payload.
-    await moveReportDirToTrash(userId, slug);
+    // DB 删除前崩溃：用户仍存在，启动恢复 payload。
+    await moveUserDirToTrash(recoveryUser.id, "guest");
     await purgeTrash();
     await expect(fs.readFile(`${dir}/report.html`, "utf8")).resolves.toBe("ok");
 
-    // Crash after DB delete: the row is gone, so startup finishes cleanup.
-    const committed = await moveReportDirToTrash(userId, slug);
-    await database.query(`DELETE FROM reports WHERE user_id = $1 AND slug = $2`, [
-      userId,
-      slug,
-    ]);
+    // DB 删除后崩溃：用户已不存在，启动完成清理。
+    const committed = await moveUserDirToTrash(recoveryUser.id, "guest");
+    await database.query(`DELETE FROM "user" WHERE id = $1`, [recoveryUser.id]);
     await purgeTrash();
     await expect(fs.access(committed.trashed!)).rejects.toThrow();
     await expect(fs.access(committed.manifest!)).rejects.toThrow();

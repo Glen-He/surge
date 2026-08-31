@@ -5,19 +5,16 @@ import { tmpdir } from "node:os";
 import { db } from "./db";
 import { logger } from "./logger";
 
-/**
- * Runtime report data is deliberately separated from source-controlled templates.
- *
- * Production should point REPORTS_DATA_DIR at a persistent volume outside the
- * application checkout/container image. The legacy location remains the local
- * development default so existing workspaces keep working.
- */
-export const REPORT_USERS_DIR = path.resolve(
-  /* turbopackIgnore: true */
-  process.env.REPORTS_DATA_DIR ||
-    path.join(/* turbopackIgnore: true */ process.cwd(), "reports", "users"),
+// 运行时报告数据必须与代码和只读模板分离。所有环境都显式配置，避免开发
+// 环境悄悄写回 checkout，继而把代码目录误当成正式数据卷。
+const configuredReportDataDir = process.env.REPORTS_DATA_DIR?.trim();
+if (!configuredReportDataDir) {
+  throw new Error("REPORTS_DATA_DIR is required");
+}
+export const REPORT_DATA_DIR = path.resolve(
+  /* turbopackIgnore: true */ configuredReportDataDir,
 );
-export const REPORT_TRASH_DIR = path.join(REPORT_USERS_DIR, ".trash");
+const REPORT_TRASH_DIR = path.join(REPORT_DATA_DIR, ".trash");
 export const REPORT_SHARED_DIR = path.join(
   process.cwd(),
   "reports",
@@ -31,7 +28,7 @@ export const REPORT_DEMO_TEMPLATES_DIR = path.join(
 
 // 模板 key 永远由服务端允许列表映射，不把数据库字符串当文件路径。
 // 即使数据库被意外写入 ../，也无法越界读取服务器文件。
-export const DEMO_TEMPLATE_KEYS = [
+const DEMO_TEMPLATE_KEYS = [
   "tpl-01",
   "tpl-02",
   "tpl-03",
@@ -48,26 +45,20 @@ function assertSafeDataDir(dir: string): void {
   }
 }
 
-assertSafeDataDir(REPORT_USERS_DIR);
+assertSafeDataDir(REPORT_DATA_DIR);
 
 export async function validateReportStorageConfiguration(): Promise<void> {
-  if (process.env.NODE_ENV !== "production") return;
-  if (!process.env.REPORTS_DATA_DIR) {
-    throw new Error(
-      "Production requires REPORTS_DATA_DIR on a persistent volume outside the application checkout",
-    );
-  }
-  // Resolve symlinks as well as lexical `..`: a path that looks external but
-  // points back into the checkout is still an unsafe deployment target.
-  await fs.mkdir(REPORT_USERS_DIR, { recursive: true });
+  await fs.mkdir(REPORT_DATA_DIR, { recursive: true });
+  // 同时解析符号链接和字面路径；看似位于外部、实际指回 checkout 的目录
+  // 仍属于不安全的数据位置。
   const [realCheckout, realData] = await Promise.all([
     fs.realpath(process.cwd()),
-    fs.realpath(REPORT_USERS_DIR),
+    fs.realpath(REPORT_DATA_DIR),
   ]);
   const relative = path.relative(realCheckout, realData);
   if (!relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(
-      "Production REPORTS_DATA_DIR must be outside the application checkout",
+      "REPORTS_DATA_DIR must be outside the application checkout",
     );
   }
 }
@@ -76,20 +67,14 @@ export function userReportsDir(userId: string): string {
   if (!userId || userId === "." || userId === ".." || /[\\/\0]/.test(userId)) {
     throw new Error("Invalid user id for report storage");
   }
-  return path.join(/* turbopackIgnore: true */ REPORT_USERS_DIR, userId);
+  return path.join(/* turbopackIgnore: true */ REPORT_DATA_DIR, userId);
 }
 
-/** Resolve one report directory while preserving the user-directory boundary. */
-export function reportDir(userId: string, slug: string): string {
+/** 校验报告 slug 可安全用作单个路径 segment。 */
+export function assertSafeReportSlug(slug: string): void {
   if (!slug || slug === "." || slug === ".." || /[\\/\0]/.test(slug)) {
     throw new Error("Invalid report slug for storage");
   }
-  const root = path.resolve(/* turbopackIgnore: true */ userReportsDir(userId));
-  const resolved = path.resolve(/* turbopackIgnore: true */ root, slug);
-  if (!resolved.startsWith(root + path.sep)) {
-    throw new Error("Report path escapes user storage");
-  }
-  return resolved;
 }
 
 const STORAGE_KEY_RE = /^a_[0-9a-f]{32}$/;
@@ -114,7 +99,7 @@ export function reportArtifactDir(userId: string, storageKey: string): string {
   return path.join(reportArtifactsDir(userId), storageKey);
 }
 
-export function isDemoTemplateKey(value: string): value is DemoTemplateKey {
+function isDemoTemplateKey(value: string): value is DemoTemplateKey {
   return DEMO_TEMPLATE_KEY_SET.has(value);
 }
 
@@ -132,7 +117,6 @@ export function demoTemplateDir(templateKey: string): string {
  */
 export function reportContentDir(report: {
   userId: string;
-  slug: string;
   templateKey?: string | null;
   storageKey?: string | null;
 }): string {
@@ -140,86 +124,13 @@ export function reportContentDir(report: {
   if (report.storageKey) {
     return reportArtifactDir(report.userId, report.storageKey);
   }
-  return reportDir(report.userId, report.slug);
-}
-
-/** Recursive size without following symlinks. Missing directories count as zero. */
-export async function dirSizeBytes(dir: string): Promise<number> {
-  let rootEntries;
-  try {
-    rootEntries = await fs.readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
-    throw error;
-  }
-
-  const stack: Array<{ base: string; entries: typeof rootEntries }> = [
-    { base: dir, entries: rootEntries },
-  ];
-  let total = 0;
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    for (const entry of current.entries) {
-      const full = path.join(current.base, entry.name);
-      if (entry.isDirectory()) {
-        stack.push({
-          base: full,
-          entries: await fs.readdir(full, { withFileTypes: true }),
-        });
-      } else {
-        // lstat prevents a legacy/on-disk symlink from escaping the data root.
-        total += (await fs.lstat(full)).size;
-      }
-    }
-  }
-  return total;
-}
-
-/**
- * One-time compatibility backfill for reports created before size_bytes was
- * introduced. Normal requests use the database value and never scan the full
- * storage tree. A zero-sized/missing report is harmlessly retried next start.
- */
-export async function reconcileReportSizes(): Promise<{ updated: number }> {
-  const { rows } = await db.query<{
-    id: string;
-    user_id: string;
-    slug: string;
-    size_bytes: string;
-    storage_key: string | null;
-  }>(`SELECT id, user_id, slug, size_bytes::text
-             , storage_key
-      FROM reports
-      WHERE size_bytes = 0 AND template_key IS NULL`);
-  let updated = 0;
-  for (const row of rows) {
-    let dir: string;
-    try {
-      dir = reportContentDir({
-        userId: row.user_id,
-        slug: row.slug,
-        storageKey: row.storage_key,
-      });
-    } catch {
-      continue;
-    }
-    const size = await dirSizeBytes(dir);
-    if (size <= 0) continue;
-    const result = await db.query(
-      `UPDATE reports SET size_bytes = $1 WHERE id = $2 AND size_bytes = 0`,
-      [size, row.id],
-    );
-    updated += result.rowCount ?? 0;
-  }
-  if (updated > 0) logger.info("storage", "已回填历史报告存储字节", { updated });
-  return { updated };
+  throw new Error("Report content pointer is missing");
 }
 
 type TrashManifest = {
   version: 1;
-  kind: "report" | "account" | "guest";
+  kind: "account" | "guest";
   userId: string;
-  slug?: string;
   payload: string;
 };
 
@@ -268,17 +179,6 @@ export async function moveUserDirToTrash(
   return stageInTrash(userReportsDir(userId), { kind: reason, userId });
 }
 
-export async function moveReportDirToTrash(
-  userId: string,
-  slug: string,
-): Promise<TrashMove> {
-  return stageInTrash(reportDir(userId, slug), {
-    kind: "report",
-    userId,
-    slug,
-  });
-}
-
 export async function restoreTrashedDir(
   original: string,
   trashed: string | null,
@@ -304,11 +204,10 @@ function isManifest(value: unknown): value is TrashManifest {
   const item = value as Partial<TrashManifest>;
   return (
     item.version === 1 &&
-    (item.kind === "report" || item.kind === "account" || item.kind === "guest") &&
+    (item.kind === "account" || item.kind === "guest") &&
     typeof item.userId === "string" &&
     typeof item.payload === "string" &&
-    /^[0-9a-f-]+\.data$/i.test(item.payload) &&
-    (item.kind !== "report" || typeof item.slug === "string")
+    /^[0-9a-f-]+\.data$/i.test(item.payload)
   );
 }
 
@@ -355,29 +254,19 @@ export async function purgeTrash(): Promise<void> {
         continue;
       }
       const payload = path.join(REPORT_TRASH_DIR, manifest.payload);
-      const exists =
-        manifest.kind === "report"
-          ? await client.query(
-              `SELECT 1 FROM reports WHERE user_id = $1 AND slug = $2`,
-              [manifest.userId, manifest.slug],
-            )
-          : await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [
-              manifest.userId,
-            ]);
+      const exists = await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [
+        manifest.userId,
+      ]);
       if (exists.rowCount === 0) {
         await removeTrashedDir(payload, manifestPath);
         continue;
       }
-      const original =
-        manifest.kind === "report"
-          ? reportDir(manifest.userId, manifest.slug!)
-          : userReportsDir(manifest.userId);
+      const original = userReportsDir(manifest.userId);
       try {
         await restoreTrashedDir(original, payload, manifestPath);
         logger.warn("storage-recovery", "已恢复未提交删除的存储数据", {
           kind: manifest.kind,
           userId: manifest.userId,
-          slug: manifest.slug,
         });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -389,7 +278,6 @@ export async function purgeTrash(): Promise<void> {
         logger.error("storage-recovery", "回收区数据自动恢复失败，已保留", error as Error, {
           kind: manifest.kind,
           userId: manifest.userId,
-          slug: manifest.slug,
         });
       }
     }
@@ -463,14 +351,12 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
       globalKey,
     ]);
-    await fs.mkdir(REPORT_USERS_DIR, { recursive: true });
+    await fs.mkdir(REPORT_DATA_DIR, { recursive: true });
     const [{ rows: reports }, { rows: users }] = await Promise.all([
       client.query<{
         user_id: string;
-        slug: string;
-        template_key: string | null;
         storage_key: string | null;
-      }>(`SELECT user_id, slug, template_key, storage_key FROM reports`),
+      }>(`SELECT user_id, storage_key FROM reports`),
       client.query<{ id: string }>(`SELECT id FROM "user"`),
     ]);
     const knownUsers = new Set(users.map((row) => row.id));
@@ -479,13 +365,8 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
         .filter((row) => row.storage_key)
         .map((row) => `${row.user_id}\0${row.storage_key}`),
     );
-    const currentLegacy = new Set(
-      reports
-        .filter((row) => !row.template_key && !row.storage_key)
-        .map((row) => `${row.user_id}\0${row.slug}`),
-    );
     const grace = orphanGraceMs();
-    const userEntries = await fs.readdir(REPORT_USERS_DIR, { withFileTypes: true });
+    const userEntries = await fs.readdir(REPORT_DATA_DIR, { withFileTypes: true });
 
     for (const userEntry of userEntries) {
       if (!userEntry.isDirectory() || userEntry.name === ".trash") continue;
@@ -513,7 +394,6 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
           }
           continue;
         }
-        if (currentLegacy.has(`${userId}\0${entry.name}`)) continue;
         if (await removeIfStale(full, grace)) removed += 1;
       }
     }
