@@ -3,9 +3,8 @@ import { auth } from "./auth";
 import { expireGuestIfNeeded } from "./guest-sandbox";
 
 /**
- * Uniform session DAL for custom API routes. Guest expiry is an authorization
- * rule, not a UI concern, so expired sandboxes are destroyed before access is
- * granted to any authenticated business endpoint.
+ * 自建 API 路由统一的会话 DAL。游客过期属于授权规则而非 UI 关注点，
+ * 因此任何已认证业务端点授权之前，过期沙箱都已被销毁。
  */
 export async function getApiSession() {
   const session = await auth.api.getSession({ headers: await headers() });

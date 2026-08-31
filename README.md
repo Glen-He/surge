@@ -17,7 +17,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-在 `.env.local` 中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定；本地也应使用当前 checkout 之外的专用目录。
+在 `.env.local` 中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定；本地也应使用当前 checkout 之外的专用目录。
 
 ```bash
 pnpm lint
@@ -38,8 +38,8 @@ pnpm check  # 一次执行全部检查
 | `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
 | `REPORTS_ORIGIN` | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站 |
 | `REPORTS_DATA_DIR` | checkout 之外的持久化报告目录，所有环境必填 |
-| `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（生产必填） |
-| `SHARE_TOKEN_ENCRYPTION_KEY` | 可选的分享 URL 令牌和 4 位提取码独立加密根密钥；设置后需持久保存 |
+| `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（所有环境必填，至少 32 字符） |
+| `SHARE_TOKEN_ENCRYPTION_KEY` | 分享 URL 令牌和 4 位提取码的独立加密根密钥（至少 32 字符，必须持久保存） |
 | `OTP_SECRET` | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生 |
 | `TRUSTED_PROXIES` | 允许提供真实客户端 IP 的反向代理 IP/CIDR |
 | `DB_QUERY_TIMEOUT_MS` | 业务数据库查询超时，默认 15000 ms |

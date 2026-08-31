@@ -6,11 +6,9 @@ import { useAutoSharePasscode } from "@/components/use-auto-share-passcode";
 export function ShareBoardPasswordGate({
   token,
   title,
-  usesPasscode,
 }: {
   token: string;
   title: string;
-  usesPasscode: boolean;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,7 +29,7 @@ export function ShareBoardPasswordGate({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(data?.error ?? (usesPasscode ? "提取码不正确" : "密码不正确"));
+        setError(data?.error ?? "提取码不正确");
         return;
       }
       window.location.replace(`${window.location.pathname}${window.location.search}`);
@@ -41,9 +39,9 @@ export function ShareBoardPasswordGate({
       inFlight.current = false;
       setLoading(false);
     }
-  }, [password, token, usesPasscode]);
+  }, [password, token]);
 
-  useAutoSharePasscode(usesPasscode, (passcode) => {
+  useAutoSharePasscode(true, (passcode) => {
     setPassword(passcode);
     void submit(passcode);
   });
@@ -59,26 +57,23 @@ export function ShareBoardPasswordGate({
         </div>
         <h1 className="text-center text-[17px] font-semibold text-[#1d1d1f]">{title}</h1>
         <p className="mt-1.5 text-center text-[13px] text-[#6e6e73]">
-          {usesPasscode ? "请输入分享者提供的 4 位提取码" : "该分享面板已加密，请输入访问密码"}
+          请输入分享者提供的 4 位提取码
         </p>
         <input
-          type={usesPasscode ? "text" : "password"}
+          type="text"
           value={password}
           onChange={(event) => {
             setPassword(
-              usesPasscode
-                ? event.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4)
-                : event.target.value,
+              event.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4),
             );
             setError("");
           }}
           onKeyDown={(event) => event.key === "Enter" && void submit()}
-          placeholder={usesPasscode ? "4 位提取码" : "访问密码"}
-          maxLength={usesPasscode ? 4 : 64}
-          autoCapitalize={usesPasscode ? "characters" : "none"}
+          placeholder="4 位提取码"
+          maxLength={4}
+          autoCapitalize="characters"
           autoComplete="off"
-          autoFocus
-          className={`mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3] ${usesPasscode ? "tracking-[0.24em]" : ""}`}
+          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] tracking-[0.24em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
         <button

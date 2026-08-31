@@ -8,6 +8,7 @@ import {
 } from "@/lib/report-origin";
 import {
   issueCapability,
+  reportBridgeToken,
   reportResourceEtag,
   requestMatchesEtag,
   verifyCapability,
@@ -110,6 +111,14 @@ describe("report capability", () => {
     expect(cap).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 
+  it("为每个 capability 派生稳定且相互隔离的 bridge token", () => {
+    const first = issueCapability("r-123", "rev-abc", 0);
+    const second = issueCapability("r-456", "rev-abc", 0);
+    expect(reportBridgeToken(first)).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(reportBridgeToken(first)).toBe(reportBridgeToken(first));
+    expect(reportBridgeToken(first)).not.toBe(reportBridgeToken(second));
+  });
+
   it("同一小时窗内签发稳定 URL，便于返回时复用私有缓存", () => {
     const hour = 1_800_000_000 * 1000;
     const spy = vi.spyOn(Date, "now").mockReturnValue(hour + 5 * 60 * 1000);
@@ -132,6 +141,11 @@ describe("report capability", () => {
     expect(verifyCapability("x" + cap)).toBeNull();
     expect(verifyCapability("")).toBeNull();
     expect(verifyCapability("onlypayload")).toBeNull();
+  });
+
+  it("在解码与验签前拒绝异常长度或字符的 capability", () => {
+    expect(verifyCapability(`${"A".repeat(513)}.sig`)).toBeNull();
+    expect(verifyCapability("payload.%invalid")).toBeNull();
   });
 
   it("过期 capability 验证失败", () => {
@@ -161,7 +175,7 @@ describe("report capability", () => {
       verifyCapability(cap)!.expiresAt;
     const directSig = createHmac(
       "sha256",
-      process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET ?? "surge-dev-asset-secret",
+      process.env.BETTER_AUTH_SECRET!,
     )
       .update(payload)
       .digest("base64url");
@@ -188,17 +202,10 @@ describe("报告资源私有缓存", () => {
 });
 
 describe("renderReportDoc", () => {
+  const bridgeToken = "A".repeat(43);
   const base = `<!DOCTYPE html><html><head><title>t</title></head><body><header class="rpt-head"><h1>标题</h1></header>%s</body></html>`;
-  const run = (inner: string) => renderReportDoc(base.replace("%s", inner));
-
-  it("旧约定公共库路径映射到 ./_platform/", () => {
-    expect(run(`<script src="../../lib/echarts.min.js"></script>`)).toContain(
-      `src="./_platform/echarts.min.js"`,
-    );
-    expect(run(`<script src="../lib/echarts.min.js"></script>`)).toContain(
-      `src="./_platform/echarts.min.js"`,
-    );
-  });
+  const run = (inner: string) =>
+    renderReportDoc(base.replace("%s", inner), bridgeToken);
 
   it("其余相对引用原样保留（浏览器原生解析）", () => {
     const out = run(
@@ -226,6 +233,8 @@ describe("renderReportDoc", () => {
     expect(out).toContain("__surgeReportHeaderReady");
     expect(out).toContain("__surgeReportHeaderAction");
     expect(out).toContain("event.isTrusted");
+    expect(out).toContain("document.currentScript");
+    expect(out).toContain("bridgeToken:bridgeToken");
   });
 
   it("在报告脚本之前注入 PDF 桥接，拦截下载链接与 iframe 预览", () => {
@@ -239,6 +248,12 @@ describe("renderReportDoc", () => {
     expect(out).toContain('link.relList.add("noreferrer")');
     expect(out).toContain("target instanceof HTMLIFrameElement");
     expect(out).toContain('frame.setAttribute("src","about:blank")');
+  });
+
+  it("拒绝把非服务端派生值注入桥接脚本", () => {
+    expect(() => renderReportDoc(base, "unsafe</script>")).toThrow(
+      "report bridge token is invalid",
+    );
   });
 });
 

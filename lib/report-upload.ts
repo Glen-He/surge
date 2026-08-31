@@ -21,6 +21,7 @@ import {
 import { LIMITS, charWeight } from "./char-limit";
 import { newRevisionId } from "./report-capability";
 import { DEFAULT_TAG_COLOR, isTagColor } from "./tag-colors";
+import { uploadFailure, type UploadFailure } from "./upload-errors";
 import {
   MAX_ZIP_BYTES,
   MAX_PROJECT_BYTES,
@@ -50,12 +51,16 @@ export type UploadFile = { name: string; type: string; path: string; size: numbe
 
 export type UploadResult =
   | { ok: true; slug: string }
-  | { ok: false; error: string; status: number };
+  | UploadFailure;
 
-/** 字段校验（两套端点同一规则） */
-export function validateReportMeta(meta: ReportMeta): string | null {
-  if (!meta.title || !meta.date) return "标题和日期必填";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(meta.date)) return "日期格式必须为 YYYY-MM-DD";
+/** 字段校验（两套端点同一规则）：非法时返回结构化错误。 */
+export function validateReportMeta(meta: ReportMeta): UploadFailure | null {
+  if (!meta.title || !meta.date) {
+    return uploadFailure("META_TITLE_DATE_REQUIRED");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(meta.date)) {
+    return uploadFailure("META_DATE_FORMAT");
+  }
   const [year, month, day] = meta.date.split("-").map(Number);
   const parsedDate = new Date(Date.UTC(year, month - 1, day));
   if (
@@ -63,15 +68,24 @@ export function validateReportMeta(meta: ReportMeta): string | null {
     parsedDate.getUTCMonth() !== month - 1 ||
     parsedDate.getUTCDate() !== day
   ) {
-    return "请填写有效日期";
+    return uploadFailure("META_DATE_INVALID");
   }
-  if (meta.tag.length > LIMITS.tag) return `标签最长 ${LIMITS.tag} 字`;
-  if (charWeight(meta.title) > LIMITS.title)
-    return `名称最长 ${LIMITS.title} 字`;
-  if (charWeight(meta.keywords) > LIMITS.keywords)
-    return `关键词最长 ${LIMITS.keywords} 字`;
-  if (charWeight(meta.description) > LIMITS.description)
-    return `简介最长 ${LIMITS.description} 字`;
+  if (meta.tag.length > LIMITS.tag) {
+    return uploadFailure("META_TAG_TOO_LONG", { max: LIMITS.tag });
+  }
+  if (charWeight(meta.title) > LIMITS.title) {
+    return uploadFailure("META_TITLE_TOO_LONG", { max: LIMITS.title });
+  }
+  if (charWeight(meta.keywords) > LIMITS.keywords) {
+    return uploadFailure("META_KEYWORDS_TOO_LONG", {
+      max: LIMITS.keywords,
+    });
+  }
+  if (charWeight(meta.description) > LIMITS.description) {
+    return uploadFailure("META_DESCRIPTION_TOO_LONG", {
+      max: LIMITS.description,
+    });
+  }
   return null;
 }
 
@@ -85,8 +99,7 @@ export function metaFromForm(form: FormData): ReportMeta {
     tagColor: isTagColor(tagColorRaw) ? tagColorRaw : DEFAULT_TAG_COLOR,
     description: String(form.get("description") ?? "").trim(),
     keywords: String(form.get("keywords") ?? "").trim(),
-    // External network access is opt-in for newly created/API-uploaded reports.
-    // Existing reports are migrated with TRUE to preserve their behaviour.
+    // 新建与 API 上传的报告默认关闭外网访问；既有报告迁移时以 true 保持原行为。
     externalNetwork: String(form.get("externalNetwork") ?? "false") === "true",
   };
 }
@@ -96,21 +109,26 @@ function isHtmlUpload(file: { name: string; type: string }): boolean {
   return /\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html";
 }
 
-function assertFileSize(size: number): string | null {
-  if (size > MAX_ZIP_BYTES) return "文件超过 50MB 上限";
+/** 单文件大小校验：超限时返回结构化错误。 */
+function assertFileSize(size: number): UploadFailure | null {
+  if (size > MAX_ZIP_BYTES) {
+    return uploadFailure("FILE_TOO_LARGE", {
+      max: Math.round(MAX_ZIP_BYTES / 1024 / 1024),
+    });
+  }
   return null;
 }
 
-/** 全站总量闸门（调用方必须持有全站存储锁）。 */
-function checkSiteCap(siteTotal: number): string | null {
+/** 全站总量闸门（调用方必须持有全站存储锁）：达上限返回结构化错误。 */
+function checkSiteCap(siteTotal: number): UploadFailure | null {
   if (siteTotal > SITE_TOTAL_CAP_BYTES) {
-    return "服务器存储已达上限，上传暂停，请联系管理员";
+    return uploadFailure("SITE_CAP_REACHED");
   }
   if (siteTotal >= SITE_TOTAL_WARN_BYTES) {
-    logger.warn("storage", "全站占用已达预警线", {
+    logger.warn("storage", "site storage usage reached warning threshold", {
       usedGB: Number((siteTotal / 1024 ** 3).toFixed(2)),
-      warnGB: 16,
-      capGB: 20,
+      warnGB: Math.round(SITE_TOTAL_WARN_BYTES / 1024 ** 3),
+      capGB: Math.round(SITE_TOTAL_CAP_BYTES / 1024 ** 3),
     });
   }
   return null;
@@ -156,13 +174,16 @@ async function stageReportPayload(
       projectBytes = result.totalBytes;
       await fs.access(path.join(tmp, "report.html"));
     }
-    if (projectBytes <= 0) throw new Error("汇报文件不能为空");
+    if (projectBytes <= 0) throw new Error("project payload is empty");
     return { tmp, projectBytes };
   } catch (error) {
     await fs.rm(tmp, { recursive: true, force: true }).catch((cleanupError) => {
-      logger.warn("upload", "清理无效上传暂存目录失败", cleanupError as Error, {
-        tmp,
-      });
+      logger.warn(
+        "upload",
+        "failed to remove invalid upload staging dir",
+        cleanupError as Error,
+        { tmp },
+      );
     });
     throw error;
   }
@@ -179,9 +200,9 @@ export async function createReport(
   file: UploadFile,
 ): Promise<UploadResult> {
   const invalid = validateReportMeta(meta);
-  if (invalid) return { ok: false, error: invalid, status: 400 };
+  if (invalid) return invalid;
   const sizeErr = assertFileSize(file.size);
-  if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
+  if (sizeErr) return sizeErr;
 
   const slug = `r_${randomUUID().slice(0, 8)}`;
   const storageKey = newReportStorageKey();
@@ -190,16 +211,12 @@ export async function createReport(
     staged = await stageReportPayload(userId, storageKey, file);
   } catch (err) {
     if (err instanceof UnzipLimitError) {
-      return { ok: false, error: err.message, status: 400 };
+      return err.toFailure();
     }
     if (err instanceof StorageCapacityError) {
-      return { ok: false, error: err.message, status: 507 };
+      return err.toFailure();
     }
-    return {
-      ok: false,
-      error: "文件无效或缺少 report.html（入口文件）",
-      status: 400,
-    };
+    return uploadFailure("UPLOAD_INVALID");
   }
   const dir = reportArtifactDir(userId, storageKey);
 
@@ -213,29 +230,27 @@ export async function createReport(
           [userId],
         );
         if (Number(own.rows[0]?.n ?? 0) >= 1) {
-          return {
-            ok: false,
-            error: "游客模式最多上传 1 个项目，删除后可再次上传",
-            status: 403,
-          };
+          return uploadFailure("GUEST_UPLOAD_LIMIT");
         }
       }
       const used = await storageTotals(client, userId);
       if (used.user + staged.projectBytes > MAX_USER_TOTAL_BYTES) {
-        return {
-          ok: false,
-          error: `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / 1024 / 1024)}MB（已用 ${Math.round(used.user / 1024 / 1024)}MB），请先删除一些报告再上传`,
-          status: 403,
-        };
+        return uploadFailure(
+          "USER_QUOTA_EXCEEDED",
+          {
+            max: Math.round(MAX_USER_TOTAL_BYTES / 1024 / 1024),
+            used: Math.round(used.user / 1024 / 1024),
+          },
+        );
       }
       const capErr = checkSiteCap(used.site + staged.projectBytes);
-      if (capErr) return { ok: false, error: capErr, status: 503 };
+      if (capErr) return capErr;
 
       try {
         await fs.mkdir(reportArtifactsDir(userId), { recursive: true });
         await fs.rename(staged.tmp, dir);
       } catch {
-        return { ok: false, error: "保存失败，请重试", status: 500 };
+        return uploadFailure("SAVE_FAILED");
       }
 
       try {
@@ -257,19 +272,21 @@ export async function createReport(
         );
       } catch {
         await fs.rm(dir, { recursive: true, force: true }).catch((error) => {
-          logger.warn("upload", "数据库写入失败后清理报告目录失败", error as Error, {
-            userId,
-            slug,
-          });
+          logger.warn(
+            "upload",
+            "failed to remove report dir after db write failure",
+            error as Error,
+            { userId, slug },
+          );
         });
-        return { ok: false, error: "保存失败，请重试", status: 500 };
+        return uploadFailure("SAVE_FAILED");
       }
 
       return { ok: true, slug };
     });
   } finally {
     await fs.rm(staged.tmp, { recursive: true, force: true }).catch((error) => {
-      logger.warn("upload", "清理上传临时目录失败", error as Error, {
+      logger.warn("upload", "failed to remove upload staging dir", error as Error, {
         userId,
         slug,
       });
@@ -289,15 +306,15 @@ export async function replaceReportFile(
 ): Promise<UploadResult> {
   if (meta) {
     const invalid = validateReportMeta(meta);
-    if (invalid) return { ok: false, error: invalid, status: 400 };
+    if (invalid) return invalid;
   }
   const sizeErr = assertFileSize(file.size);
-  if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
+  if (sizeErr) return sizeErr;
 
   try {
     assertSafeReportSlug(slug);
   } catch {
-    return { ok: false, error: "项目不存在", status: 404 };
+    return uploadFailure("REPORT_NOT_FOUND");
   }
   const storageKey = newReportStorageKey();
   const newDir = reportArtifactDir(userId, storageKey);
@@ -306,16 +323,12 @@ export async function replaceReportFile(
     staged = await stageReportPayload(userId, storageKey, file);
   } catch (err) {
     if (err instanceof UnzipLimitError) {
-      return { ok: false, error: err.message, status: 400 };
+      return err.toFailure();
     }
     if (err instanceof StorageCapacityError) {
-      return { ok: false, error: err.message, status: 507 };
+      return err.toFailure();
     }
-    return {
-      ok: false,
-      error: "文件无效或缺少 report.html（入口文件）",
-      status: 400,
-    };
+    return uploadFailure("UPLOAD_INVALID");
   }
 
   try {
@@ -331,7 +344,9 @@ export async function replaceReportFile(
          FROM reports WHERE user_id = $1 AND slug = $2`,
         [userId, slug],
       );
-      if (!current.rows[0]) return { ok: false, error: "项目不存在", status: 404 };
+      if (!current.rows[0]) {
+        return uploadFailure("REPORT_NOT_FOUND");
+      }
       const oldSize = Number(current.rows[0].size_bytes);
       let nextSortOrder = current.rows[0].sort_order;
       if (meta && meta.date !== current.rows[0].date) {
@@ -344,24 +359,25 @@ export async function replaceReportFile(
       }
       const used = await storageTotals(client, userId);
       if (used.user - oldSize + staged.projectBytes > MAX_USER_TOTAL_BYTES) {
-        return {
-          ok: false,
-          error: `个人存储上限 ${Math.round(MAX_USER_TOTAL_BYTES / 1024 / 1024)}MB，请先删除一些报告再上传`,
-          status: 403,
-        };
+        return uploadFailure(
+          "USER_QUOTA_REPLACE_EXCEEDED",
+          {
+            max: Math.round(MAX_USER_TOTAL_BYTES / 1024 / 1024),
+          },
+        );
       }
       const capErr = checkSiteCap(used.site - oldSize + staged.projectBytes);
-      if (capErr) return { ok: false, error: capErr, status: 503 };
+      if (capErr) return capErr;
 
       try {
         await fs.mkdir(reportArtifactsDir(userId), { recursive: true });
         await fs.rename(staged.tmp, newDir);
       } catch {
-        return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
+        return uploadFailure("REPLACE_FAILED");
       }
 
-      // New bytes live in a separate immutable directory. The one-row UPDATE
-      // atomically rotates both the capability revision and storage pointer.
+      // 新字节写入独立不可变目录；单行 UPDATE 同时原子轮换 capability
+      // revision 与存储指针。
       try {
         const updated = meta
           ? await client.query(
@@ -393,9 +409,9 @@ export async function replaceReportFile(
           throw new Error("report disappeared while rotating revision");
         }
       } catch (err) {
-        logger.error("upload", "轮换报告存储指针失败", err as Error);
+        logger.error("upload", "failed to rotate report storage pointer", err as Error);
         await fs.rm(newDir, { recursive: true, force: true }).catch(() => {});
-        return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
+        return uploadFailure("REPLACE_FAILED");
       }
 
       if (!current.rows[0].template_key) {
@@ -405,10 +421,12 @@ export async function replaceReportFile(
         });
         await fs.rm(oldDir, { recursive: true, force: true, maxRetries: 3 }).catch(
           (error) => {
-            logger.warn("upload", "旧报告版本将在后台清理", error as Error, {
-              userId,
-              slug,
-            });
+            logger.warn(
+              "upload",
+              "old report revision left for background cleanup",
+              error as Error,
+              { userId, slug },
+            );
           },
         );
       }
@@ -417,7 +435,7 @@ export async function replaceReportFile(
     });
   } finally {
     await fs.rm(staged.tmp, { recursive: true, force: true }).catch((error) => {
-      logger.warn("upload", "清理上传临时目录失败", error as Error, {
+      logger.warn("upload", "failed to remove upload staging dir", error as Error, {
         userId,
         slug,
       });
@@ -425,7 +443,7 @@ export async function replaceReportFile(
   }
 }
 
-/** Delete DB authorization first, then reclaim unreferenced physical bytes. */
+/** 先删数据库授权，再回收失去引用的物理字节 */
 export async function deleteReport(
   userId: string,
   slug: string,
@@ -434,7 +452,7 @@ export async function deleteReport(
     try {
       assertSafeReportSlug(slug);
     } catch {
-      return { ok: false, error: "项目不存在", status: 404 };
+      return uploadFailure("REPORT_NOT_FOUND");
     }
     try {
       const result = await client.query<{
@@ -446,7 +464,7 @@ export async function deleteReport(
         [userId, slug],
       );
       if (result.rowCount !== 1) {
-        return { ok: false, error: "项目不存在", status: 404 };
+        return uploadFailure("REPORT_NOT_FOUND");
       }
       const row = result.rows[0];
       if (!row.template_key) {
@@ -456,20 +474,22 @@ export async function deleteReport(
         });
         await fs.rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(
           (error) => {
-            logger.warn("report-delete", "报告已失效，文件将在后台清理", error as Error, {
-              userId,
-              slug,
-            });
+            logger.warn(
+              "report-delete",
+              "deleted report files left on disk after removal failure",
+              error as Error,
+              { userId, slug },
+            );
           },
         );
       }
       return { ok: true, slug };
     } catch (error) {
-      logger.error("report-delete", "数据库删除失败", error as Error, {
+      logger.error("report-delete", "report delete failed", error as Error, {
         userId,
         slug,
       });
-      return { ok: false, error: "删除失败，请重试", status: 500 };
+      return uploadFailure("DELETE_FAILED");
     }
   });
 }
@@ -481,7 +501,7 @@ export async function updateReportMeta(
   meta: ReportMeta,
 ): Promise<UploadResult> {
   const invalid = validateReportMeta(meta);
-  if (invalid) return { ok: false, error: invalid, status: 400 };
+  if (invalid) return invalid;
   try {
     return await withStorageLocks(userId, async (client): Promise<UploadResult> => {
       await client.query("BEGIN");
@@ -493,7 +513,7 @@ export async function updateReportMeta(
         );
         if (!current.rows[0]) {
           await client.query("ROLLBACK");
-          return { ok: false, error: "项目不存在", status: 404 };
+          return uploadFailure("REPORT_NOT_FOUND");
         }
         let sortOrder = current.rows[0].sort_order;
         if (meta.date !== current.rows[0].date) {
@@ -520,6 +540,6 @@ export async function updateReportMeta(
       }
     }, { global: false });
   } catch {
-    return { ok: false, error: "保存失败，请重试", status: 500 };
+    return uploadFailure("SAVE_FAILED");
   }
 }

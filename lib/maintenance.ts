@@ -25,9 +25,9 @@ async function runGuestExpiryMaintenance(): Promise<void> {
   if (guestExpiryRunning) return;
   guestExpiryRunning = true;
   try {
-    // One instance per database performs the minute-level sweep. Page/API DAL
-    // checks remain exact; this closes idle-browser and closed-tab cleanup to
-    // at most one scheduler interval after the absolute 60-minute deadline.
+    // 每个数据库只由一个实例执行分钟级扫描。页面/API 的 DAL 检查仍然精确；
+    // 这里把闲置浏览器与已关标签页的清理误差收敛到绝对 60 分钟死线后
+    // 至多一个调度周期。
     const lease = await consumeSharedRateLimit(
       "guest-expiry-maintenance",
       "global",
@@ -36,7 +36,7 @@ async function runGuestExpiryMaintenance(): Promise<void> {
     );
     if (lease.allowed) await purgeStaleGuests();
   } catch (error) {
-    logger.error("guest-cleanup", "游客过期扫描失败", error as Error);
+    logger.error("guest-cleanup", "guest expiry sweep failed", error as Error);
   } finally {
     guestExpiryRunning = false;
   }
@@ -46,9 +46,8 @@ export async function runMaintenance(): Promise<boolean> {
   if (running) return false;
   running = true;
   try {
-    // A database-backed lease coordinates multiple server instances without
-    // holding one pool connection while the maintenance functions issue their
-    // own queries. This also works when DB_POOL_MAX=1.
+    // 数据库背书的租约协调多实例，且不在维护函数各自发起查询时占用
+    // 池连接；DB_POOL_MAX=1 时同样可用。
     const lease = await consumeSharedRateLimit(
       "maintenance",
       "global",
@@ -62,23 +61,25 @@ export async function runMaintenance(): Promise<boolean> {
        ON CONFLICT (name) DO UPDATE SET last_started_at = NOW(), last_error = NULL, updated_at = NOW()`,
     );
     const tasks: Array<[string, () => Promise<unknown>]> = [
-      ["安全限流清理", purgeExpiredSecurityRateLimits],
-      ["个人安全数据保留期清理", purgeExpiredPersonalSecurityData],
-      ["到期账号清理", purgeExpiredDeletions],
-      ["回收区恢复", purgeTrash],
-      ["孤儿存储清理", purgeOrphanedReportStorage],
+      ["security-rate-limit-purge", purgeExpiredSecurityRateLimits],
+      ["personal-security-data-purge", purgeExpiredPersonalSecurityData],
+      ["expired-account-purge", purgeExpiredDeletions],
+      ["trash-recovery", purgeTrash],
+      ["orphaned-storage-purge", purgeOrphanedReportStorage],
     ];
     const failures: string[] = [];
     for (const [name, task] of tasks) {
       await task().catch((error) => {
         failures.push(name);
-        logger.error("maintenance", `${name}失败，继续其他维护任务`, error as Error);
+        logger.error("maintenance", "task failed; continuing with others", error as Error, {
+          task: name,
+        });
       });
     }
     if (failures.length > 0) {
       await db.query(
         `UPDATE maintenance_state SET last_error = $2, updated_at = NOW() WHERE name = $1`,
-        ["full", failures.join("、")],
+        ["full", failures.join(", ")],
       );
       throw new Error(`maintenance tasks failed: ${failures.join(", ")}`);
     }
@@ -89,14 +90,14 @@ export async function runMaintenance(): Promise<boolean> {
     );
     return true;
   } catch (error) {
-    logger.error("maintenance", "后台维护任务失败", error as Error);
+    logger.error("maintenance", "background maintenance run failed", error as Error);
     return false;
   } finally {
     running = false;
   }
 }
 
-/** Start one non-blocking maintenance loop per Node.js server process. */
+/** 每个 Node.js 服务进程启动一个非阻塞的维护循环 */
 export function startMaintenanceScheduler(): void {
   if (timer || guestExpiryTimer) return;
   setTimeout(() => void runMaintenance(), 0).unref();

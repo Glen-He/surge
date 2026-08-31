@@ -211,8 +211,8 @@ const API_TOKEN_LOOKUP: Migration = {
   name: "api-token-lookup",
   statements: [
     `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_lookup TEXT`,
-    // Older builds intended one active token but enforced it with count-then-
-    // insert. Repair any race-created duplicates before adding the DB invariant.
+    // 旧版本本意是单活跃令牌，却用「先计数后插入」实现。
+    // 在加数据库不变量之前，先修复竞态产生的重复行。
     `WITH ranked AS (
        SELECT id,
               ROW_NUMBER() OVER (
@@ -292,9 +292,8 @@ const API_TOKEN_HASH_ONLY: Migration = {
   name: "api-token-hash-only",
   statements: [
     `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_prefix TEXT NOT NULL DEFAULT 'sgk_'`,
-    // A deployment that jumps directly from v6 to this version has no safe
-    // lookup for its legacy encrypted token. Revoke it before destroying the
-    // ciphertext instead of leaving a misleading but unusable active token.
+    // 从 v6 直接跳到本版本的部署没有安全手段定位旧的加密令牌：
+    // 在销毁密文前先撤销，而不是留下一条看似可用、实际已失效的活跃令牌。
     `UPDATE api_tokens SET revoked_at = NOW()
        WHERE revoked_at IS NULL AND token_lookup IS NULL`,
     `ALTER TABLE api_tokens DROP COLUMN IF EXISTS token_enc`,
@@ -473,7 +472,7 @@ MIGRATIONS.push(REPORT_PRIVACY_DEFAULT);
 
 // ── v20：可再次复制的 4 位分享提取码──
 // 验证仍使用 scrypt 哈希；密文只供属主重新复制“链接 + 提取码”，
-// 且与分享 token 使用不同的派生密钥。旧长密码保持 hash-only 兼容。
+// 且与分享 token 使用不同的派生密钥。v23 会清理无法恢复的 hash-only 记录。
 const SHARE_PASSCODE_RECOVERY: Migration = {
   version: 20,
   name: "share-passcode-recovery",
@@ -541,6 +540,45 @@ const FINAL_RUNTIME_INVARIANTS: Migration = {
 
 MIGRATIONS.push(FINAL_RUNTIME_INVARIANTS);
 
+// ── v23：移除开发期历史兼容并收紧当前数据模型──
+// 旧软撤销记录和无法恢复提取码的 hash-only 分享直接删除；当前分享要求
+// password_hash/password_enc 成对存在。标签色统一回填默认值后由数据库
+// 强制限定为色板成员，运行时不再静默兜底损坏数据。
+const REMOVE_DEVELOPMENT_COMPATIBILITY: Migration = {
+  version: 23,
+  name: "remove-development-compatibility",
+  statements: [
+    `DELETE FROM report_shares
+       WHERE revoked_at IS NOT NULL
+          OR (password_hash IS NULL) <> (password_enc IS NULL)`,
+    `DELETE FROM share_boards
+       WHERE (password_hash IS NULL) <> (password_enc IS NULL)`,
+    `ALTER TABLE report_shares DROP COLUMN revoked_at`,
+    `ALTER TABLE report_shares
+       ADD CONSTRAINT report_shares_password_pair
+       CHECK ((password_hash IS NULL) = (password_enc IS NULL))`,
+    `ALTER TABLE share_boards
+       ADD CONSTRAINT share_boards_password_pair
+       CHECK ((password_hash IS NULL) = (password_enc IS NULL))`,
+    `UPDATE reports SET tag_color = '#FEE2E2'
+       WHERE tag_color IS NULL
+          OR tag_color NOT IN (
+            '#FEE2E2', '#FFEDD5', '#FEF3C7', '#DCFCE7',
+            '#DBEAFE', '#F3E8FF', '#F1F5F9'
+          )`,
+    `ALTER TABLE reports ALTER COLUMN tag_color SET DEFAULT '#FEE2E2'`,
+    `ALTER TABLE reports ALTER COLUMN tag_color SET NOT NULL`,
+    `ALTER TABLE reports
+       ADD CONSTRAINT reports_tag_color_palette
+       CHECK (tag_color IN (
+         '#FEE2E2', '#FFEDD5', '#FEF3C7', '#DCFCE7',
+         '#DBEAFE', '#F3E8FF', '#F1F5F9'
+       ))`,
+  ],
+};
+
+MIGRATIONS.push(REMOVE_DEVELOPMENT_COMPATIBILITY);
+
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;
 
@@ -571,10 +609,12 @@ async function run(): Promise<void> {
       const existing = done.get(m.version);
       if (existing) {
         if (existing.name !== m.name) {
-          throw new Error(`迁移 v${m.version} 名称已发生变化`);
+          throw new Error(`migration v${m.version} name changed`);
         }
         if (existing.checksum && existing.checksum !== checksum) {
-          throw new Error(`迁移 v${m.version} 内容已被修改；已应用迁移必须保持不可变`);
+          throw new Error(
+            `migration v${m.version} content changed; applied migrations must stay immutable`,
+          );
         }
         if (!existing.checksum) {
           await client.query(
@@ -592,7 +632,10 @@ async function run(): Promise<void> {
           [m.version, m.name, checksum],
         );
         await client.query("COMMIT");
-        logger.info("migrations", `已应用 v${m.version} ${m.name}`);
+        logger.info("migrations", "migration applied", {
+          version: m.version,
+          name: m.name,
+        });
       } catch (e) {
         await client.query("ROLLBACK");
         throw e;

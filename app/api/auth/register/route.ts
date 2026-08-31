@@ -91,8 +91,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // Serialize the complete saga for one email. This makes compensating cleanup
-  // safe even if two devices submit the same OTP at the same time.
+  // 同一邮箱的完整注册流程串行化：即使两台设备同时提交同一个 OTP，
+  // 补偿清理也是安全的。
   const registrationClient = await db.connect();
   try {
     await registrationClient.query(
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     );
     const userExisted = !!before.rows[0];
 
-    // 1) OTP verification + account/session creation.
+    // 1) OTP 验证 + 建号/会话创建。
     const otpHeaders = proxyHeaders(hs);
     otpHeaders.set("x-surge-registration-proof", registrationInternalProof(email));
     const otpReq = new Request(`${baseUrl(hs)}/api/auth/sign-in/email-otp`, {
@@ -117,18 +117,18 @@ export async function POST(req: Request) {
     try {
       otpRes = await auth.handler(otpReq);
     } catch (e) {
-      logger.error("register", "sign-in/email-otp 失败", e as Error, { email });
+      logger.error("register", "sign-in/email-otp failed", e as Error, { email });
       return NextResponse.json(
         { error: "注册失败，请稍后重试" },
         { status: 500 },
       );
     }
     const otpData = (await otpRes.clone().json().catch(() => null)) as
-      | { user?: { id?: string }; token?: string; code?: string; message?: string }
+      | { user?: { id?: string }; token?: string; code?: string }
       | null;
     if (!otpRes.ok) {
       return NextResponse.json(
-        { error: toChineseError(otpData ?? undefined) },
+        { error: toChineseError({ code: otpData?.code }) },
         { status: 400 },
       );
     }
@@ -157,8 +157,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Set the initial password. Any non-idempotent failure is compensated
-    // before a response can escape this route.
+    // 2) 设置初始密码。任何非幂等失败都会在响应离开本路由前完成补偿。
     try {
       const setPasswordHeaders = proxyHeaders(hs, sessionCookie);
       setPasswordHeaders.set(
@@ -174,7 +173,7 @@ export async function POST(req: Request) {
       const code = e?.body?.code ?? e?.code ?? "";
       if (code !== "PASSWORD_ALREADY_SET") {
         await compensate();
-        logger.error("register", "setPassword 失败", err as Error, { email });
+        logger.error("register", "setPassword failed", err as Error, { email });
         return NextResponse.json(
           { error: "注册失败，请稍后重试" },
           { status: 500 },
@@ -182,7 +181,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3) Only a fully initialized account receives the session cookie.
+    // 3) 只有完全初始化的账号才会拿到会话 cookie。
     const resp = NextResponse.json({ ok: true });
     for (const sc of setCookies) resp.headers.append("set-cookie", sc);
     return resp;

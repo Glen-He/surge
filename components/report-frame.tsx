@@ -4,15 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import {
   REPORT_PDF_MESSAGE_KEY,
+  advancePdfLoadState,
   isReportPdfMessage,
   pdfDownloadUrl,
   resolveReportPdfUrl,
+  type PdfLoadState,
 } from "@/lib/report-pdf";
 import { REPORT_SHARE_REQUEST_EVENT } from "@/lib/report-header";
 import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 
-type PdfPreview = { url: string; title: string };
-type PdfLoadState = "loading" | "slow" | "ready" | "error";
+type PdfPreview = { id: number; url: string; title: string };
+type PdfReadyTimer = { previewId: number; timer: number };
 
 /**
  * 报告沙箱 iframe（登录态查看页与分享页共用）。
@@ -24,15 +26,33 @@ type PdfLoadState = "loading" | "slow" | "ready" | "error";
 export function ReportFrame({
   src,
   title,
+  bridgeToken,
 }: {
   src: string;
   title: string;
+  bridgeToken: string;
 }) {
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
   const [pdfLoadState, setPdfLoadState] =
     useState<PdfLoadState>("loading");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const reportHeaderNonceRef = useRef("");
+  const pdfPreviewIdRef = useRef(0);
+  const pdfReadyTimerRef = useRef<PdfReadyTimer | null>(null);
+
+  const clearPdfReadyTimer = useCallback((previewId?: number) => {
+    const pending = pdfReadyTimerRef.current;
+    if (!pending || (previewId !== undefined && pending.previewId !== previewId)) {
+      return;
+    }
+    window.clearTimeout(pending.timer);
+    pdfReadyTimerRef.current = null;
+  }, []);
+
+  const closePdfPreview = useCallback(() => {
+    pdfPreviewIdRef.current += 1;
+    clearPdfReadyTimer();
+    setPdfPreview(null);
+  }, [clearPdfReadyTimer]);
 
   const sendReportHeaderConfig = useCallback((el: HTMLIFrameElement) => {
     const shell = el.closest<HTMLElement>(".report-viewer-shell");
@@ -67,9 +87,8 @@ export function ReportFrame({
           }
         | null;
 
-      const readyNonce = data?.__surgeReportHeaderReady;
-      if (typeof readyNonce === "string" && /^[a-f0-9]{32}$/.test(readyNonce)) {
-        reportHeaderNonceRef.current = readyNonce;
+      const readyToken = data?.__surgeReportHeaderReady;
+      if (readyToken === bridgeToken) {
         sendReportHeaderConfig(el);
       }
 
@@ -77,9 +96,9 @@ export function ReportFrame({
       if (
         headerAction &&
         typeof headerAction === "object" &&
-        "nonce" in headerAction &&
         "action" in headerAction &&
-        headerAction.nonce === reportHeaderNonceRef.current
+        "bridgeToken" in headerAction &&
+        headerAction.bridgeToken === bridgeToken
       ) {
         if (headerAction.action === "share") {
           window.dispatchEvent(new Event(REPORT_SHARE_REQUEST_EVENT));
@@ -91,13 +110,17 @@ export function ReportFrame({
       }
 
       const message = data?.[REPORT_PDF_MESSAGE_KEY];
-      if (!isReportPdfMessage(message)) return;
+      if (!isReportPdfMessage(message, bridgeToken)) return;
       const resource = resolveReportPdfUrl(src, message.url, window.location.href);
       if (!resource) return;
 
       if (message.action === "preview") {
+        clearPdfReadyTimer();
+        const id = pdfPreviewIdRef.current + 1;
+        pdfPreviewIdRef.current = id;
         setPdfLoadState("loading");
         setPdfPreview({
+          id,
           url: resource.href,
           title: message.title?.trim().slice(0, 160) || "PDF 预览",
         });
@@ -114,20 +137,29 @@ export function ReportFrame({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [sendReportHeaderConfig, src]);
+  }, [bridgeToken, clearPdfReadyTimer, sendReportHeaderConfig, src]);
 
   useEffect(() => {
     if (!pdfPreview) return;
-    const slowTimer = window.setTimeout(() => setPdfLoadState("slow"), 2500);
+    const previewId = pdfPreview.id;
+    const isCurrent = () => pdfPreviewIdRef.current === previewId;
+    const slowTimer = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      setPdfLoadState((state) => advancePdfLoadState(state, "slow"));
+    }, 2500);
     // 内置 PDF 阅读器在 Chromium/WebKit 中都不保证触发 iframe load。
     // 最迟四秒后露出阅读器自身界面，避免加载提示永久遮住已可交互的 PDF。
-    const revealTimer = window.setTimeout(() => setPdfLoadState("ready"), 4000);
+    const revealTimer = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      setPdfLoadState((state) => advancePdfLoadState(state, "ready"));
+    }, 4000);
 
     return () => {
       window.clearTimeout(slowTimer);
       window.clearTimeout(revealTimer);
+      clearPdfReadyTimer(previewId);
     };
-  }, [pdfPreview]);
+  }, [clearPdfReadyTimer, pdfPreview]);
 
   // sandbox 补充：
   // - allow-downloads：保留报告内非 PDF 附件的原生下载能力；PDF 由父页桥接
@@ -148,7 +180,7 @@ export function ReportFrame({
       />
       <Modal
         open={pdfPreview !== null}
-        onClose={() => setPdfPreview(null)}
+        onClose={closePdfPreview}
         title={pdfPreview?.title ?? "PDF 预览"}
         plainHeader
         wide
@@ -156,16 +188,32 @@ export function ReportFrame({
         {pdfPreview && (
           <div className="report-pdf-shell">
             <iframe
-              key={pdfPreview.url}
+              key={pdfPreview.id}
               src={pdfPreview.url}
               title={pdfPreview.title}
               className={`report-pdf-preview${
                 pdfLoadState === "ready" ? " report-pdf-preview--ready" : ""
               }`}
-              onLoad={() =>
-                window.setTimeout(() => setPdfLoadState("ready"), 800)
-              }
-              onError={() => setPdfLoadState("error")}
+              onLoad={() => {
+                const previewId = pdfPreview.id;
+                clearPdfReadyTimer(previewId);
+                const timer = window.setTimeout(() => {
+                  if (pdfPreviewIdRef.current !== previewId) return;
+                  pdfReadyTimerRef.current = null;
+                  setPdfLoadState((state) =>
+                    advancePdfLoadState(state, "ready"),
+                  );
+                }, 800);
+                pdfReadyTimerRef.current = { previewId, timer };
+              }}
+              onError={() => {
+                const previewId = pdfPreview.id;
+                if (pdfPreviewIdRef.current !== previewId) return;
+                clearPdfReadyTimer(previewId);
+                setPdfLoadState((state) =>
+                  advancePdfLoadState(state, "error"),
+                );
+              }}
             />
             {pdfLoadState !== "ready" && (
               <div className="report-pdf-loading" role="status" aria-live="polite">
@@ -179,7 +227,7 @@ export function ReportFrame({
                     <span className="report-pdf-spinner" aria-hidden />
                     <p>
                       {pdfLoadState === "slow"
-                        ? "PDF 较大，仍在加载…"
+                        ? "加载时间较长，请稍候…"
                         : "正在加载 PDF…"}
                     </p>
                     <span>首次打开可能需要数秒</span>

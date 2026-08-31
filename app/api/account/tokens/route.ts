@@ -3,6 +3,7 @@ import { clientIp } from "@/lib/client-ip";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import { logger } from "@/lib/logger";
 import {
+  type ApiTokenErrorCode,
   createApiToken,
   getApiToken,
   revokeApiToken,
@@ -10,6 +11,25 @@ import {
 } from "@/lib/api-tokens";
 
 export const dynamic = "force-dynamic";
+
+const API_TOKEN_ERRORS: Record<
+  ApiTokenErrorCode,
+  { status: number; message: string }
+> = {
+  GUEST_UNSUPPORTED: {
+    status: 403,
+    message: "游客模式不支持 API 令牌，注册正式账号后可用",
+  },
+  TOKEN_ALREADY_EXISTS: {
+    status: 409,
+    message: "已有令牌（每账号一个），可更换或撤销后重建",
+  },
+};
+
+function apiTokenErrorResponse(code: ApiTokenErrorCode): Response {
+  const error = API_TOKEN_ERRORS[code];
+  return Response.json({ error: error.message }, { status: error.status });
+}
 
 // API 令牌管理（会话认证）：单令牌密钥面板
 // GET    → 当前令牌元数据（明文只在创建/更换时返回一次）
@@ -34,7 +54,7 @@ async function guard(
     10 * 60,
   );
   if (!result.allowed) {
-    logger.warn("api-token", `${action} 过于频繁`, { userId, ip });
+    logger.warn("api-token", "token action rate limited", { action, userId, ip });
     return Response.json({ error: "操作过于频繁，请稍后再试" }, { status: 429 });
   }
   return null;
@@ -65,10 +85,13 @@ export async function POST(req: Request) {
   if (limited) return limited;
 
   const result = await createApiToken(session.user.id, session.user.email);
-  if ("error" in result) {
-    return Response.json({ error: result.error }, { status: 400 });
+  if ("errorCode" in result) {
+    return apiTokenErrorResponse(result.errorCode);
   }
-  logger.info("api-token", "令牌创建", { userId: session.user.id, ip });
+  logger.info("api-token", "token created via account settings", {
+    userId: session.user.id,
+    ip,
+  });
   return Response.json({
     token: {
       id: result.token.id,
@@ -89,8 +112,8 @@ export async function PATCH(req: Request) {
   if (limited) return limited;
 
   const result = await rotateApiToken(session.user.id, session.user.email);
-  if ("error" in result) {
-    return Response.json({ error: result.error }, { status: 400 });
+  if ("errorCode" in result) {
+    return apiTokenErrorResponse(result.errorCode);
   }
   return Response.json({
     token: {

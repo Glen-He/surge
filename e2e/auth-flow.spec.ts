@@ -93,26 +93,53 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   const setPasswordBypass = await page.request.post("/api/auth/set-password", {
     data: { newPassword: fixture.password },
   });
-  // Some Better Auth builds keep set-password server-only and return 404;
-  // if it is registered as an HTTP route, our internal proof gate returns 403.
+  // 部分 Better Auth 版本把 set-password 保持为仅服务端并返回 404；
+  // 若其注册为 HTTP 路由，我们的内部 proof 门会返回 403。
   expect([403, 404]).toContain(setPasswordBypass.status());
   const signOutBypass = await page.request.post("/api/auth/sign-out", {
     data: {},
   });
   expect(signOutBypass.status()).toBe(403);
 
+  await page.goto("/forgot");
+  await expect(page.getByPlaceholder("邮箱")).not.toBeFocused();
+  await page.goto("/reset?token=e2e-invalid-token");
+  await expect(page.locator('input[autocomplete="new-password"]').first()).not.toBeFocused();
+
   await page.goto("/");
   await expect(page.getByTestId("auth-form")).toHaveAttribute("data-hydrated", "true");
-  await page.getByLabel("邮箱").fill(fixture.email);
+  const loginEmail = page.getByLabel("邮箱");
+  await expect(loginEmail).not.toBeFocused();
+  await loginEmail.fill(fixture.email);
   await page.getByLabel("密码", { exact: true }).fill(fixture.password);
   await page.locator("form").getByRole("button", { name: "登录", exact: true }).click();
 
   await expect(page).toHaveURL(/\/home$/);
   await page.goto(`/report/${fixture.reportSlug}`);
   const embeddedReport = page.frameLocator(`iframe[title="${fixture.reportTitle}"]`);
+  await embeddedReport.locator("body").evaluate(() => {
+    window.parent.postMessage(
+      {
+        __surgeReportHeaderAction: {
+          bridgeToken: "forged",
+          action: "share",
+        },
+      },
+      "*",
+    );
+  });
+  await expect(page.getByRole("tabpanel", { name: "分享面板" })).toHaveCount(0);
   await embeddedReport.getByRole("button", { name: "分享" }).click();
   await expect(page.getByRole("tabpanel", { name: "分享面板" })).toBeVisible();
-  await page.getByRole("button", { name: "关闭" }).click();
+  const shareModal = page.locator(".security-modal");
+  const shareModalClose = page.getByRole("button", { name: "关闭" });
+  await expect(shareModal).toBeFocused();
+  await expect(shareModalClose).not.toBeFocused();
+  await expect(shareModalClose).toHaveCSS("outline-style", "none");
+  await page.keyboard.press("Tab");
+  await expect(shareModalClose).toBeFocused();
+  await expect(shareModalClose).toHaveCSS("outline-style", "solid");
+  await shareModalClose.click();
   await page.goto("/home");
 
   const before = await db.query<{ count: string }>(

@@ -1,5 +1,9 @@
 import { getApiSession } from "@/lib/api-session";
-import { setBoardMembership, ShareBoardError } from "@/lib/share-boards";
+import { setBoardMembership } from "@/lib/share-boards";
+import {
+  shareBoardErrorResponse,
+  ShareBoardError,
+} from "@/lib/share-board-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +19,7 @@ async function change(
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof ShareBoardError) {
-      return Response.json({ error: error.message }, { status: error.status });
+      return shareBoardErrorResponse(error);
     }
     throw error;
   }

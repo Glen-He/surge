@@ -37,11 +37,7 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
     if (!verifyBoardUnlockProof(token, board.accessEpoch, proof)) {
       return (
-        <ShareBoardPasswordGate
-          token={token}
-          title={board.title}
-          usesPasscode={board.usesPasscode}
-        />
+        <ShareBoardPasswordGate token={token} title={board.title} />
       );
     }
   }
@@ -50,7 +46,7 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
   if (!isOwner && await shouldCountBoardView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementBoardView(token).catch((error) => {
-        logger.warn("board-view", "分享面板浏览量记录失败", error as Error);
+        logger.warn("board-view", "failed to record board view", error as Error);
       });
     });
   }

@@ -96,6 +96,7 @@ describe("报告资源路由缓存", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("etag")).toBeNull();
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
     expect(response.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
     expect(response.headers.get("content-security-policy")).toContain(
       "frame-ancestors https://surge.example",
@@ -105,6 +106,13 @@ describe("报告资源路由缓存", () => {
     expect(html).not.toContain("__surgeReportHeight");
     expect(html).toContain("__surgeReportHeaderReady");
     expect(html).toContain("data-surge-report-header");
+  });
+
+  it("子资源保留 CORS，供 opaque-origin 汇报加载 ES Module 等资源", async () => {
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const response = await request(cap, ["images", "a.webp"]);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    await response.body?.cancel();
   });
 
   it("直接放行外部 HTTPS 网页能力，媒体使用正确 MIME", async () => {

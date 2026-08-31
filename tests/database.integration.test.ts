@@ -59,13 +59,19 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('api_tokens', 'token_enc'),
            ('reports', 'size_bytes')
            ,('reports', 'storage_key'),
+           ('reports', 'tag_color'),
            ('reports', 'external_network_enabled'),
            ('report_shares', 'token_hash'),
            ('report_shares', 'token_enc'),
            ('report_shares', 'token'),
+           ('report_shares', 'revoked_at'),
+           ('report_shares', 'password_hash'),
+           ('report_shares', 'password_enc'),
            ('share_boards', 'token_hash'),
            ('share_boards', 'token_enc'),
            ('share_boards', 'token'),
+           ('share_boards', 'password_hash'),
+           ('share_boards', 'password_enc'),
            ('share_boards', 'access_epoch'),
            ('share_boards', 'expires_at')
          )`,
@@ -81,13 +87,19 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.has("api_tokens.token_enc")).toBe(false);
     expect(columns.get("reports.size_bytes")).toBe("NO");
     expect(columns.has("reports.storage_key")).toBe(true);
+    expect(columns.get("reports.tag_color")).toBe("NO");
     expect(columns.get("reports.external_network_enabled")).toBe("NO");
     expect(columns.get("report_shares.token_hash")).toBe("NO");
     expect(columns.get("report_shares.token_enc")).toBe("NO");
     expect(columns.has("report_shares.token")).toBe(false);
+    expect(columns.has("report_shares.revoked_at")).toBe(false);
+    expect(columns.has("report_shares.password_hash")).toBe(true);
+    expect(columns.has("report_shares.password_enc")).toBe(true);
     expect(columns.get("share_boards.token_hash")).toBe("NO");
     expect(columns.get("share_boards.token_enc")).toBe("NO");
     expect(columns.has("share_boards.token")).toBe(false);
+    expect(columns.has("share_boards.password_hash")).toBe(true);
+    expect(columns.has("share_boards.password_enc")).toBe(true);
     expect(columns.get("share_boards.access_epoch")).toBe("NO");
     expect(columns.has("share_boards.expires_at")).toBe(true);
     const reportConstraints = await database.query<{
@@ -99,7 +111,8 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
        WHERE conrelid = 'reports'::regclass
          AND conname IN (
            'reports_exactly_one_content_source',
-           'reports_storage_size_positive'
+           'reports_storage_size_positive',
+           'reports_tag_color_palette'
          )`,
     );
     expect(
@@ -109,13 +122,33 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     ).toEqual({
       reports_exactly_one_content_source: true,
       reports_storage_size_positive: true,
+      reports_tag_color_palette: true,
+    });
+    const shareConstraints = await database.query<{
+      conname: string;
+      convalidated: boolean;
+    }>(
+      `SELECT conname, convalidated
+       FROM pg_constraint
+       WHERE conname IN (
+         'report_shares_password_pair',
+         'share_boards_password_pair'
+       )`,
+    );
+    expect(
+      Object.fromEntries(
+        shareConstraints.rows.map((row) => [row.conname, row.convalidated]),
+      ),
+    ).toEqual({
+      report_shares_password_pair: true,
+      share_boards_password_pair: true,
     });
     const migrationIntegrity = await database.query<{ total: string; protected: string }>(
       `SELECT count(*)::text AS total,
               count(*) FILTER (WHERE checksum ~ '^[0-9a-f]{64}$')::text AS protected
        FROM schema_migrations`,
     );
-    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(22);
+    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(23);
     expect(migrationIntegrity.rows[0]?.protected).toBe(
       migrationIntegrity.rows[0]?.total,
     );
@@ -211,7 +244,7 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     ]);
     const successes = results.filter((result) => "token" in result);
     expect(successes).toHaveLength(1);
-    expect(results.filter((result) => "error" in result)).toHaveLength(1);
+    expect(results.filter((result) => "errorCode" in result)).toHaveLength(1);
     if ("token" in successes[0]) createdApiToken = successes[0].token.token!;
   });
 

@@ -26,11 +26,8 @@ function failed(error: string, submissionId: number): PasswordLoginState {
 
 function readableAuthError(error: unknown): string {
   if (!(error instanceof APIError)) return "登录失败，请稍后重试";
-  const body = error.body as { code?: string; message?: string } | undefined;
-  return toChineseError({
-    code: body?.code,
-    message: body?.message ?? error.message,
-  });
+  const body = error.body as { code?: string } | undefined;
+  return toChineseError({ code: body?.code });
 }
 
 /**
@@ -55,9 +52,9 @@ export async function passwordLoginAction(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return failed("请输入有效的邮箱地址", submissionId);
   }
-  // Every account created by this application is bounded by PASSWORD_MAX.
-  // Reject oversized attacker input before invoking the deliberately expensive
-  // password hash used for both existing and non-existing accounts.
+  // 本应用创建的账号都受 PASSWORD_MAX 约束。
+  // 在触发故意昂贵的密码哈希（对存在与不存在的账号一视同仁）之前，
+  // 先拒绝超长的攻击者输入。
   if (email.length > 320 || password.length > PASSWORD_MAX) {
     return failed("邮箱或密码错误", submissionId);
   }
@@ -82,7 +79,7 @@ export async function passwordLoginAction(
   } catch (error) {
     await recordPasswordLoginFailure(email, ip);
     const apiError = error instanceof APIError ? error : null;
-    logger.warn("password-login", "密码登录失败", {
+    logger.warn("password-login", "password sign-in failed", {
       code: (apiError?.body as { code?: string } | undefined)?.code,
       status: apiError?.status,
       durationMs: Date.now() - startedAt,
@@ -92,7 +89,7 @@ export async function passwordLoginAction(
 
   await clearPasswordLoginFailures(email);
 
-  logger.info("password-login", "密码登录完成", {
+  logger.info("password-login", "password sign-in completed", {
     durationMs: Date.now() - startedAt,
   });
 

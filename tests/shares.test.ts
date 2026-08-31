@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   generateShareId,
   generateSharePasscode,
@@ -7,6 +7,7 @@ import {
   unlockProof,
   verifySharePassword,
   isValidSharePasscode,
+  isValidShareToken,
 } from "@/lib/shares";
 import {
   shareClipboardText,
@@ -21,6 +22,12 @@ import {
   verifyBoardUnlockProof,
 } from "@/lib/share-boards";
 
+beforeEach(() => {
+  vi.stubEnv("SHARE_SECRET", "share-proof-test-secret-at-least-32-characters");
+});
+
+afterEach(() => vi.unstubAllEnvs());
+
 describe("generateShareToken", () => {
   it("生成长度 22 的 base62 token", () => {
     const t = generateShareToken();
@@ -34,6 +41,13 @@ describe("generateShareToken", () => {
   it("大量生成不重复", () => {
     const set = new Set(Array.from({ length: 2000 }, () => generateShareToken()));
     expect(set.size).toBe(2000);
+  });
+
+  it("公开入口只接受当前版本的 22 位 base62 token", () => {
+    expect(isValidShareToken("A1b2C3d4E5f6G7h8I9j0K1")).toBe(true);
+    expect(isValidShareToken("short")).toBe(false);
+    expect(isValidShareToken("A1b2C3d4E5f6G7h8I9j0K_")).toBe(false);
+    expect(isValidShareToken("A".repeat(10_000))).toBe(false);
   });
 });
 

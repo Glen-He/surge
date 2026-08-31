@@ -19,6 +19,8 @@ process.env.REPORTS_ORIGIN = reportsURL;
 process.env.REPORTS_DATA_DIR =
   process.env.E2E_REPORTS_DATA_DIR ?? "/tmp/surge-e2e-reports";
 process.env.SHARE_SECRET = "e2e-share-secret-at-least-32-characters";
+process.env.SHARE_TOKEN_ENCRYPTION_KEY =
+  "e2e-share-token-encryption-key-at-least-32-characters";
 process.env.MAINTENANCE_SECRET = "e2e-maintenance-secret-at-least-32-characters";
 process.env.SMTP_HOST = "localhost";
 process.env.SMTP_PORT = "465";
@@ -37,8 +39,8 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec next start --hostname 0.0.0.0 --port ${e2ePort}`,
     url: `${baseURL}/api/health`,
-    // Never attach to a developer's existing app process: it may use a
-    // different database or REPORTS_DATA_DIR and make the fixture look absent.
+    // 绝不附着到开发者已在运行的应用进程：那可能连接了别的数据库
+    // 或 REPORTS_DATA_DIR，让夹具数据看起来不存在。
     reuseExistingServer: false,
     timeout: 120_000,
   },

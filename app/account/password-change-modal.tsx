@@ -171,6 +171,7 @@ function PasswordChangeDialog({
 
   const [passwordChangeToken, setPasswordChangeToken] = useState("");
   const closeTimer = useRef<number | null>(null);
+  const otpRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(
     () => () => {
@@ -197,6 +198,7 @@ function PasswordChangeDialog({
       applyOtpRetry(data, setDailyLimit, setCooldown, 60);
       // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
+      otpRef.current?.focus({ preventScroll: true });
     } finally {
       setOtpSending(false);
     }
@@ -374,7 +376,6 @@ function PasswordChangeDialog({
                 setCurrentPassword(e.target.value);
                 setPasswordError("");
               }}
-              autoFocus
               autoComplete="current-password"
               className={`input pr-12 ${passwordError ? "input-error" : ""}`}
             />
@@ -416,6 +417,7 @@ function PasswordChangeDialog({
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
           <div className="mt-4 flex items-center gap-2.5">
             <input
+              ref={otpRef}
               value={otp}
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -427,7 +429,6 @@ function PasswordChangeDialog({
               inputMode="numeric"
               autoComplete="one-time-code"
               disabled={loading}
-              autoFocus
               className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
@@ -482,7 +483,6 @@ function PasswordChangeDialog({
                 setNewPassword(e.target.value);
                 setNewPasswordError("");
               }}
-              autoFocus
               autoComplete="new-password"
               className={`input pr-12 ${newPasswordError ? "input-error" : ""}`}
             />

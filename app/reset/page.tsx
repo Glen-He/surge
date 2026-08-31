@@ -4,27 +4,11 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { authClient } from "@/lib/auth-client";
+import { toChineseError } from "@/lib/auth-errors";
 import {
   PASSWORD_RULE_TEXT,
   passwordPolicyError,
 } from "@/lib/password-policy";
-
-// better-auth 错误码 → 中文（框架默认返回英文 message）
-const RESET_ERROR_MESSAGES: Record<string, string> = {
-  INVALID_TOKEN: "链接无效，请重新发起重置",
-  EXPIRED_TOKEN: "链接已过期，请重新发起重置",
-  PASSWORD_TOO_SHORT: "密码长度不足",
-  TOO_MANY_REQUESTS: "操作过于频繁，请稍后再试",
-  RATE_LIMIT: "操作过于频繁，请稍后再试",
-};
-
-function toChineseResetError(error: { code?: string; message?: string } | undefined): string {
-  if (!error) return "重置失败，链接可能已过期";
-  if (error.code && RESET_ERROR_MESSAGES[error.code]) {
-    return RESET_ERROR_MESSAGES[error.code];
-  }
-  return error.message ?? "重置失败，链接可能已过期";
-}
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -62,7 +46,7 @@ function ResetPasswordForm() {
         token,
       });
       if (error) {
-        setError(toChineseResetError(error));
+        setError(toChineseError(error, "重置失败，链接可能已过期"));
         return;
       }
       // 重置成功，回到登录页
@@ -102,7 +86,6 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                autoFocus
                 className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-12 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
               />
               <button

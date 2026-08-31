@@ -3,6 +3,7 @@ import { clientIp } from "@/lib/client-ip";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import { createReport, metaFromForm } from "@/lib/report-upload";
 import { readUploadForm } from "@/lib/upload-request";
+import { uploadFailureResponse } from "@/lib/upload-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   }
 
   const parsed = await readUploadForm(req);
-  if (!parsed.ok) return parsed.response;
+  if (!parsed.ok) return uploadFailureResponse(parsed);
   const { form, file, cleanup } = parsed.value;
   try {
     if (!file) {
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     }
     const result = await createReport(user.id, user.email, metaFromForm(form), file);
     if (!result.ok) {
-      return Response.json({ error: result.error }, { status: result.status });
+      return uploadFailureResponse(result);
     }
     return Response.json({ ok: true, slug: result.slug });
   } finally {

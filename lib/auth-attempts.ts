@@ -11,7 +11,7 @@ const LOGIN_IP_MAX = 30;
 const REAUTH_WINDOW_SECONDS = 15 * 60;
 const REAUTH_MAX = 5;
 
-/** Restrict native credential sign-in to the rate-limited Server Action. */
+/** 把原生凭据登录限制在带频控的 Server Action 内使用 */
 export function passwordLoginInternalProof(email: string): string {
   return internalAuthProof("password-login", email.trim().toLowerCase());
 }
@@ -63,9 +63,9 @@ export async function recordPasswordLoginFailure(
 export async function clearPasswordLoginFailures(
   email: string,
 ): Promise<void> {
-  // A successful login proves control of this account, so its own lock can be
-  // released. Keep the source-IP bucket until expiry; otherwise an attacker can
-  // repeatedly sign in to an account they control to erase distributed failures.
+  // 登录成功即证明掌控该账号，可释放账号级锁定；
+  // 源 IP 桶保留到自然过期，否则攻击者可反复登录自己控制的账号
+  // 来抹掉分布式累计的失败记录。
   await clearSecurityFailures(
     "password-login-account",
     email.trim().toLowerCase(),

@@ -3,13 +3,13 @@ function httpOrigin(raw: string, name: string): string {
   try {
     url = new URL(raw);
   } catch {
-    throw new Error(`${name} 必须是有效 URL`);
+    throw new Error(`${name} must be a valid URL`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`${name} 只支持 http/https`);
+    throw new Error(`${name} only supports http/https`);
   }
   if (url.username || url.password) {
-    throw new Error(`${name} 不能包含用户名或密码`);
+    throw new Error(`${name} must not contain a username or password`);
   }
   return url.origin;
 }

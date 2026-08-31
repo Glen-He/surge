@@ -85,6 +85,8 @@ function EmailChangeDialog({
   const [emailChangeToken, setEmailChangeToken] = useState("");
   const [successEmail, setSuccessEmail] = useState("");
   const closeTimer = useRef<number | null>(null);
+  const oldOtpRef = useRef<HTMLInputElement | null>(null);
+  const newOtpRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(
     () => () => {
@@ -111,6 +113,7 @@ function EmailChangeDialog({
       applyOtpRetry(data, setOldDailyLimit, setOldCooldown, 60);
       // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
+      oldOtpRef.current?.focus({ preventScroll: true });
     } finally {
       setOldSending(false);
     }
@@ -172,6 +175,7 @@ function EmailChangeDialog({
       setNewSent(true);
       // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
+      newOtpRef.current?.focus({ preventScroll: true });
     } finally {
       setNewSending(false);
     }
@@ -240,6 +244,7 @@ function EmailChangeDialog({
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
           <div className="mt-4 flex items-center gap-2.5">
             <input
+              ref={oldOtpRef}
               value={oldOtp}
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -251,7 +256,6 @@ function EmailChangeDialog({
               inputMode="numeric"
               autoComplete="one-time-code"
               disabled={loading}
-              autoFocus
               className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
@@ -303,7 +307,6 @@ function EmailChangeDialog({
               setNewEmailError("");
               setMsg(null);
             }}
-            autoFocus
             className={`input ${newEmailError ? "input-error" : ""}`}
           />
           <p className="field-error">{newEmailError}</p>
@@ -311,6 +314,7 @@ function EmailChangeDialog({
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动完成 */}
           <div className="mt-4 flex items-center gap-2.5">
             <input
+              ref={newOtpRef}
               value={newOtp}
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);

@@ -12,7 +12,6 @@ interface ShareView {
   hasPassword: boolean;
   passcode: string | null;
   expiresAt: string | null;
-  revokedAt: string | null;
   viewCount: number;
   createdAt: string;
 }
@@ -38,7 +37,6 @@ function fmtDate(s: string | null): string {
 }
 
 function statusOf(s: ShareView): { label: string; cls: string } {
-  if (s.revokedAt) return { label: "已撤销", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
   if (s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) {
     return { label: "已过期", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
   }
@@ -408,11 +406,7 @@ function ShareDialog({
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12px] font-semibold text-[#1d1d1f]">{board.title}</span>
                           <span className="block text-[11px] text-[#6e6e73]">
-                            {board.hasPassword
-                              ? board.passcode
-                                ? `提取码 ${board.passcode}`
-                                : "密码保护"
-                              : "无需提取码"} · {board.itemCount} 份汇报
+                            {board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.itemCount} 份汇报
                           </span>
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
@@ -554,11 +548,7 @@ function ShareDialog({
                       {st.label}
                     </span>
                     <span className="text-[12px] text-[#6e6e73]">
-                      {s.hasPassword
-                        ? s.passcode
-                          ? `提取码 ${s.passcode}`
-                          : "密码保护"
-                        : "公开"}
+                      {s.passcode ? `提取码 ${s.passcode}` : "公开"}
                       {" · "}
                       {s.expiresAt ? `至 ${fmtDate(s.expiresAt)}` : "永久"}
                       {" · "}

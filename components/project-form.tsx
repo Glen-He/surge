@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation";
 import { CardHead } from "@/components/card-head";
 import { DatePicker } from "@/components/date-picker";
 import { LIMITS, charWeight } from "@/lib/char-limit";
-import { DEFAULT_TAG_COLOR, TAG_PALETTE, tagSwatchColor } from "@/lib/tag-colors";
+import { DEFAULT_TAG_COLOR, TAG_PALETTE, tagSwatchColor, type TagColor } from "@/lib/tag-colors";
 
 export type ProjectFormValues = {
   title: string;
   date: string;
   tag: string;
-  tagColor: string;
+  tagColor: TagColor;
   keywords: string;
   description: string;
   externalNetwork: boolean;

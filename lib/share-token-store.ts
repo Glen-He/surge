@@ -6,19 +6,23 @@ import {
   randomBytes,
 } from "node:crypto";
 
+function encryptionRoot(): string {
+  const root = process.env.SHARE_TOKEN_ENCRYPTION_KEY;
+  if (!root || root.length < 32) {
+    throw new Error("SHARE_TOKEN_ENCRYPTION_KEY is missing or too short");
+  }
+  return root;
+}
+
 function key(): Buffer {
-  const root = process.env.SHARE_TOKEN_ENCRYPTION_KEY ?? process.env.SHARE_SECRET;
-  if (!root) throw new Error("缺少 SHARE_TOKEN_ENCRYPTION_KEY 或 SHARE_SECRET");
   return Buffer.from(
-    hkdfSync("sha256", root, "surge-share-token-store", "v1", 32),
+    hkdfSync("sha256", encryptionRoot(), "surge-share-token-store", "v1", 32),
   );
 }
 
 function passcodeKey(): Buffer {
-  const root = process.env.SHARE_TOKEN_ENCRYPTION_KEY ?? process.env.SHARE_SECRET;
-  if (!root) throw new Error("缺少 SHARE_TOKEN_ENCRYPTION_KEY 或 SHARE_SECRET");
   return Buffer.from(
-    hkdfSync("sha256", root, "surge-share-token-store", "v1-passcode", 32),
+    hkdfSync("sha256", encryptionRoot(), "surge-share-token-store", "v1-passcode", 32),
   );
 }
 
@@ -58,7 +62,7 @@ export function decryptShareToken(value: string): string {
   return decrypt(value, key());
 }
 
-/** Extraction codes are recoverable for the owner, but use a distinct key. */
+/** 提取码需向所有者回显，但使用独立派生密钥加密。 */
 export function encryptSharePasscode(passcode: string): string {
   return encrypt(passcode, passcodeKey());
 }

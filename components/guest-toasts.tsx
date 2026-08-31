@@ -193,8 +193,8 @@ export function GuestToasts() {
       } finally {
         window.clearTimeout(timeout);
       }
-      // Full navigation makes the next server request enforce expiry again if
-      // the cleanup request was interrupted while the device was waking up.
+      // 整页跳转：若设备唤醒期间清理请求被中断，
+      // 下一个服务端页面请求会再次强制执行过期销毁。
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/?guestExpired=1");
     }

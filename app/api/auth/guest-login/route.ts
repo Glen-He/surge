@@ -27,15 +27,14 @@ function setCookieHeaders(headers: Headers): string[] {
 }
 
 /**
- * Atomic guest-login boundary:
- * 1. rate-limit before allocating an account;
- * 2. ask Better Auth to create the anonymous user/session, but retain its
- *    Set-Cookie headers on the server;
- * 3. create the fixed lease and virtual demo rows in one DB transaction;
- * 4. only then forward the session cookie to the browser.
+ * 原子化游客登录边界：
+ * 1. 分配账号前先频控；
+ * 2. 请 Better Auth 创建匿名用户/会话，但把 Set-Cookie 留在服务端；
+ * 3. 单数据库事务内创建固定租约与虚拟演示记录；
+ * 4. 全部成功后才把会话 cookie 下发给浏览器。
  *
- * A failed sandbox initialization therefore never leaves the browser logged
- * into a half-created guest. The temporary user is deleted before returning.
+ * 因此沙箱初始化失败绝不会让浏览器停留在登录了半个游客的状态；
+ * 临时用户在返回前即被删除。
  */
 export async function POST(req: Request) {
   const startedAt = Date.now();
@@ -51,7 +50,7 @@ export async function POST(req: Request) {
       10 * 60,
     );
     if (!rate.allowed) {
-      logger.warn("guest-login", "游客登录频率超限", {
+      logger.warn("guest-login", "guest login rate limited", {
         requestId,
         durationMs: Date.now() - startedAt,
       });
@@ -78,7 +77,7 @@ export async function POST(req: Request) {
       | { user?: { id?: string; email?: string }; code?: string }
       | null;
     if (!authResponse.ok) {
-      logger.warn("guest-login", "Better Auth 匿名会话创建失败", {
+      logger.warn("guest-login", "better-auth anonymous session creation failed", {
         requestId,
         status: authResponse.status,
         code: authData?.code,
@@ -109,7 +108,7 @@ export async function POST(req: Request) {
       response.headers.append("set-cookie", cookie);
     }
     response.headers.set("Cache-Control", "no-store");
-    logger.info("guest-login", "游客登录完成", {
+    logger.info("guest-login", "guest login completed", {
       requestId,
       durationMs: Date.now() - startedAt,
     });
@@ -121,13 +120,13 @@ export async function POST(req: Request) {
       } catch (cleanupError) {
         logger.error(
           "guest-login",
-          "游客初始化失败后销毁临时账号失败",
+          "failed to destroy temporary account after init failure",
           cleanupError as Error,
           { requestId, guestId },
         );
       }
     }
-    logger.error("guest-login", "游客登录失败", error as Error, {
+    logger.error("guest-login", "guest login failed", error as Error, {
       requestId,
       stage,
       durationMs: Date.now() - startedAt,

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -44,6 +45,7 @@ export function Modal({
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const [confirming, setConfirming] = useState(false);
   // 键盘避让：手机软键盘弹出时 layout viewport 不缩小（iOS 行为），
   // fixed 弹窗会被键盘盖住。用 visualViewport 把容器约束到真实可见区，
@@ -116,14 +118,10 @@ export function Modal({
         rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [],
       );
 
-    // 初始焦点：若子节点没有 autoFocus 抢占，则落到第一个可聚焦元素；
-    // 全部禁用时回退到根节点，避免焦点留在弹窗背后的页面
-    const t = window.setTimeout(() => {
-      const root = rootRef.current;
-      if (root && !root.contains(document.activeElement)) {
-        (focusables()[0] ?? root)?.focus();
-      }
-    }, 0);
+    // 初始焦点落在非交互的弹窗容器：读屏与 Tab 焦点不会留在
+    // 被遮住的背景页面，同时不会让关闭按钮或输入框在打开时默认高亮。
+    const root = rootRef.current;
+    root?.focus({ preventScroll: true });
 
     function onKey(e: KeyboardEvent) {
       const s = stateRef.current;
@@ -147,10 +145,13 @@ export function Modal({
         const last = list[list.length - 1];
         const active = document.activeElement as HTMLElement | null;
         const inside = !!active && root?.contains(active);
-        if (e.shiftKey && (!inside || active === first)) {
+        if (active === root || !inside) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (e.shiftKey && active === first) {
           e.preventDefault();
           last.focus();
-        } else if (!e.shiftKey && (!inside || active === last)) {
+        } else if (!e.shiftKey && active === last) {
           e.preventDefault();
           first.focus();
         }
@@ -159,10 +160,9 @@ export function Modal({
 
     window.addEventListener("keydown", onKey);
     return () => {
-      window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
-      previous?.focus?.();
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, [open]);
 
@@ -181,6 +181,7 @@ export function Modal({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby={title != null ? titleId : undefined}
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={
         visibleRect
@@ -201,7 +202,7 @@ export function Modal({
         <header
           className={`security-modal-header ${plainHeader ? "security-modal-header-plain" : ""}`}
         >
-          <h2 className="security-modal-title">{title}</h2>
+          <h2 id={titleId} className="security-modal-title">{title}</h2>
           <button
             type="button"
             onClick={requestClose}

@@ -7,11 +7,9 @@ import { useAutoSharePasscode } from "@/components/use-auto-share-passcode";
 export function SharePasswordGate({
   token,
   title,
-  usesPasscode,
 }: {
   token: string;
   title: string;
-  usesPasscode: boolean;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -32,7 +30,7 @@ export function SharePasswordGate({
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(data?.error ?? (usesPasscode ? "提取码不正确" : "密码不正确"));
+        setError(data?.error ?? "提取码不正确");
         return;
       }
       window.location.replace(`${window.location.pathname}${window.location.search}`);
@@ -42,9 +40,9 @@ export function SharePasswordGate({
       inFlight.current = false;
       setLoading(false);
     }
-  }, [password, token, usesPasscode]);
+  }, [password, token]);
 
-  useAutoSharePasscode(usesPasscode, (passcode) => {
+  useAutoSharePasscode(true, (passcode) => {
     setPassword(passcode);
     void submit(passcode);
   });
@@ -62,26 +60,23 @@ export function SharePasswordGate({
           {title}
         </h1>
         <p className="mt-1.5 text-center text-[13px] text-[#6e6e73]">
-          {usesPasscode ? "请输入分享者提供的 4 位提取码" : "该报告已加密，请输入访问密码"}
+          请输入分享者提供的 4 位提取码
         </p>
         <input
-          type={usesPasscode ? "text" : "password"}
+          type="text"
           value={password}
           onChange={(e) => {
             setPassword(
-              usesPasscode
-                ? e.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4)
-                : e.target.value,
+              e.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4),
             );
             setError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder={usesPasscode ? "4 位提取码" : "访问密码"}
-          maxLength={usesPasscode ? 4 : 64}
-          autoCapitalize={usesPasscode ? "characters" : "none"}
+          placeholder="4 位提取码"
+          maxLength={4}
+          autoCapitalize="characters"
           autoComplete="off"
-          autoFocus
-          className={`mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3] ${usesPasscode ? "tracking-[0.24em]" : ""}`}
+          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] tracking-[0.24em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位：避免密码错误提示出现时卡片高度跳变 */}
         <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>

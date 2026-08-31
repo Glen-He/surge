@@ -1,5 +1,9 @@
 import { getApiSession } from "@/lib/api-session";
-import { rotateShareBoardToken, ShareBoardError } from "@/lib/share-boards";
+import { rotateShareBoardToken } from "@/lib/share-boards";
+import {
+  shareBoardErrorResponse,
+  ShareBoardError,
+} from "@/lib/share-board-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +19,7 @@ export async function POST(
     return Response.json({ ok: true, token });
   } catch (error) {
     if (error instanceof ShareBoardError) {
-      return Response.json({ error: error.message }, { status: error.status });
+      return shareBoardErrorResponse(error);
     }
     throw error;
   }

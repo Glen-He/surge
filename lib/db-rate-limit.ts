@@ -5,7 +5,7 @@ function safeKey(namespace: string, subject: string): string {
   return `${namespace}:${createHash("sha256").update(subject).digest("hex")}`;
 }
 
-/** Atomically consumes one fixed-window allowance across all app instances. */
+/** 在所有应用实例间原子消费一次 fixed-window 限流额度。 */
 export async function consumeSharedRateLimit(
   namespace: string,
   subject: string,
@@ -58,7 +58,7 @@ export async function isSecurityRateLimited(
   };
 }
 
-/** Atomically records one failed attempt across all application instances. */
+/** 在所有应用实例间原子记录一次失败尝试。 */
 export async function recordSecurityFailure(
   namespace: string,
   subject: string,
@@ -87,8 +87,8 @@ export async function recordSecurityFailure(
   );
   const row = rows[0];
   return {
-    // The max-th attempt is allowed; subsequent attempts are blocked by the
-    // pre-check (or by this > max result under concurrency).
+    // 第 max 次尝试仍放行；之后的尝试会被前置检查拦截
+    // （并发下也可能由这里的 > max 结果拦截）。
     limited: row.attempts > max,
     retryAfter: Math.max(
       1,

@@ -39,6 +39,11 @@ export type ApiTokenInfo = {
   lastUsedAt: Date | null;
 };
 
+export type ApiTokenErrorCode = "GUEST_UNSUPPORTED" | "TOKEN_ALREADY_EXISTS";
+export type ApiTokenMutationResult =
+  | { token: ApiTokenInfo }
+  | { errorCode: ApiTokenErrorCode };
+
 /**
  * 读用户当前令牌的非敏感元数据。明文不可恢复。
  */
@@ -76,9 +81,9 @@ export async function createApiToken(
   userId: string,
   email: string,
   name = "",
-): Promise<{ token: ApiTokenInfo } | { error: string }> {
+): Promise<ApiTokenMutationResult> {
   if (isGuestEmail(email)) {
-    return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
+    return { errorCode: "GUEST_UNSUPPORTED" };
   }
   const token = generateApiToken();
   let ins: { id: string; created_at: Date }[];
@@ -96,14 +101,14 @@ export async function createApiToken(
       ],
     ));
   } catch (error) {
-    // The partial unique index is the concurrency-safe source of truth. Two
-    // simultaneous create requests cannot both pass across instances.
+    // 部分唯一索引是并发安全的唯一事实源：
+    // 两个同时到达的创建请求跨实例也不可能都成功。
     if ((error as { code?: string }).code === "23505") {
-      return { error: "已有令牌（每账号一个），可更换或撤销后重建" };
+      return { errorCode: "TOKEN_ALREADY_EXISTS" };
     }
     throw error;
   }
-  logger.info("api-token", "创建 API 令牌", { userId });
+  logger.info("api-token", "api token created", { userId });
   return {
     token: {
       id: ins[0].id,
@@ -123,9 +128,9 @@ export async function createApiToken(
 export async function rotateApiToken(
   userId: string,
   email: string,
-): Promise<{ token: ApiTokenInfo } | { error: string }> {
+): Promise<ApiTokenMutationResult> {
   if (isGuestEmail(email)) {
-    return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
+    return { errorCode: "GUEST_UNSUPPORTED" };
   }
   const token = generateApiToken();
   const { rows } = await db.query<{
@@ -140,7 +145,7 @@ export async function rotateApiToken(
     [tokenLookup(token), token.slice(0, 11), userId],
   );
   if (rows[0]) {
-    logger.info("api-token", "更换 API 令牌", { userId });
+    logger.info("api-token", "api token rotated", { userId });
     return {
       token: {
         id: rows[0].id,
@@ -166,11 +171,18 @@ export async function revokeApiToken(
      WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
     [tokenId, userId],
   );
-  if (rowCount) logger.info("api-token", "撤销 API 令牌", { userId, tokenId });
+  if (rowCount) logger.info("api-token", "api token revoked", { userId, tokenId });
   return rowCount === 1;
 }
 
 export type TokenAuthUser = { id: string; email: string };
+
+/** 按 RFC 的大小写规则解析 Bearer scheme，同时严格限制本项目 PAT 格式。 */
+export function parseApiBearerToken(authHeader: string | null): string | null {
+  const match = authHeader?.match(/^\s*([A-Za-z]+)[\t ]+(\S+)\s*$/);
+  if (!match || match[1].toLowerCase() !== "bearer") return null;
+  return /^sgk_[A-Za-z0-9_-]{43}$/.test(match[2]) ? match[2] : null;
+}
 
 /**
  * 校验 Bearer 令牌 → 用户。失败返回 null。
@@ -181,7 +193,7 @@ export async function authenticateApiToken(
   authHeader: string | null,
   clientIp: string,
 ): Promise<TokenAuthUser | null> {
-  const bearer = authHeader?.match(/^Bearer\s+(sgk_\S+)$/i)?.[1];
+  const bearer = parseApiBearerToken(authHeader);
   if (!bearer) return null;
   const { rows } = await db.query<{
     id: string;
@@ -208,7 +220,7 @@ export async function authenticateApiToken(
     AUTH_FAIL_LIMIT,
   );
   if (blocked.limited) {
-    logger.warn("api-token", "认证失败次数过多，已限流", { clientIp });
+    logger.warn("api-token", "too many token auth failures; rate limited", { clientIp });
     return null;
   }
   await recordSecurityFailure(

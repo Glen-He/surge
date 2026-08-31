@@ -6,8 +6,11 @@ import {
   MAX_BOARD_TITLE_LENGTH,
   normalizeBoardTitle,
   parseBoardExpiry,
-  ShareBoardError,
 } from "@/lib/share-boards";
+import {
+  shareBoardErrorResponse,
+  ShareBoardError,
+} from "@/lib/share-board-errors";
 import {
   generateSharePasscode,
   hashSharePassword,
@@ -66,7 +69,7 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, board });
   } catch (error) {
     if (error instanceof ShareBoardError) {
-      return Response.json({ error: error.message }, { status: error.status });
+      return shareBoardErrorResponse(error);
     }
     throw error;
   }

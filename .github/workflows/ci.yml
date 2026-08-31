@@ -21,6 +21,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters-long
       BETTER_AUTH_URL: http://127.0.0.1:3000
       SHARE_SECRET: ci-only-share-secret-at-least-32-characters
+      SHARE_TOKEN_ENCRYPTION_KEY: ci-only-share-token-encryption-key-at-least-32-characters
       MAINTENANCE_SECRET: ci-only-maintenance-secret-at-least-32-characters
       SMTP_HOST: localhost
       SMTP_PORT: 465

@@ -19,6 +19,7 @@ import {
 
 const TOKEN_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const SHARE_TOKEN_RE = /^[A-Za-z0-9]{22}$/;
 
 export function generateShareToken(len = 22): string {
   // rejection sampling 消除模偏差：256 % 62 = 8，直接取模会让前 8 个
@@ -34,6 +35,11 @@ export function generateShareToken(len = 22): string {
   return out;
 }
 
+/** 校验外部传入的当前版本分享 token，避免对异常长度输入做哈希或数据库查询。 */
+export function isValidShareToken(token: string): boolean {
+  return SHARE_TOKEN_RE.test(token);
+}
+
 export function generateShareId(): string {
   return randomBytes(16).toString("hex");
 }
@@ -41,7 +47,7 @@ export function generateShareId(): string {
 const SHARE_PASSCODE_LENGTH = 4;
 const SHARE_PASSCODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/** Four-character, cryptographically random extraction code. */
+/** 生成四位密码学安全的随机提取码。 */
 export function generateSharePasscode(): string {
   const limit = 256 - (256 % SHARE_PASSCODE_ALPHABET.length);
   let result = "";
@@ -80,15 +86,15 @@ export async function verifySharePassword(
 }
 
 // 解锁 cookie 值：HMAC(token, SECRET)。
-// 生产必须使用独立 SHARE_SECRET，避免轮换数据库口令时意外轮换
-// 分享凭证密钥。开发环境仅保留一个本地回退值。
+// 必须使用独立 SHARE_SECRET，避免轮换数据库口令时意外轮换
+// 分享凭证密钥。
 // HMAC 伪造解锁凭证，绕过所有受密码保护的分享。
 function shareSecret(): string {
-  if (process.env.SHARE_SECRET) return process.env.SHARE_SECRET;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("缺少 SHARE_SECRET：分享解锁凭证无独立签名密钥");
+  const secret = process.env.SHARE_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("SHARE_SECRET is required to sign share unlock credentials");
   }
-  return "dev-only";
+  return secret;
 }
 
 export function unlockProof(token: string): string {
@@ -122,7 +128,6 @@ export interface ShareRow {
   password_hash: string | null;
   passcode: string | null;
   expires_at: Date | null;
-  revoked_at: Date | null;
   view_count: number;
   created_at: Date;
 }
@@ -140,13 +145,12 @@ function revealShare(row: StoredShareRow): ShareRow {
     password_hash: row.password_hash,
     passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
     expires_at: row.expires_at,
-    revoked_at: row.revoked_at,
     view_count: row.view_count,
     created_at: row.created_at,
   };
 }
 
-/** 按属主列出某报告的全部分享（含已撤销，管理页需要看到） */
+/** 按属主列出某报告的全部现存分享。 */
 export async function listSharesBySlug(
   userId: string,
   slug: string,
@@ -193,6 +197,7 @@ export interface ValidShare {
 export async function findValidShare(
   token: string,
 ): Promise<ValidShare | null> {
+  if (!isValidShareToken(token)) return null;
   const r = await db.query<
     StoredShareRow & {
       owner_id: string;
@@ -210,7 +215,6 @@ export async function findValidShare(
   );
   const row = r.rows[0];
   if (!row) return null;
-  if (row.revoked_at) return null;
   if (row.expires_at && row.expires_at.getTime() < Date.now()) return null;
   const {
     owner_id,
@@ -247,10 +251,8 @@ export async function shouldCountView(token: string, ip: string): Promise<boolea
 
 /** 分享是否仍有效（管理列表用轻量判断） */
 export function shareStatus(row: {
-  revoked_at: Date | null;
   expires_at: Date | null;
-}): "active" | "revoked" | "expired" {
-  if (row.revoked_at) return "revoked";
+}): "active" | "expired" {
   if (row.expires_at && row.expires_at.getTime() < Date.now()) return "expired";
   return "active";
 }
@@ -265,24 +267,42 @@ export async function checkUnlockRate(
   ip: string,
 ): Promise<{ ok: boolean; retryAfter?: number }> {
   const subject = `${token}:${ip}`;
-  const [current, global] = await Promise.all([
-    isSecurityRateLimited("share-unlock", subject, MAX_ATTEMPTS),
-    isSecurityRateLimited("share-unlock-token", token, MAX_ATTEMPTS * 5),
-  ]);
-  if (current.limited || global.limited) {
-    return { ok: false, retryAfter: Math.max(current.retryAfter, global.retryAfter) };
+  const global = await isSecurityRateLimited(
+    "share-unlock-token-failures",
+    token,
+    MAX_ATTEMPTS * 5,
+  );
+  if (global.limited) {
+    return { ok: false, retryAfter: global.retryAfter };
   }
-  const [recorded, globallyRecorded] = await Promise.all([
-    recordSecurityFailure("share-unlock", subject, MAX_ATTEMPTS, WINDOW_SEC),
-    recordSecurityFailure("share-unlock-token", token, MAX_ATTEMPTS * 5, WINDOW_SEC),
-  ]);
-  return recorded.limited || globallyRecorded.limited
-    ? { ok: false, retryAfter: Math.max(recorded.retryAfter, globallyRecorded.retryAfter) }
+  // 每 IP 的准入桶在 scrypt 前预占，限制并发昂贵计算；成功后会清除。
+  // token 全局桶只记录实际错误密码，正常访问不会把分享链接锁死。
+  const recorded = await recordSecurityFailure(
+    "share-unlock-attempt",
+    subject,
+    MAX_ATTEMPTS,
+    WINDOW_SEC,
+  );
+  return recorded.limited
+    ? { ok: false, retryAfter: recorded.retryAfter }
+    : { ok: true };
+}
+
+export async function recordUnlockFailure(
+  token: string,
+): Promise<{ ok: boolean; retryAfter?: number }> {
+  const recorded = await recordSecurityFailure(
+    "share-unlock-token-failures",
+    token,
+    MAX_ATTEMPTS * 5,
+    WINDOW_SEC,
+  );
+  return recorded.limited
+    ? { ok: false, retryAfter: recorded.retryAfter }
     : { ok: true };
 }
 
 export async function clearUnlockRate(token: string, ip: string): Promise<void> {
-  // Preserve the token-wide bucket so success from one source cannot erase
-  // failures accumulated by other addresses.
-  await clearSecurityFailures("share-unlock", `${token}:${ip}`);
+  // 只清 token+IP 粒度的准入桶；其他地址的真实失败记录继续保留。
+  await clearSecurityFailures("share-unlock-attempt", `${token}:${ip}`);
 }

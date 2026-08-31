@@ -7,7 +7,7 @@ export function rememberGuestExpiry(expiresAt: string): void {
     localStorage.setItem(GUEST_EXPIRY_KEY, expiresAt);
     window.dispatchEvent(new Event(GUEST_EXPIRY_EVENT));
   } catch {
-    // Private browsing / blocked storage: server-side expiry remains authoritative.
+    // 隐私模式 / 存储被禁用：以服务端到期时间为准。
   }
 }
 
@@ -23,7 +23,7 @@ export function removeGuestExpiry(): void {
   try {
     localStorage.removeItem(GUEST_EXPIRY_KEY);
   } catch {
-    // No client state to clear when storage is unavailable.
+    // 存储不可用时没有客户端状态可清理。
   }
 }
 
@@ -33,6 +33,6 @@ export function clearGuestClientState(): void {
     sessionStorage.removeItem(GUEST_WELCOME_KEY);
     window.dispatchEvent(new Event(GUEST_EXPIRY_EVENT));
   } catch {
-    // The server cookie has already been cleared; local storage is optional UX.
+    // 服务端 cookie 已清除；本地存储只是可选的交互增强。
   }
 }

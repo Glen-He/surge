@@ -3,6 +3,7 @@ import path from "path";
 import { Readable } from "stream";
 import { db } from "@/lib/db";
 import {
+  reportBridgeToken,
   reportResourceEtag,
   requestMatchesEtag,
   verifyCapability,
@@ -201,26 +202,32 @@ export async function GET(
   };
 
   if (isEntryDoc) {
+    // 入口 HTML 内含仅供平台桥接使用的认证 token。导航与 iframe 嵌入不需要
+    // CORS；不下发 ACAO，阻止 opaque-origin 汇报脚本 fetch 后读取注入源码。
+    delete headers["Access-Control-Allow-Origin"];
     // 入口文档：确定性后处理 + 统一网页汇报 CSP。
     // 本 capability 目录与外部 HTTPS 资源可用，高权限仍由沙箱隔离。
     let content: Buffer;
     try {
-      // Runtime data is mounted separately and must never be copied into a build trace.
+      // 运行时数据独立挂载，绝不能被复制进构建产物追踪。
       content = await fs.readFile(/* turbopackIgnore: true */ realFile);
     } catch {
       return notFound();
     }
-    return new Response(renderReportDoc(content.toString("utf-8")), {
-      headers: {
-        ...headers,
-        "Content-Type": "text/html; charset=utf-8",
-        "Content-Security-Policy": reportDocCsp(
-          `${reportsOrigin()}/r/${cap}`,
-          applicationOrigin(),
-          row.external_network_enabled,
-        ),
+    return new Response(
+      renderReportDoc(content.toString("utf-8"), reportBridgeToken(cap)),
+      {
+        headers: {
+          ...headers,
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Security-Policy": reportDocCsp(
+            `${reportsOrigin()}/r/${cap}`,
+            applicationOrigin(),
+            row.external_network_enabled,
+          ),
+        },
       },
-    });
+    );
   }
 
   const etag = reportResourceEtag(

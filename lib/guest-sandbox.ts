@@ -14,7 +14,7 @@ export const GUEST_EMAIL_DOMAIN = "demo.surge";
 export const GUEST_TTL_MINUTES = 60;
 
 export interface DemoTemplate {
-  tplDir: DemoTemplateKey; // server-owned template allowlist key
+  tplDir: DemoTemplateKey; // 服务端掌管的模板白名单 key
   title: string;
   date: string; // YYYY-MM-DD
   tag: string;
@@ -79,7 +79,7 @@ export function isGuestEmail(email: string | null | undefined): boolean {
   return lower.endsWith("@" + GUEST_EMAIL_DOMAIN);
 }
 
-/** Server-only proof that anonymous auth was initiated by the atomic guest saga. */
+/** 服务端专属 proof：证明匿名认证由原子化游客流程发起 */
 export function guestInternalProof(): string {
   return internalAuthProof("guest-login");
 }
@@ -102,7 +102,7 @@ export function guestOtpResponse(email: string, code: string, ttlSec = 600) {
 
 let templateValidation: Promise<void> | null = null;
 
-/** Fail before creating a guest if a deployed template is incomplete. */
+/** 部署的演示模板不完整时，在建游客之前先失败 */
 export function validateDemoTemplates(): Promise<void> {
   templateValidation ??= Promise.all(
     DEMO_TEMPLATES.map((template) =>
@@ -118,9 +118,9 @@ export function validateDemoTemplates(): Promise<void> {
 }
 
 /**
- * Create the fixed 60-minute lease and five independent report rows in one
- * transaction. Demo bytes stay in shared, immutable templates. Replacing one
- * report later materializes a private directory (copy-on-write).
+ * 单事务内创建固定 60 分钟租约与 5 条独立报告记录。
+ * 演示字节数保留在共享不可变模板中；后续替换某个报告时
+ * 才落成私有目录（写时复制）。
  */
 export async function initializeGuestSandbox(
   userId: string,
@@ -216,7 +216,7 @@ export async function purgeStaleGuests(): Promise<{ removed: number }> {
       removed += 1;
     } catch (error) {
       failures += 1;
-      logger.error("guest-cleanup", "清理过期游客失败，继续处理其他游客", error as Error, {
+      logger.error("guest-cleanup", "failed to purge expired guest; continuing", error as Error, {
         userId: r.user_id,
       });
     }

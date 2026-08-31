@@ -19,8 +19,8 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // A per-request CSP nonce is attached by proxy.ts. Waiting for the incoming
-  // request prevents a build-time HTML shell from carrying a stale nonce.
+  // proxy.ts 会为每个请求附加 CSP nonce。等待请求到来，
+  // 避免构建期生成的 HTML 外壳携带过期 nonce。
   await connection();
   return (
     <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>

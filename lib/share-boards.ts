@@ -1,10 +1,11 @@
 import type { PoolClient } from "pg";
 import { db } from "./db";
 import { consumeSharedRateLimit } from "./db-rate-limit";
-import { fallbackTagColor, isTagColor } from "./tag-colors";
+import { requireTagColor, type TagColor } from "./tag-colors";
 import {
   generateShareId,
   generateShareToken,
+  isValidShareToken,
   unlockProof,
   verifyUnlockProof,
 } from "./shares";
@@ -14,6 +15,7 @@ import {
   encryptShareToken,
   shareTokenHash,
 } from "./share-token-store";
+import { ShareBoardError } from "./share-board-errors";
 
 const MAX_SHARE_BOARDS = 20;
 const MAX_BOARD_ITEMS = 100;
@@ -38,7 +40,7 @@ export type ShareBoardItemView = {
   slug: string;
   date: string;
   tag: string;
-  tagColor: string;
+  tagColor: TagColor;
   title: string;
   desc: string;
   keywords: string[];
@@ -70,7 +72,6 @@ export type PublicShareBoard = {
   token: string;
   title: string;
   passwordHash: string | null;
-  usesPasscode: boolean;
   accessEpoch: number;
   expiresAt: Date | null;
   items: ShareBoardItemView[];
@@ -82,7 +83,6 @@ export type PublicBoardReport = {
   boardTitle: string;
   boardToken: string;
   boardPasswordHash: string | null;
-  boardUsesPasscode: boolean;
   boardAccessEpoch: number;
   boardExpiresAt: Date | null;
   reportId: string;
@@ -98,7 +98,7 @@ export function normalizeBoardTitle(value: unknown): string | null {
   return title;
 }
 
-/** Parse a calendar-day expiry at the end of that day in the product timezone. */
+/** 按产品时区把 calendar day 解析为当天结束时刻。 */
 export function parseBoardExpiry(
   value: unknown,
   now = Date.now(),
@@ -235,7 +235,9 @@ export async function createShareBoard(
       [userId],
     );
     if (Number(count.rows[0]?.n ?? 0) >= MAX_SHARE_BOARDS) {
-      throw new ShareBoardError(`最多创建 ${MAX_SHARE_BOARDS} 个分享面板`, 400);
+      throw new ShareBoardError("BOARD_LIMIT_REACHED", {
+        max: MAX_SHARE_BOARDS,
+      });
     }
     let reportId: string | null = null;
     if (initialReportSlug) {
@@ -244,7 +246,7 @@ export async function createShareBoard(
         [userId, initialReportSlug],
       );
       reportId = report.rows[0]?.id ?? null;
-      if (!reportId) throw new ShareBoardError("报告不存在", 404);
+      if (!reportId) throw new ShareBoardError("BOARD_REPORT_NOT_FOUND");
     }
     await client.query(
       `INSERT INTO share_boards
@@ -296,7 +298,7 @@ async function lockOwnedBoard(client: PoolClient, userId: string, boardId: strin
     [boardId, userId],
   );
   const row = result.rows[0];
-  if (!row) throw new ShareBoardError("分享面板不存在", 404);
+  if (!row) throw new ShareBoardError("BOARD_NOT_FOUND");
   return row;
 }
 
@@ -324,14 +326,16 @@ export async function setBoardMembership(
       [userId, slug],
     );
     const reportId = report.rows[0]?.id;
-    if (!reportId) throw new ShareBoardError("报告不存在", 404);
+    if (!reportId) throw new ShareBoardError("BOARD_REPORT_NOT_FOUND");
     if (included) {
       const count = await client.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM share_board_items WHERE board_id = $1`,
         [boardId],
       );
       if (Number(count.rows[0]?.n ?? 0) >= MAX_BOARD_ITEMS) {
-        throw new ShareBoardError(`每个面板最多加入 ${MAX_BOARD_ITEMS} 份汇报`, 400);
+        throw new ShareBoardError("BOARD_ITEM_LIMIT_REACHED", {
+          max: MAX_BOARD_ITEMS,
+        });
       }
       await client.query(
         `INSERT INTO share_board_items (id, board_id, report_id)
@@ -458,18 +462,17 @@ function itemFromRow(row: {
   slug: string;
   date: string;
   tag: string;
-  tag_color: string | null;
+  tag_color: string;
   title: string;
   description: string;
   keywords: string;
 }): ShareBoardItemView {
-  const tag = row.tag || "其他";
   return {
     id: row.item_id,
     slug: row.slug,
     date: row.date,
-    tag,
-    tagColor: isTagColor(row.tag_color) ? row.tag_color : fallbackTagColor(tag),
+    tag: row.tag || "其他",
+    tagColor: requireTagColor(row.tag_color),
     title: row.title,
     desc: row.description,
     keywords: row.keywords ? row.keywords.split(",").filter(Boolean) : [],
@@ -477,6 +480,7 @@ function itemFromRow(row: {
 }
 
 export async function findPublicShareBoard(token: string): Promise<PublicShareBoard | null> {
+  if (!isValidShareToken(token)) return null;
   const board = await db.query<BoardRow>(
     `SELECT * FROM share_boards
      WHERE token_hash = $1 AND disabled_at IS NULL
@@ -490,7 +494,7 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
     slug: string;
     date: string;
     tag: string;
-    tag_color: string | null;
+    tag_color: string;
     title: string;
     description: string;
     keywords: string;
@@ -509,7 +513,6 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
     token,
     title: row.title,
     passwordHash: row.password_hash,
-    usesPasscode: !!row.password_enc,
     accessEpoch: row.access_epoch,
     expiresAt: row.expires_at,
     items: items.rows.map(itemFromRow),
@@ -525,7 +528,6 @@ export async function findPublicBoardReport(
     board_owner_id: string;
     board_title: string;
     password_hash: string | null;
-    password_enc: string | null;
     access_epoch: number;
     expires_at: Date | null;
     report_id: string;
@@ -534,7 +536,7 @@ export async function findPublicBoardReport(
     capability_epoch: number;
   }>(
     `SELECT b.id AS board_id, b.user_id AS board_owner_id, b.title AS board_title,
-            b.password_hash, b.password_enc, b.access_epoch, b.expires_at,
+            b.password_hash, b.access_epoch, b.expires_at,
             r.id AS report_id, r.title AS report_title,
             r.revision_id, r.capability_epoch
        FROM share_boards b
@@ -553,7 +555,6 @@ export async function findPublicBoardReport(
     boardTitle: row.board_title,
     boardToken: token,
     boardPasswordHash: row.password_hash,
-    boardUsesPasscode: !!row.password_enc,
     boardAccessEpoch: row.access_epoch,
     boardExpiresAt: row.expires_at,
     reportId: row.report_id,
@@ -569,10 +570,4 @@ export async function incrementBoardView(token: string): Promise<void> {
 
 export async function shouldCountBoardView(token: string, ip: string): Promise<boolean> {
   return (await consumeSharedRateLimit("board-view", `${token}:${ip}`, 1, 60 * 60)).allowed;
-}
-
-export class ShareBoardError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
 }

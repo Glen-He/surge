@@ -32,23 +32,20 @@ const VERSION = "v1";
 const SCOPE = "read";
 
 // 密钥隔离（key separation）：不与 Better Auth 会话签名共用同一密钥。
-// REPORT_CAPABILITY_SECRET 显式指定优先；否则从 BETTER_AUTH_SECRET 经
-// HKDF 派生独立子密钥（info 固定，同一主密钥可稳定派生）。
-// 生产环境两者皆缺直接抛错——绝不静默落入固定值，否则 capability 可伪造。
+// 从 BETTER_AUTH_SECRET 经 HKDF 派生独立子密钥（info 固定，同一主密钥
+// 可稳定派生）。缺少根密钥直接抛错，绝不落入固定开发密钥。
 let derivedKey: Buffer | null = null;
 
 function capKey(): Buffer {
-  const explicit = process.env.REPORT_CAPABILITY_SECRET;
-  if (explicit) return Buffer.from(explicit, "utf-8");
   if (derivedKey) return derivedKey;
-  const root = process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
-  if (!root && process.env.NODE_ENV === "production") {
-    throw new Error("缺少 BETTER_AUTH_SECRET：报告 capability 无签名密钥");
+  const root = process.env.BETTER_AUTH_SECRET;
+  if (!root || root.length < 32) {
+    throw new Error("BETTER_AUTH_SECRET is required to sign report capabilities");
   }
   derivedKey = Buffer.from(
     hkdfSync(
       "sha256",
-      root ?? "surge-dev-asset-secret",
+      root,
       "surge-report-capability",
       "v1",
       32,
@@ -59,6 +56,16 @@ function capKey(): Buffer {
 
 function capHmac(payload: string): string {
   return createHmac("sha256", capKey()).update(payload).digest("base64url");
+}
+
+/**
+ * 为可信父页与平台注入脚本派生一次 bridge token。
+ * token 不进入上传 HTML 的可见数据，只用于认证 iframe 发出的平台操作消息。
+ */
+export function reportBridgeToken(capability: string): string {
+  return createHmac("sha256", capKey())
+    .update(`report-bridge:${capability}`)
+    .digest("base64url");
 }
 
 /** 生成新的内容世代标识（报告每次替换文件时轮换） */
@@ -132,6 +139,12 @@ export type CapabilityGrant = {
 
 /** 验证 capability 签名与有效期（恒时比较）；无效返回 null */
 export function verifyCapability(cap: string): CapabilityGrant | null {
+  if (
+    cap.length > 512 ||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(cap)
+  ) {
+    return null;
+  }
   const dot = cap.indexOf(".");
   if (dot <= 0) return null;
   const payloadB64 = cap.slice(0, dot);
@@ -142,6 +155,7 @@ export function verifyCapability(cap: string): CapabilityGrant | null {
   } catch {
     return null;
   }
+  if (payload.length > 256) return null;
   const expect = Buffer.from(capHmac(payload));
   const got = Buffer.from(sig);
   if (expect.length !== got.length || !timingSafeEqual(expect, got)) return null;

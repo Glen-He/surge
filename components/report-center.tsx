@@ -201,7 +201,7 @@ function DeleteIcon({ r }: { r: Report }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* ignore */
+      /* 忽略 */
     }
   }
 

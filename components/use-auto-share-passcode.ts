@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 import { sharePasscodeFromHash } from "@/lib/share-copy";
 
 /**
- * Reads a passcode from the URL fragment, removes it from browser history, and
- * hands it to the password gate. Fragments never reach proxy/server logs.
+ * 从 URL fragment 读取提取码、将其从浏览器历史中移除，
+ * 并交给密码门组件。fragment 不会进入代理/服务端日志。
  */
 export function useAutoSharePasscode(
   enabled: boolean,

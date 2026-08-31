@@ -1,6 +1,6 @@
 export type ByteRange = { start: number; end: number };
 
-/** Parse one RFC 9110 bytes range. Multiple ranges are intentionally rejected. */
+/** 解析单个 RFC 9110 bytes range；有意拒绝 multiple ranges。 */
 export function parseByteRange(value: string | null, size: number): ByteRange | null {
   if (!value) return null;
   const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());

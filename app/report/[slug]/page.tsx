@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getReportBySlug } from "@/lib/reports-db";
 import { requireSession } from "@/lib/session";
-import { issueCapability } from "@/lib/report-capability";
+import { issueCapability, reportBridgeToken } from "@/lib/report-capability";
 import { ReportShareButton } from "@/components/report-share-button";
 import { ReportFrame } from "@/components/report-frame";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
@@ -68,6 +68,7 @@ export default async function ReportPage({
         <ReportFrame
           src={reportDocumentUrl(capability)}
           title={report.title}
+          bridgeToken={reportBridgeToken(capability)}
         />
       </main>
       {guestExpiry && (
