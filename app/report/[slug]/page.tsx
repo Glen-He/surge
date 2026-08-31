@@ -43,7 +43,7 @@ export default async function ReportPage({
 
   return (
     <>
-      <main className="report-viewer-shell report-viewer-shell--page-flow">
+      <main className="report-viewer-shell">
         {/* 系统级报告头：所有报告页统一提供标题 + 返回，不依赖提交的 HTML */}
         <header className="rpt-sys-head">
           <h1 className="rpt-sys-title">{report.title}</h1>
@@ -62,12 +62,12 @@ export default async function ReportPage({
           报告脚本可执行（图表正常渲染），但运行于 opaque origin——
           读不到 cookie/storage、fetch 不带凭证、无法触碰父页 DOM。
           文档响应另带同等 sandbox CSP 作为第二道防线。
-          iframe 按正文高度展开，与上方系统头组成同一条页面滚动流。
+          可见系统头由平台安全注入 iframe 的文档流，与正文原生同步滚动；
+          分享弹窗和返回路由仍由可信父页代理，fixed/sticky/vh 语义保持不变。
         */}
         <ReportFrame
           src={reportDocumentUrl(capability)}
           title={report.title}
-          flowWithPage
         />
       </main>
       {guestExpiry && (

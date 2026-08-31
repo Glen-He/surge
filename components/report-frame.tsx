@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import {
   REPORT_PDF_MESSAGE_KEY,
@@ -8,30 +8,51 @@ import {
   pdfDownloadUrl,
   resolveReportPdfUrl,
 } from "@/lib/report-pdf";
+import { REPORT_SHARE_REQUEST_EVENT } from "@/lib/report-header";
 import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 
 type PdfPreview = { url: string; title: string };
-type MeasuredHeight = { src: string; value: number };
+type PdfLoadState = "loading" | "slow" | "ready" | "error";
 
 /**
  * 报告沙箱 iframe（登录态查看页与分享页共用）。
  *
- * 默认让报告在系统头以下的独立视口内滚动。登录态汇报页可开启
- * flowWithPage：iframe 按正文真实高度展开，与系统头组成一条页面滚动流。
+ * 报告始终在系统头以下的独立视口内滚动。不能把 iframe 撑到正文高度：
+ * 那会让报告内的 position:fixed、vh、sticky 与 IntersectionObserver 误把
+ * 整篇正文当成浏览器视口，破坏普通 HTML 在本地运行时的布局语义。
  */
 export function ReportFrame({
   src,
   title,
-  flowWithPage = false,
 }: {
   src: string;
   title: string;
-  flowWithPage?: boolean;
 }) {
-  const [measuredHeight, setMeasuredHeight] =
-    useState<MeasuredHeight | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const [pdfLoadState, setPdfLoadState] =
+    useState<PdfLoadState>("loading");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const reportHeaderNonceRef = useRef("");
+
+  const sendReportHeaderConfig = useCallback((el: HTMLIFrameElement) => {
+    const shell = el.closest<HTMLElement>(".report-viewer-shell");
+    const header = shell?.querySelector<HTMLElement>(".rpt-sys-head");
+    if (!header || !el.contentWindow) return;
+    const share = header.querySelector("[data-report-share-trigger]") !== null;
+    const back = header.querySelector<HTMLAnchorElement>("a.rpt-sys-back");
+    const meta = !share && !back ? header.querySelector("span")?.textContent : "";
+    el.contentWindow.postMessage(
+      {
+        __surgeReportHeaderConfig: {
+          title: header.querySelector(".rpt-sys-title")?.textContent?.trim() || title,
+          share,
+          backLabel: back?.textContent?.trim() || "",
+          meta: meta?.trim() || "",
+        },
+      },
+      "*",
+    );
+  }, [title]);
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
@@ -41,23 +62,32 @@ export function ReportFrame({
       const data = e.data as
         | {
             [REPORT_PDF_MESSAGE_KEY]?: unknown;
-            __surgeReportHeight?: unknown;
+            __surgeReportHeaderReady?: unknown;
+            __surgeReportHeaderAction?: unknown;
           }
         | null;
 
-      const reportHeight = data?.__surgeReportHeight;
+      const readyNonce = data?.__surgeReportHeaderReady;
+      if (typeof readyNonce === "string" && /^[a-f0-9]{32}$/.test(readyNonce)) {
+        reportHeaderNonceRef.current = readyNonce;
+        sendReportHeaderConfig(el);
+      }
+
+      const headerAction = data?.__surgeReportHeaderAction;
       if (
-        flowWithPage &&
-        typeof reportHeight === "number" &&
-        Number.isFinite(reportHeight) &&
-        reportHeight > 0
+        headerAction &&
+        typeof headerAction === "object" &&
+        "nonce" in headerAction &&
+        "action" in headerAction &&
+        headerAction.nonce === reportHeaderNonceRef.current
       ) {
-        const value = Math.min(Math.ceil(reportHeight), 100000);
-        setMeasuredHeight((current) =>
-          current?.src === src && current.value === value
-            ? current
-            : { src, value },
-        );
+        if (headerAction.action === "share") {
+          window.dispatchEvent(new Event(REPORT_SHARE_REQUEST_EVENT));
+        } else if (headerAction.action === "back") {
+          el.closest(".report-viewer-shell")
+            ?.querySelector<HTMLAnchorElement>("a.rpt-sys-back")
+            ?.click();
+        }
       }
 
       const message = data?.[REPORT_PDF_MESSAGE_KEY];
@@ -66,6 +96,7 @@ export function ReportFrame({
       if (!resource) return;
 
       if (message.action === "preview") {
+        setPdfLoadState("loading");
         setPdfPreview({
           url: resource.href,
           title: message.title?.trim().slice(0, 160) || "PDF 预览",
@@ -83,12 +114,20 @@ export function ReportFrame({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [flowWithPage, src]);
+  }, [sendReportHeaderConfig, src]);
 
-  const pageFlowHeight =
-    measuredHeight?.src === src
-      ? `${measuredHeight.value}px`
-      : "calc(100dvh - 118px)";
+  useEffect(() => {
+    if (!pdfPreview) return;
+    const slowTimer = window.setTimeout(() => setPdfLoadState("slow"), 2500);
+    // 内置 PDF 阅读器在 Chromium/WebKit 中都不保证触发 iframe load。
+    // 最迟四秒后露出阅读器自身界面，避免加载提示永久遮住已可交互的 PDF。
+    const revealTimer = window.setTimeout(() => setPdfLoadState("ready"), 4000);
+
+    return () => {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(revealTimer);
+    };
+  }, [pdfPreview]);
 
   // sandbox 补充：
   // - allow-downloads：保留报告内非 PDF 附件的原生下载能力；PDF 由父页桥接
@@ -104,10 +143,8 @@ export function ReportFrame({
         sandbox={REPORT_SANDBOX_TOKENS}
         allow="clipboard-write; fullscreen"
         allowFullScreen
-        className={`report-frame${
-          flowWithPage ? " report-frame--page-flow" : ""
-        }`}
-        style={flowWithPage ? { height: pageFlowHeight } : undefined}
+        className="report-frame"
+        onLoad={(event) => sendReportHeaderConfig(event.currentTarget)}
       />
       <Modal
         open={pdfPreview !== null}
@@ -117,11 +154,40 @@ export function ReportFrame({
         wide
       >
         {pdfPreview && (
-          <iframe
-            src={pdfPreview.url}
-            title={pdfPreview.title}
-            className="report-pdf-preview"
-          />
+          <div className="report-pdf-shell">
+            <iframe
+              key={pdfPreview.url}
+              src={pdfPreview.url}
+              title={pdfPreview.title}
+              className={`report-pdf-preview${
+                pdfLoadState === "ready" ? " report-pdf-preview--ready" : ""
+              }`}
+              onLoad={() =>
+                window.setTimeout(() => setPdfLoadState("ready"), 800)
+              }
+              onError={() => setPdfLoadState("error")}
+            />
+            {pdfLoadState !== "ready" && (
+              <div className="report-pdf-loading" role="status" aria-live="polite">
+                {pdfLoadState === "error" ? (
+                  <>
+                    <p>PDF 加载失败</p>
+                    <span>请关闭后重试，或返回汇报下载文件查看</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="report-pdf-spinner" aria-hidden />
+                    <p>
+                      {pdfLoadState === "slow"
+                        ? "PDF 较大，仍在加载…"
+                        : "正在加载 PDF…"}
+                    </p>
+                    <span>首次打开可能需要数秒</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </Modal>
     </>

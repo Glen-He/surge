@@ -83,7 +83,7 @@ export default async function SharePage({
     <main className="report-viewer-shell">
       {/* 系统级报告头：与登录态查看页（/report/[slug]）完全一致的 1280px 头部，
           右侧信息与返回按钮同处 40px 高的垂直带（上下居中对齐同一水平线）。
-          报告在头部下方的固定视口内自行滚动。 */}
+          系统头随报告正文一起滚出屏幕，报告 iframe 始终保持真实视口。 */}
       <header className="rpt-sys-head">
         <h1 className="rpt-sys-title">{found.reportTitle}</h1>
         <div className="flex h-[40px] shrink-0 items-center">
