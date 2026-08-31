@@ -11,7 +11,7 @@ import {
 // - 申请后 deletion_requested_at 记录时间戳，冷却期内可登录、可取消；
 // - 到期后 purgeExpiredDeletions() 物理删除 user 行，
 //   reports / account_changes / session / account 均 ON DELETE CASCADE 连带清除；
-//   security_logs 的 user_id 置 NULL，保留 email 供审计。
+//   邮箱 OTP、验证记录和含邮箱/IP 的安全日志在同一事务内主动清除。
 export const DELETION_COOLING_DAYS = 15;
 
 export async function getDeletionRequestedAt(
@@ -47,26 +47,27 @@ export async function cancelDeletion(userId: string): Promise<boolean> {
 // 幂等清理：删除冷却期已过的账号。
 // 由进程内后台维护调度器周期调用，不占用用户页面请求。
 export async function purgeExpiredDeletions(): Promise<void> {
-  try {
-    const { rows } = await db.query<{ id: string }>(
-      `SELECT id FROM "user"
-       WHERE deletion_requested_at IS NOT NULL
-         AND deletion_requested_at + INTERVAL '15 days' <= NOW()
-       ORDER BY deletion_requested_at ASC
-       LIMIT 100`,
-    );
-    for (const row of rows) {
-      await deleteUserPermanently(row.id, "account").catch((error) => {
-        logger.error(
-          "account-deletion",
-          "清理单个到期账号失败，继续处理其他账号",
-          error as Error,
-          { userId: row.id },
-        );
-      });
-    }
-  } catch (err) {
-    logger.error("account-deletion", "清理到期删除账号失败", err as Error);
+  const { rows } = await db.query<{ id: string }>(
+    `SELECT id FROM "user"
+     WHERE deletion_requested_at IS NOT NULL
+       AND deletion_requested_at + INTERVAL '15 days' <= NOW()
+     ORDER BY deletion_requested_at ASC
+     LIMIT 100`,
+  );
+  let failures = 0;
+  for (const row of rows) {
+    await deleteUserPermanently(row.id, "account").catch((error) => {
+      failures += 1;
+      logger.error(
+        "account-deletion",
+        "清理单个到期账号失败，继续处理其他账号",
+        error as Error,
+        { userId: row.id },
+      );
+    });
+  }
+  if (failures > 0) {
+    throw new Error(`${failures} expired account deletions failed`);
   }
 }
 
@@ -84,18 +85,20 @@ export async function deleteUserPermanently(
   return withStorageLocks(userId, async (client) => {
     const moved = await moveUserDirToTrash(userId, reason);
     try {
-      const result =
+      await client.query("BEGIN");
+      const user = await client.query<{ email: string }>(
         reason === "account"
-          ? await client.query(
-              `DELETE FROM "user"
-               WHERE id = $1
-                 AND deletion_requested_at IS NOT NULL
-                 AND deletion_requested_at + INTERVAL '15 days' <= NOW()`,
-              [userId],
-            )
-          : await client.query(`DELETE FROM "user" WHERE id = $1`, [userId]);
-
-      if (reason === "account" && result.rowCount !== 1) {
+          ? `SELECT email FROM "user"
+             WHERE id = $1
+               AND deletion_requested_at IS NOT NULL
+               AND deletion_requested_at + INTERVAL '15 days' <= NOW()
+             FOR UPDATE`
+          : `SELECT email FROM "user" WHERE id = $1 FOR UPDATE`,
+        [userId],
+      );
+      const email = user.rows[0]?.email;
+      if (!email) {
+        await client.query("ROLLBACK");
         await restoreTrashedDir(
           moved.original,
           moved.trashed,
@@ -103,7 +106,31 @@ export async function deleteUserPermanently(
         );
         return false;
       }
+
+      await client.query(
+        `DELETE FROM security_logs
+         WHERE user_id = $1 OR lower(email) = lower($2)`,
+        [userId, email],
+      );
+      await client.query(`DELETE FROM otp_codes WHERE lower(email) = lower($1)`, [
+        email,
+      ]);
+      // Better Auth identifiers are either the email itself or
+      // "<purpose>-otp-<email>". A suffix comparison avoids treating email
+      // characters such as % and _ as LIKE wildcards.
+      await client.query(
+        `DELETE FROM verification
+         WHERE lower(identifier) = lower($1)
+            OR right(lower(identifier), length($1) + 5) = '-otp-' || lower($1)`,
+        [email],
+      );
+      const result = await client.query(`DELETE FROM "user" WHERE id = $1`, [
+        userId,
+      ]);
+      if (result.rowCount !== 1) throw new Error("user disappeared during deletion");
+      await client.query("COMMIT");
     } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
       await restoreTrashedDir(
         moved.original,
         moved.trashed,
@@ -131,4 +158,42 @@ export async function deleteUserPermanently(
     });
     return true;
   }, { global: false });
+}
+
+/** Remove short-lived credentials and trim personal audit data by policy. */
+export async function purgeExpiredPersonalSecurityData(): Promise<void> {
+  const retentionDays = Number(process.env.SECURITY_LOG_RETENTION_DAYS ?? 90);
+  const days =
+    Number.isSafeInteger(retentionDays) && retentionDays >= 1
+      ? retentionDays
+      : 90;
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM otp_codes
+       WHERE expires_at <= NOW() OR (consumed = TRUE AND created_at < NOW() - INTERVAL '1 day')`,
+    );
+    await client.query(`DELETE FROM verification WHERE "expiresAt" <= NOW()`);
+    await client.query(
+      `DELETE FROM account_changes
+       WHERE expires_at <= NOW() OR (consumed = TRUE AND created_at < NOW() - INTERVAL '7 days')`,
+    );
+    await client.query(
+      `DELETE FROM security_logs
+       WHERE id IN (
+         SELECT id FROM security_logs
+         WHERE created_at < NOW() - ($1 * INTERVAL '1 day')
+         ORDER BY created_at ASC
+         LIMIT 1000
+       )`,
+      [days],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }

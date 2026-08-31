@@ -6,6 +6,12 @@ import { clientIp } from "@/lib/client-ip";
 import { passwordPolicyError } from "@/lib/password-policy";
 import { logger } from "@/lib/logger";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
+import {
+  registrationInternalProof,
+  registrationIsOpen,
+} from "@/lib/registration-policy";
+import { db } from "@/lib/db";
+import { internalAuthProof } from "@/lib/internal-auth-proof";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +58,9 @@ function proxyHeaders(hs: Headers, cookie?: string): Headers {
  * - 服务端验证过的账号重走注册：OTP 即所有权证明，直接登录。
  */
 export async function POST(req: Request) {
+  if (!registrationIsOpen()) {
+    return NextResponse.json({ error: "当前未开放新账号注册" }, { status: 403 });
+  }
   const body = (await req.json().catch(() => null)) as {
     email?: unknown;
     otp?: unknown;
@@ -61,7 +70,7 @@ export async function POST(req: Request) {
   const otp = typeof body?.otp === "string" ? body.otp.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "邮箱格式不正确" }, { status: 400 });
   }
   const pwdError = passwordPolicyError(password);
@@ -82,71 +91,107 @@ export async function POST(req: Request) {
     );
   }
 
-  // 1) OTP 验证 + 建号/登录 + 签发会话（better-auth email-otp 插件内部端点，
-  //    用户名由 auth.ts 的 before 钩子统一覆盖为随机 ID）
-  const otpReq = new Request(`${baseUrl(hs)}/api/auth/sign-in/email-otp`, {
-    method: "POST",
-    headers: proxyHeaders(hs),
-    body: JSON.stringify({ email, otp, name: "" }),
-  });
-  let otpRes: Response;
+  // Serialize the complete saga for one email. This makes compensating cleanup
+  // safe even if two devices submit the same OTP at the same time.
+  const registrationClient = await db.connect();
   try {
-    otpRes = await auth.handler(otpReq);
-  } catch (e) {
-    logger.error("register", "sign-in/email-otp 失败", e as Error, { email });
-    return NextResponse.json(
-      { error: "注册失败，请稍后重试" },
-      { status: 500 },
+    await registrationClient.query(
+      "SELECT pg_advisory_lock(hashtextextended($1, 0))",
+      [`registration:${email.toLowerCase()}`],
     );
-  }
-  if (!otpRes.ok) {
-    const j = (await otpRes.json().catch(() => null)) as {
-      code?: string;
-      message?: string;
-    } | null;
-    return NextResponse.json(
-      { error: toChineseError(j ?? undefined) },
-      { status: 400 },
+    const before = await registrationClient.query<{ id: string }>(
+      `SELECT id FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+      [email],
     );
-  }
-  const setCookies =
-    otpRes.headers.getSetCookie?.() ??
-    (otpRes.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/) ?? []);
-  // 浏览器还没拿到 cookie：从内部响应的 Set-Cookie 里取出新会话 cookie，
-  // 供下一步 setPassword 以该会话身份执行
-  const sessionCookie = setCookies
-    .map((c) => c.split(";")[0])
-    .find((p) => p.includes("session_token"));
-  if (!sessionCookie) {
-    return NextResponse.json(
-      { error: "注册失败，请稍后重试" },
-      { status: 500 },
-    );
-  }
+    const userExisted = !!before.rows[0];
 
-  // 2) 以新会话身份设置初始密码
-  try {
-    await auth.api.setPassword({
-      body: { newPassword: password },
-      headers: proxyHeaders(hs, sessionCookie),
+    // 1) OTP verification + account/session creation.
+    const otpHeaders = proxyHeaders(hs);
+    otpHeaders.set("x-surge-registration-proof", registrationInternalProof(email));
+    const otpReq = new Request(`${baseUrl(hs)}/api/auth/sign-in/email-otp`, {
+      method: "POST",
+      headers: otpHeaders,
+      body: JSON.stringify({ email, otp, name: "" }),
     });
-  } catch (err) {
-    // 密码已存在 = 上一次注册实际已完成（响应丢失等），按成功放行
-    const e = err as { body?: { code?: string }; code?: string };
-    const code = e?.body?.code ?? e?.code ?? "";
-    if (code !== "PASSWORD_ALREADY_SET") {
-      logger.error("register", "setPassword 失败", err as Error, { email });
+    let otpRes: Response;
+    try {
+      otpRes = await auth.handler(otpReq);
+    } catch (e) {
+      logger.error("register", "sign-in/email-otp 失败", e as Error, { email });
       return NextResponse.json(
         { error: "注册失败，请稍后重试" },
         { status: 500 },
       );
     }
-  }
+    const otpData = (await otpRes.clone().json().catch(() => null)) as
+      | { user?: { id?: string }; token?: string; code?: string; message?: string }
+      | null;
+    if (!otpRes.ok) {
+      return NextResponse.json(
+        { error: toChineseError(otpData ?? undefined) },
+        { status: 400 },
+      );
+    }
+    const createdUserId = otpData?.user?.id;
+    const setCookies =
+      otpRes.headers.getSetCookie?.() ??
+      (otpRes.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/) ?? []);
+    const sessionCookie = setCookies
+      .map((c) => c.split(";")[0])
+      .find((p) => p.includes("session_token"));
+    const sessionToken = otpData?.token ?? null;
 
-  // 3) 把内部响应的会话 cookie 原样下发给浏览器
-  const resp = NextResponse.json({ ok: true });
-  for (const sc of setCookies) {
-    resp.headers.append("set-cookie", sc);
+    const compensate = async () => {
+      if (!userExisted && createdUserId) {
+        await registrationClient.query(`DELETE FROM "user" WHERE id = $1`, [createdUserId]);
+      } else if (sessionToken) {
+        await registrationClient.query(`DELETE FROM "session" WHERE token = $1`, [sessionToken]);
+      }
+    };
+
+    if (!sessionCookie) {
+      await compensate();
+      return NextResponse.json(
+        { error: "注册失败，请稍后重试" },
+        { status: 500 },
+      );
+    }
+
+    // 2) Set the initial password. Any non-idempotent failure is compensated
+    // before a response can escape this route.
+    try {
+      const setPasswordHeaders = proxyHeaders(hs, sessionCookie);
+      setPasswordHeaders.set(
+        "x-surge-set-password-proof",
+        internalAuthProof("set-password"),
+      );
+      await auth.api.setPassword({
+        body: { newPassword: password },
+        headers: setPasswordHeaders,
+      });
+    } catch (err) {
+      const e = err as { body?: { code?: string }; code?: string };
+      const code = e?.body?.code ?? e?.code ?? "";
+      if (code !== "PASSWORD_ALREADY_SET") {
+        await compensate();
+        logger.error("register", "setPassword 失败", err as Error, { email });
+        return NextResponse.json(
+          { error: "注册失败，请稍后重试" },
+          { status: 500 },
+        );
+      }
+    }
+
+    // 3) Only a fully initialized account receives the session cookie.
+    const resp = NextResponse.json({ ok: true });
+    for (const sc of setCookies) resp.headers.append("set-cookie", sc);
+    return resp;
+  } finally {
+    await registrationClient
+      .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [
+        `registration:${email.toLowerCase()}`,
+      ])
+      .catch(() => {});
+    registrationClient.release();
   }
-  return resp;
 }

@@ -1,18 +1,23 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import { db, withStorageLocks } from "./db";
+import { withStorageLocks } from "./db";
 import { unzipStream, UnzipLimitError } from "./zip";
 import { isGuestEmail } from "./guest-sandbox";
 import { logger } from "./logger";
 import {
-  moveReportDirToTrash,
-  removeTrashedDir,
+  newReportStorageKey,
+  reportArtifactDir,
+  reportArtifactsDir,
+  reportContentDir,
   reportDir,
+  reportStagingDir,
   REPORT_USERS_DIR,
-  restoreTrashedDir,
-  userReportsDir,
 } from "./report-storage";
+import {
+  ensureStorageHeadroom,
+  StorageCapacityError,
+} from "./storage-capacity";
 import { LIMITS, charWeight } from "./char-limit";
 import { newRevisionId } from "./report-capability";
 import { DEFAULT_TAG_COLOR, isTagColor } from "./tag-colors";
@@ -40,6 +45,7 @@ export type ReportMeta = {
   tagColor: string;
   description: string;
   keywords: string;
+  externalNetwork: boolean;
 };
 
 export type UploadFile = { name: string; type: string; path: string; size: number };
@@ -81,6 +87,9 @@ export function metaFromForm(form: FormData): ReportMeta {
     tagColor: isTagColor(tagColorRaw) ? tagColorRaw : DEFAULT_TAG_COLOR,
     description: String(form.get("description") ?? "").trim(),
     keywords: String(form.get("keywords") ?? "").trim(),
+    // External network access is opt-in for newly created/API-uploaded reports.
+    // Existing reports are migrated with TRUE to preserve their behaviour.
+    externalNetwork: String(form.get("externalNetwork") ?? "false") === "true",
   };
 }
 
@@ -126,11 +135,14 @@ async function storageTotals(
 }
 
 async function stageReportPayload(
-  userDir: string,
-  slug: string,
+  userId: string,
+  storageKey: string,
   file: UploadFile,
 ): Promise<{ tmp: string; projectBytes: number }> {
-  const tmp = path.join(userDir, `${slug}.${randomUUID()}.tmp`);
+  await fs.mkdir(REPORT_USERS_DIR, { recursive: true });
+  await ensureStorageHeadroom(REPORT_USERS_DIR, MAX_PROJECT_BYTES);
+  const stagingDir = reportStagingDir(userId);
+  const tmp = path.join(stagingDir, `${storageKey}.${randomUUID()}.tmp`);
   await fs.mkdir(tmp, { recursive: true });
   try {
     let projectBytes: number;
@@ -172,14 +184,17 @@ export async function createReport(
   const sizeErr = assertFileSize(file.size);
   if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
 
-  const userDir = userReportsDir(userId);
   const slug = `r_${randomUUID().slice(0, 8)}`;
+  const storageKey = newReportStorageKey();
   let staged: { tmp: string; projectBytes: number };
   try {
-    staged = await stageReportPayload(userDir, slug, file);
+    staged = await stageReportPayload(userId, storageKey, file);
   } catch (err) {
     if (err instanceof UnzipLimitError) {
       return { ok: false, error: err.message, status: 400 };
+    }
+    if (err instanceof StorageCapacityError) {
+      return { ok: false, error: err.message, status: 507 };
     }
     return {
       ok: false,
@@ -187,7 +202,7 @@ export async function createReport(
       status: 400,
     };
   }
-  const dir = reportDir(userId, slug);
+  const dir = reportArtifactDir(userId, storageKey);
 
   try {
     // 解压在锁外完成；锁内只做最终配额确认、原子转正和入库。
@@ -218,6 +233,7 @@ export async function createReport(
       if (capErr) return { ok: false, error: capErr, status: 503 };
 
       try {
+        await fs.mkdir(reportArtifactsDir(userId), { recursive: true });
         await fs.rename(staged.tmp, dir);
       } catch {
         return { ok: false, error: "保存失败，请重试", status: 500 };
@@ -232,12 +248,12 @@ export async function createReport(
         );
         const sortOrder = Number(maxRow.rows[0]?.m ?? -1) + 1;
         await client.query(
-          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, external_network_enabled, sort_order, size_bytes, storage_key)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             randomUUID(), userId, slug, newRevisionId(), meta.title, meta.date,
             meta.tag, meta.tagColor, meta.description, meta.keywords,
-            sortOrder, staged.projectBytes,
+            meta.externalNetwork, sortOrder, staged.projectBytes, storageKey,
           ],
         );
       } catch {
@@ -263,8 +279,8 @@ export async function createReport(
 }
 
 /**
- * 替换已有报告的文件（原子替换：dir → old，tmp → dir，删 old；
- * 失败尽力恢复原目录）。不更新元信息。
+ * 替换已有报告文件：发布不可变新版本，再原子切换数据库指针。
+ * 数据库失败时旧版本完全不动；成功后旧版本可立即或后台回收。
  */
 export async function replaceReportFile(
   userId: string,
@@ -279,20 +295,22 @@ export async function replaceReportFile(
   const sizeErr = assertFileSize(file.size);
   if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
 
-  const userDir = userReportsDir(userId);
-  let dir: string;
   try {
-    dir = reportDir(userId, slug);
+    reportDir(userId, slug);
   } catch {
     return { ok: false, error: "项目不存在", status: 404 };
   }
-  const old = path.join(userDir, `${slug}.old`);
+  const storageKey = newReportStorageKey();
+  const newDir = reportArtifactDir(userId, storageKey);
   let staged: { tmp: string; projectBytes: number };
   try {
-    staged = await stageReportPayload(userDir, slug, file);
+    staged = await stageReportPayload(userId, storageKey, file);
   } catch (err) {
     if (err instanceof UnzipLimitError) {
       return { ok: false, error: err.message, status: 400 };
+    }
+    if (err instanceof StorageCapacityError) {
+      return { ok: false, error: err.message, status: 507 };
     }
     return {
       ok: false,
@@ -303,12 +321,28 @@ export async function replaceReportFile(
 
   try {
     return await withStorageLocks(userId, async (client): Promise<UploadResult> => {
-      const current = await client.query<{ size_bytes: string }>(
-        `SELECT size_bytes::text FROM reports WHERE user_id = $1 AND slug = $2`,
+      const current = await client.query<{
+        size_bytes: string;
+        template_key: string | null;
+        storage_key: string | null;
+        date: string;
+        sort_order: number | null;
+      }>(
+        `SELECT size_bytes::text, template_key, storage_key, date, sort_order
+         FROM reports WHERE user_id = $1 AND slug = $2`,
         [userId, slug],
       );
       if (!current.rows[0]) return { ok: false, error: "项目不存在", status: 404 };
       const oldSize = Number(current.rows[0].size_bytes);
+      let nextSortOrder = current.rows[0].sort_order;
+      if (meta && meta.date !== current.rows[0].date) {
+        const order = await client.query<{ m: number }>(
+          `SELECT COALESCE(MAX(sort_order), -1) AS m
+           FROM reports WHERE user_id = $1 AND date = $2`,
+          [userId, meta.date],
+        );
+        nextSortOrder = Number(order.rows[0]?.m ?? -1) + 1;
+      }
       const used = await storageTotals(client, userId);
       if (used.user - oldSize + staged.projectBytes > MAX_USER_TOTAL_BYTES) {
         return {
@@ -320,35 +354,24 @@ export async function replaceReportFile(
       const capErr = checkSiteCap(used.site - oldSize + staged.projectBytes);
       if (capErr) return { ok: false, error: capErr, status: 503 };
 
-      let originalMoved = false;
       try {
-        await fs.rm(old, { recursive: true, force: true });
-        await fs.rename(dir, old);
-        originalMoved = true;
-        await fs.rename(staged.tmp, dir);
+        await fs.mkdir(reportArtifactsDir(userId), { recursive: true });
+        await fs.rename(staged.tmp, newDir);
       } catch {
-        if (originalMoved) {
-          try {
-            await fs.rm(dir, { recursive: true, force: true });
-            await fs.rename(old, dir);
-          } catch {
-            // Recovery is handled fail-closed by the missing live directory.
-          }
-        }
         return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
       }
 
-      // 内容世代轮换。必须 fail closed：旧 capability 绑定旧 revision，
-      // 若磁盘已是新内容而 DB 仍指旧 revision，旧 capability 持有者会读到
-      // 未被授权的新内容。因此 DB 更新失败时回滚目录到旧内容；连回滚都
-      // 失败则报告目录缺失，runtime 对该报告整体 404。
+      // New bytes live in a separate immutable directory. The one-row UPDATE
+      // atomically rotates both the capability revision and storage pointer.
       try {
         const updated = meta
           ? await client.query(
               `UPDATE reports
                SET revision_id = $1, title = $2, date = $3, tag = $4,
-                   tag_color = $5, description = $6, keywords = $7, size_bytes = $8
-               WHERE user_id = $9 AND slug = $10`,
+                   tag_color = $5, description = $6, keywords = $7,
+                   external_network_enabled = $8, sort_order = $9, size_bytes = $10,
+                   template_key = NULL, storage_key = $11
+               WHERE user_id = $12 AND slug = $13`,
               [
                 newRevisionId(),
                 meta.title,
@@ -357,39 +380,40 @@ export async function replaceReportFile(
                 meta.tagColor,
                 meta.description,
                 meta.keywords,
-                staged.projectBytes,
-                userId,
-                slug,
+                meta.externalNetwork, nextSortOrder, staged.projectBytes, storageKey, userId, slug,
               ],
             )
           : await client.query(
-              `UPDATE reports SET revision_id = $1, size_bytes = $2
-               WHERE user_id = $3 AND slug = $4`,
-              [newRevisionId(), staged.projectBytes, userId, slug],
+              `UPDATE reports
+               SET revision_id = $1, size_bytes = $2, template_key = NULL,
+                   storage_key = $3
+               WHERE user_id = $4 AND slug = $5`,
+              [newRevisionId(), staged.projectBytes, storageKey, userId, slug],
             );
         if (updated.rowCount !== 1) {
           throw new Error("report disappeared while rotating revision");
         }
       } catch (err) {
-        logger.error("upload", "轮换 revision 失败，回滚报告目录", err as Error);
-        try {
-          await fs.rm(dir, { recursive: true, force: true });
-          await fs.rename(old, dir);
-        } catch (restoreErr) {
-          logger.error(
-            "upload",
-            "回滚报告目录失败，报告暂不可用（fail closed）",
-            restoreErr as Error,
-          );
-        }
+        logger.error("upload", "轮换报告存储指针失败", err as Error);
+        await fs.rm(newDir, { recursive: true, force: true }).catch(() => {});
         return { ok: false, error: "替换报告文件失败，请重试", status: 500 };
       }
-      await fs.rm(old, { recursive: true, force: true }).catch((error) => {
-        logger.warn("upload", "旧报告目录将在下次替换时重试清理", error as Error, {
+
+      if (!current.rows[0].template_key) {
+        const oldDir = reportContentDir({
           userId,
           slug,
+          storageKey: current.rows[0].storage_key,
         });
-      });
+        await fs.rm(oldDir, { recursive: true, force: true, maxRetries: 3 }).catch(
+          (error) => {
+            logger.warn("upload", "旧报告版本将在后台清理", error as Error, {
+              userId,
+              slug,
+            });
+          },
+        );
+      }
 
       return { ok: true, slug };
     });
@@ -403,81 +427,54 @@ export async function replaceReportFile(
   }
 }
 
-/**
- * Delete a report with a compensating filesystem transaction. The live
- * directory is renamed out of reach first; a failed DB delete restores it.
- * Once the DB commit succeeds, stale capabilities fail before physical cleanup.
- */
+/** Delete DB authorization first, then reclaim unreferenced physical bytes. */
 export async function deleteReport(
   userId: string,
   slug: string,
 ): Promise<UploadResult> {
   return withStorageLocks(userId, async (client) => {
-    const userDir = userReportsDir(userId);
     try {
       reportDir(userId, slug);
     } catch {
       return { ok: false, error: "项目不存在", status: 404 };
     }
-    const tmp = path.join(userDir, `${slug}.tmp`);
-    const old = path.join(userDir, `${slug}.old`);
-    let moved: Awaited<ReturnType<typeof moveReportDirToTrash>>;
     try {
-      moved = await moveReportDirToTrash(userId, slug);
-    } catch (error) {
-      logger.error("report-delete", "报告目录移入回收区失败", error as Error, {
-        userId,
-        slug,
-      });
-      return { ok: false, error: "删除失败，请重试", status: 500 };
-    }
-
-    try {
-      const result = await client.query(
-        `DELETE FROM reports WHERE user_id = $1 AND slug = $2`,
+      const result = await client.query<{
+        template_key: string | null;
+        storage_key: string | null;
+      }>(
+        `DELETE FROM reports WHERE user_id = $1 AND slug = $2
+         RETURNING template_key, storage_key`,
         [userId, slug],
       );
       if (result.rowCount !== 1) {
-        await restoreTrashedDir(
-          moved.original,
-          moved.trashed,
-          moved.manifest,
-        );
         return { ok: false, error: "项目不存在", status: 404 };
       }
-    } catch (error) {
-      await restoreTrashedDir(
-        moved.original,
-        moved.trashed,
-        moved.manifest,
-      ).catch((restoreError) => {
-        logger.error(
-          "report-delete",
-          "数据库删除失败且目录恢复失败",
-          restoreError as Error,
-          { userId, slug },
+      const row = result.rows[0];
+      if (!row.template_key) {
+        const dir = reportContentDir({
+          userId,
+          slug,
+          storageKey: row.storage_key,
+        });
+        await fs.rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(
+          (error) => {
+            logger.warn("report-delete", "报告已失效，文件将在后台清理", error as Error, {
+              userId,
+              slug,
+            });
+          },
         );
-      });
+      }
+      return { ok: true, slug };
+    } catch (error) {
       logger.error("report-delete", "数据库删除失败", error as Error, {
         userId,
         slug,
       });
       return { ok: false, error: "删除失败，请重试", status: 500 };
     }
-
-    // DB 已成功，物理清理失败时留在 .trash，由启动清理重试。
-    await Promise.all([
-      removeTrashedDir(moved.trashed, moved.manifest),
-      fs.rm(tmp, { recursive: true, force: true, maxRetries: 3 }),
-      fs.rm(old, { recursive: true, force: true, maxRetries: 3 }),
-    ]).catch((error) => {
-      logger.warn("report-delete", "延迟清理报告回收区", error as Error, {
-        userId,
-        slug,
-      });
-    });
-    return { ok: true, slug };
-  }, { global: false });
+  });
 }
 
 /** 更新报告元信息（不含文件） */
@@ -489,14 +486,42 @@ export async function updateReportMeta(
   const invalid = validateReportMeta(meta);
   if (invalid) return { ok: false, error: invalid, status: 400 };
   try {
-    const { rowCount } = await db.query(
-      `UPDATE reports
-       SET title = $1, date = $2, tag = $3, tag_color = $4, description = $5, keywords = $6
-       WHERE user_id = $7 AND slug = $8`,
-      [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, userId, slug],
-    );
-    if (!rowCount) return { ok: false, error: "项目不存在", status: 404 };
-    return { ok: true, slug };
+    return await withStorageLocks(userId, async (client): Promise<UploadResult> => {
+      await client.query("BEGIN");
+      try {
+        const current = await client.query<{ date: string; sort_order: number | null }>(
+          `SELECT date, sort_order FROM reports
+           WHERE user_id = $1 AND slug = $2 FOR UPDATE`,
+          [userId, slug],
+        );
+        if (!current.rows[0]) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "项目不存在", status: 404 };
+        }
+        let sortOrder = current.rows[0].sort_order;
+        if (meta.date !== current.rows[0].date) {
+          const target = await client.query<{ m: number }>(
+            `SELECT COALESCE(MAX(sort_order), -1) AS m
+             FROM reports WHERE user_id = $1 AND date = $2`,
+            [userId, meta.date],
+          );
+          sortOrder = Number(target.rows[0]?.m ?? -1) + 1;
+        }
+        await client.query(
+          `UPDATE reports
+           SET title = $1, date = $2, tag = $3, tag_color = $4,
+               description = $5, keywords = $6, external_network_enabled = $7,
+               sort_order = $8
+           WHERE user_id = $9 AND slug = $10`,
+          [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, meta.externalNetwork, sortOrder, userId, slug],
+        );
+        await client.query("COMMIT");
+        return { ok: true, slug };
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+      }
+    }, { global: false });
   } catch {
     return { ok: false, error: "保存失败，请重试", status: 500 };
   }

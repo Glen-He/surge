@@ -1,24 +1,21 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
-import path from "node:path";
 import { db } from "./db";
 import { ensureOtpMigration } from "./schema";
 import { newRevisionId } from "./report-capability";
 import {
-  REPORT_DEMO_TEMPLATES_DIR,
-  dirSizeBytes,
-  userReportsDir,
+  demoTemplateDir,
+  type DemoTemplateKey,
 } from "./report-storage";
 import { deleteUserPermanently } from "./account-deletion";
 import { logger } from "./logger";
+import { internalAuthProof, verifyInternalAuthProof } from "./internal-auth-proof";
 
 export const GUEST_EMAIL_DOMAIN = "demo.surge";
 export const GUEST_TTL_MINUTES = 60;
 
-const DEMO_TEMPLATES_DIR = REPORT_DEMO_TEMPLATES_DIR;
-
 export interface DemoTemplate {
-  tplDir: string; // tpl-01..05 under reports/demo-templates
+  tplDir: DemoTemplateKey; // server-owned template allowlist key
   title: string;
   date: string; // YYYY-MM-DD
   tag: string;
@@ -83,6 +80,15 @@ export function isGuestEmail(email: string | null | undefined): boolean {
   return lower.endsWith("@" + GUEST_EMAIL_DOMAIN);
 }
 
+/** Server-only proof that anonymous auth was initiated by the atomic guest saga. */
+export function guestInternalProof(): string {
+  return internalAuthProof("guest-login");
+}
+
+export function verifyGuestInternalProof(proof: string | null | undefined): boolean {
+  return verifyInternalAuthProof("guest-login", "", proof);
+}
+
 /**
  * 事件驱动：发送验证码接口的响应体里附带访客验证码（仅当收件人是访客邮箱）。
  * 前端拿到响应后直接弹 Toast —— 验证码显示的唯一触发路径就是"用户点击发送且发送成功"，
@@ -95,66 +101,95 @@ export function guestOtpResponse(email: string, code: string, ttlSec = 600) {
   };
 }
 
-export async function seedDemoReports(userId: string): Promise<void> {
-  await ensureOtpMigration();
-  const userDir = userReportsDir(userId);
-  await fs.mkdir(userDir, { recursive: true });
+let templateValidation: Promise<void> | null = null;
 
-  // 按照 sort_order 顺序灌入（日期倒序 + 同一日期按 DEMO_TEMPLATES 顺序），与其他真实用户一致。
-  const ordered = [...DEMO_TEMPLATES].map((t, idx) => ({ t, idx }));
-  ordered.sort((a, b) => {
-    if (a.t.date !== b.t.date) return a.t.date < b.t.date ? 1 : -1;
-    return a.idx - b.idx;
-  });
-
-  let sortOrder = 0;
-  for (const { t } of ordered) {
-    const slug = `demo_${randomUUID().slice(0, 8)}`;
-    const dest = path.join(userDir, slug);
-    const src = path.join(DEMO_TEMPLATES_DIR, t.tplDir);
-    try {
-      await fs.cp(src, dest, { recursive: true });
-    } catch (e) {
-      await fs.rm(dest, { recursive: true, force: true });
-      throw e;
-    }
-    try {
-      const sizeBytes = await dirSizeBytes(dest);
-      await db.query(
-        `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [
-          randomUUID(),
-          userId,
-          slug,
-          newRevisionId(),
-          t.title,
-          t.date,
-          t.tag,
-          t.tagColor,
-          t.description,
-          t.keywords,
-          sortOrder++,
-          sizeBytes,
-        ],
-      );
-    } catch (e) {
-      await fs.rm(dest, { recursive: true, force: true });
-      throw e;
-    }
-  }
+/** Fail before creating a guest if a deployed template is incomplete. */
+export function validateDemoTemplates(): Promise<void> {
+  templateValidation ??= Promise.all(
+    DEMO_TEMPLATES.map((template) =>
+      fs.access(`${demoTemplateDir(template.tplDir)}/report.html`),
+    ),
+  )
+    .then(() => undefined)
+    .catch((error) => {
+      templateValidation = null;
+      throw error;
+    });
+  return templateValidation;
 }
 
-export async function createGuestSessionRecord(userId: string, ttlMinutes = GUEST_TTL_MINUTES) {
+/**
+ * Create the fixed 60-minute lease and five independent report rows in one
+ * transaction. Demo bytes stay in shared, immutable templates. Replacing one
+ * report later materializes a private directory (copy-on-write).
+ */
+export async function initializeGuestSandbox(
+  userId: string,
+  ttlMinutes = GUEST_TTL_MINUTES,
+): Promise<Date> {
   await ensureOtpMigration();
+  await validateDemoTemplates();
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
-  await db.query(
-    `INSERT INTO guest_sessions (user_id, expires_at, payload)
-     VALUES ($1, $2, '{}'::jsonb)
-     ON CONFLICT (user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
-    [userId, expiresAt],
-  );
-  return expiresAt;
+  const ordered = [...DEMO_TEMPLATES]
+    .map((template, index) => ({ template, index }))
+    .sort((a, b) => {
+      if (a.template.date !== b.template.date) {
+        return a.template.date < b.template.date ? 1 : -1;
+      }
+      return a.index - b.index;
+    });
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query<{ expires_at: Date }>(
+      `SELECT expires_at FROM guest_sessions WHERE user_id = $1 FOR UPDATE`,
+      [userId],
+    );
+    if (existing.rows[0]) {
+      await client.query("COMMIT");
+      return existing.rows[0].expires_at;
+    }
+
+    await client.query(
+      `INSERT INTO guest_sessions (user_id, expires_at, payload)
+       VALUES ($1, $2, '{}'::jsonb)`,
+      [userId, expiresAt],
+    );
+
+    const values: unknown[] = [];
+    const rows = ordered.map(({ template }, sortOrder) => {
+      const offset = values.length;
+      values.push(
+        randomUUID(),
+        userId,
+        `demo_${randomUUID().slice(0, 8)}`,
+        newRevisionId(),
+        template.title,
+        template.date,
+        template.tag,
+        template.tagColor,
+        template.description,
+        template.keywords,
+        sortOrder,
+        template.tplDir,
+      );
+      return `(${Array.from({ length: 12 }, (_, i) => `$${offset + i + 1}`).join(", ")})`;
+    });
+    await client.query(
+      `INSERT INTO reports
+         (id, user_id, slug, revision_id, title, date, tag, tag_color,
+          description, keywords, sort_order, template_key)
+       VALUES ${rows.join(", ")}`,
+      values,
+    );
+    await client.query("COMMIT");
+    return expiresAt;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function destroyGuestUser(userId: string): Promise<void> {
@@ -177,20 +212,23 @@ export async function purgeStaleGuests(): Promise<{ removed: number }> {
   );
   if (!stale.rows.length) return { removed: 0 };
   let removed = 0;
+  let failures = 0;
   for (const r of stale.rows) {
     try {
       await destroyGuestUser(r.user_id);
       removed += 1;
     } catch (error) {
+      failures += 1;
       logger.error("guest-cleanup", "清理过期访客失败，继续处理其他访客", error as Error, {
         userId: r.user_id,
       });
     }
   }
+  if (failures > 0) {
+    throw new Error(`${failures} expired guest deletions failed`);
+  }
   return { removed };
 }
-
-export { dirSizeBytes };
 
 // ── 工具：判断访客会话是否已过期（创建起 60 分钟，不续期）──
 
@@ -219,8 +257,8 @@ export async function getGuestExpiry(
 /**
  * 访客会话到期强制退出：会话属于访客且已过 60 分钟 → 当场销毁沙箱并返回 true，
  * 调用方 redirect('/?guestExpired=1')（登录页会展示「访客体验已结束」提示卡）。
- * 挂在主要页面的会话检查处（/ /home /report /account /shares）；
- * API 层不做逐个拦截（访客场景低频，页面级拦截已覆盖正常浏览路径）。
+ * 页面统一由 requireSession 调用，业务 API 统一由 getApiSession 调用；
+ * 因此前端计时器只是交互提醒，不是安全边界。
  */
 export async function expireGuestIfNeeded(
   session: { user: { id: string; email: string } } | null | undefined,

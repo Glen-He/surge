@@ -5,6 +5,10 @@ import path from "node:path";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { reportDir } from "@/lib/report-storage";
+import {
+  encryptShareToken,
+  shareTokenHash,
+} from "@/lib/share-token-store";
 
 const fixture = {
   userId: "",
@@ -60,8 +64,14 @@ test.beforeAll(async () => {
     [fixture.reportId, user.id, fixture.slug, randomUUID(), fixture.title, sizeBytes],
   );
   await db.query(
-    `INSERT INTO report_shares (id, report_id, token) VALUES ($1, $2, $3)`,
-    [randomUUID(), fixture.reportId, fixture.token],
+    `INSERT INTO report_shares (id, report_id, token_hash, token_enc)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      randomUUID(),
+      fixture.reportId,
+      shareTokenHash(fixture.token),
+      encryptShareToken(fixture.token),
+    ],
   );
 });
 

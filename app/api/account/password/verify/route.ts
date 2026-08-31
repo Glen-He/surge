@@ -1,6 +1,13 @@
 import { auth } from "@/lib/auth";
 import { getApiSession } from "@/lib/api-session";
 import {
+  checkReauthenticationAllowed,
+  clearReauthenticationFailures,
+  recordReauthenticationFailure,
+} from "@/lib/auth-attempts";
+import { clientIp } from "@/lib/client-ip";
+import { PASSWORD_MAX } from "@/lib/password-policy";
+import {
   createChangeToken,
   logSecurity,
   verifyStoredOtp,
@@ -24,15 +31,29 @@ export async function POST(req: Request) {
     if (!password) {
       return Response.json({ error: "请输入当前密码" }, { status: 400 });
     }
-    // 用 signInEmail 验证当前密码
+    if (password.length > PASSWORD_MAX) {
+      return Response.json({ error: "当前密码错误" }, { status: 400 });
+    }
+    const ip = clientIp(req.headers);
+    const allowance = await checkReauthenticationAllowed(session.user.id, ip);
+    if (!allowance.allowed) {
+      return Response.json(
+        { error: `尝试次数过多，请 ${allowance.retryAfter} 秒后再试` },
+        { status: 429 },
+      );
+    }
+    // verifyPassword only validates the current credential. Unlike signInEmail,
+    // it does not create or rotate a session as a side effect.
     try {
-      await auth.api.signInEmail({
-        body: { email: session.user.email, password },
+      await auth.api.verifyPassword({
+        body: { password },
         headers: req.headers,
       });
     } catch {
+      await recordReauthenticationFailure(session.user.id, ip);
       return Response.json({ error: "当前密码错误" }, { status: 400 });
     }
+    await clearReauthenticationFailures(session.user.id);
     await logSecurity({
       userId: session.user.id,
       action: "PASSWORD_VERIFY_BY_PASSWORD",

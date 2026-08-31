@@ -19,6 +19,100 @@ function hostHeaderHostname(value: string | null): string | null {
   }
 }
 
+const CUSTOM_AUTH_MUTATIONS = [
+  "/api/auth/end-session",
+  "/api/auth/guest-login",
+  "/api/auth/register",
+];
+
+function withTransportSecurity<T extends Response>(response: T, origin: string): T {
+  if (new URL(origin).protocol === "https:") {
+    response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=15552000; includeSubDomains",
+    );
+  }
+  return response;
+}
+
+function isCustomBrowserMutation(pathname: string, method: string): boolean {
+  if (!new Set(["POST", "PUT", "PATCH", "DELETE"]).has(method.toUpperCase())) {
+    return false;
+  }
+  if (!pathname.startsWith("/api/")) return false;
+  if (
+    pathname.startsWith("/api/v1/") ||
+    pathname === "/api/health" ||
+    pathname.startsWith("/api/internal/")
+  ) {
+    return false;
+  }
+  if (pathname.startsWith("/api/auth/")) {
+    return CUSTOM_AUTH_MUTATIONS.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
+  }
+  return true;
+}
+
+export function isTrustedMutationRequest(
+  request: Pick<NextRequest, "headers" | "method"> & { nextUrl: { pathname: string } },
+  expectedOrigin: string,
+): boolean {
+  if (!isCustomBrowserMutation(request.nextUrl.pathname, request.method)) return true;
+
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      if (new URL(origin).origin !== expectedOrigin) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+  if (fetchSite && fetchSite !== "same-origin") return false;
+
+  const referer = request.headers.get("referer");
+  if (referer) {
+    try {
+      if (new URL(referer).origin !== expectedOrigin) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  // Browser session mutations always carry at least Origin, Fetch Metadata or
+  // Referer. Header-less non-browser clients have no ambient browser cookies;
+  // public programmatic access belongs under /api/v1 with Bearer credentials.
+  return !!origin || fetchSite === "same-origin" || !!referer || !request.headers.get("cookie");
+}
+
+export function mainContentSecurityPolicy(
+  nonce: string,
+  reportsOrigin: string,
+  development: boolean,
+  secureTransport = true,
+): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
+    "script-src-attr 'none'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob:",
+    "connect-src 'self'",
+    `frame-src ${reportsOrigin}`,
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    ...(!development && secureTransport ? ["upgrade-insecure-requests"] : []),
+  ].join("; ");
+}
+
 /**
  * 第二道内容域收口：即便 OpenResty 被误配为整站反代，reports.glenhe.com
  * 也只能访问 /r/*。主站与内容域相同的本地开发环境不会启用此分支。
@@ -26,9 +120,12 @@ function hostHeaderHostname(value: string | null): string | null {
 export function proxy(request: NextRequest) {
   const appHost = hostname(process.env.BETTER_AUTH_URL);
   const reportsHost = hostname(process.env.REPORTS_ORIGIN);
-  if (!appHost || !reportsHost || appHost === reportsHost) {
-    return NextResponse.next();
-  }
+  const configuredAppOrigin = process.env.BETTER_AUTH_URL
+    ? new URL(process.env.BETTER_AUTH_URL).origin
+    : request.nextUrl.origin;
+  const configuredReportsOrigin = process.env.REPORTS_ORIGIN
+    ? new URL(process.env.REPORTS_ORIGIN).origin
+    : configuredAppOrigin;
 
   // Next 在反向代理或 next start --hostname 0.0.0.0 下可能用内部监听地址
   // 构造 nextUrl，所以以 OpenResty 为当前 server block 设置的 Host 为准。
@@ -36,17 +133,53 @@ export function proxy(request: NextRequest) {
   const requestHost =
     hostHeaderHostname(request.headers.get("host")) ??
     request.nextUrl.hostname.toLowerCase();
-  if (requestHost !== reportsHost) return NextResponse.next();
-  if (request.nextUrl.pathname.startsWith("/r/")) {
-    return NextResponse.next();
+  const requestOrigin =
+    reportsHost && requestHost === reportsHost
+      ? configuredReportsOrigin
+      : configuredAppOrigin;
+  if (appHost && reportsHost && appHost !== reportsHost && requestHost === reportsHost) {
+    if (request.nextUrl.pathname.startsWith("/r/")) {
+      return withTransportSecurity(NextResponse.next(), requestOrigin);
+    }
+
+    return withTransportSecurity(new Response("not found", {
+      status: 404,
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+      },
+    }), requestOrigin);
   }
 
-  return new Response("not found", {
-    status: 404,
-    headers: {
-      "Cache-Control": "private, no-store",
-      "Content-Type": "text/plain; charset=utf-8",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  if (!isTrustedMutationRequest(request, configuredAppOrigin)) {
+    return withTransportSecurity(
+      Response.json({ error: "请求来源无效" }, { status: 403 }),
+      requestOrigin,
+    );
+  }
+
+  const pathname = request.nextUrl.pathname;
+  const shouldApplyCsp =
+    !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/r/") &&
+    !pathname.startsWith("/_next/") &&
+    pathname !== "/favicon.ico";
+  if (!shouldApplyCsp) {
+    return withTransportSecurity(NextResponse.next(), requestOrigin);
+  }
+
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = mainContentSecurityPolicy(
+    nonce,
+    configuredReportsOrigin,
+    process.env.NODE_ENV !== "production",
+    new URL(configuredAppOrigin).protocol === "https:",
+  );
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  return withTransportSecurity(response, requestOrigin);
 }

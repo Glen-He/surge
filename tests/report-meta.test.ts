@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateReportMeta, type ReportMeta } from "@/lib/report-upload";
+import { metaFromForm, validateReportMeta, type ReportMeta } from "@/lib/report-upload";
 
 const base: ReportMeta = {
   title: "周报",
@@ -8,6 +8,7 @@ const base: ReportMeta = {
   tagColor: "#DBEAFE",
   description: "",
   keywords: "",
+  externalNetwork: true,
 };
 
 describe("validateReportMeta date", () => {
@@ -19,5 +20,14 @@ describe("validateReportMeta date", () => {
   it("拒绝格式错误和不存在的日期", () => {
     expect(validateReportMeta({ ...base, date: "08/27/2026" })).toContain("YYYY-MM-DD");
     expect(validateReportMeta({ ...base, date: "2026-02-30" })).toBe("请填写有效日期");
+  });
+});
+
+describe("报告外部网络默认值", () => {
+  it("未明确开启时默认关闭", () => {
+    const form = new FormData();
+    expect(metaFromForm(form).externalNetwork).toBe(false);
+    form.set("externalNetwork", "true");
+    expect(metaFromForm(form).externalNetwork).toBe(true);
   });
 });

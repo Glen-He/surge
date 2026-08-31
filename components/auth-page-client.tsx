@@ -13,12 +13,15 @@ import {
   signInAsGuest,
 } from "@/lib/auth-flow";
 import { PASSWORD_RULE_TEXT } from "@/lib/password-policy";
+import {
+  GUEST_WELCOME_KEY,
+  rememberGuestExpiry,
+} from "@/lib/guest-session-client";
 
 type Mode = "signin" | "signup";
 
 const OTP_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
-const GUEST_TOAST_KEY = "surge:guest-login-toast";
 const INITIAL_LOGIN_STATE: PasswordLoginState = {
   error: "",
   submissionId: 0,
@@ -42,7 +45,7 @@ const ICON_LOCK = (
  * 登录/注册页。本组件只负责表单 UI 与输入校验，
  * 密码登录由 Server Action 原子完成；注册与游客流程仍由 auth-flow 封装。
  */
-export function AuthPageClient() {
+export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean }) {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,6 +63,7 @@ export function AuthPageClient() {
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [authSlow, setAuthSlow] = useState(false);
   const [loginState, loginAction, loginPending] = useActionState(
     passwordLoginAction,
     INITIAL_LOGIN_STATE,
@@ -67,6 +71,7 @@ export function AuthPageClient() {
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isSignUp = mode === "signup";
+  const authBusy = loading || guestLoading || loginPending;
   const otpPhase = isSignUp && otpSent;
   const visibleError =
     error ||
@@ -85,6 +90,13 @@ export function AuthPageClient() {
   useEffect(() => {
     if (otpSent) otpRefs.current[0]?.focus();
   }, [otpSent]);
+
+  // 请求超过 4 秒时明确告知仍在处理，不让用户反复点击。
+  useEffect(() => {
+    if (!authBusy) return;
+    const timer = window.setTimeout(() => setAuthSlow(true), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [authBusy]);
 
   function validateEmail(value: string): string {
     if (!value) return "";
@@ -106,6 +118,7 @@ export function AuthPageClient() {
     }
     if (cooldown > 0) return;
 
+    setAuthSlow(false);
     setLoading(true);
     try {
       const r = await sendSignUpOtp(email, password);
@@ -122,6 +135,7 @@ export function AuthPageClient() {
 
   // 注册：验证码通过 → 服务端原子完成建号 + 登录 + 初始密码
   async function verifyOtp(otp: string) {
+    setAuthSlow(false);
     setLoading(true);
     try {
       const r = await registerWithOtp(email, otp, password);
@@ -138,6 +152,7 @@ export function AuthPageClient() {
 
   async function handleGuestLogin() {
     if (guestLoading || loading || loginPending) return;
+    setAuthSlow(false);
     setGuestLoading(true);
     setError("");
     try {
@@ -149,7 +164,8 @@ export function AuthPageClient() {
       // 落标记：整页跳到 /home 后由布局里的 GuestToasts 展示
       // 「访客登录成功 · 会话 60 分钟」提示卡（10 秒自动消失）
       try {
-        sessionStorage.setItem(GUEST_TOAST_KEY, String(r.ttlMinutes));
+        sessionStorage.setItem(GUEST_WELCOME_KEY, String(r.ttlMinutes));
+        rememberGuestExpiry(r.expiresAt);
       } catch {
         /* 无痕模式等场景静默忽略 */
       }
@@ -160,6 +176,7 @@ export function AuthPageClient() {
   }
 
   function switchMode(next: Mode) {
+    if (next === "signup" && !registrationOpen) return;
     setMode(next);
     setError("");
     setDismissedLoginSubmissionId(loginState.submissionId);
@@ -257,27 +274,37 @@ export function AuthPageClient() {
                   className="auth-tab-indicator"
                   style={{
                     transform: isSignUp ? "translateX(100%)" : "translateX(0)",
+                    width: registrationOpen ? undefined : "100%",
                   }}
                 />
                 <button
                   type="button"
                   onClick={() => switchMode("signin")}
+                  disabled={authBusy}
                   className={`auth-tab ${!isSignUp ? "auth-tab-active" : ""}`}
                 >
                   登录
                 </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode("signup")}
-                  className={`auth-tab ${isSignUp ? "auth-tab-active" : ""}`}
-                >
-                  注册
-                </button>
+                {registrationOpen && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("signup")}
+                    disabled={authBusy}
+                    className={`auth-tab ${isSignUp ? "auth-tab-active" : ""}`}
+                  >
+                    注册
+                  </button>
+                )}
               </div>
 
               <form
                 action={loginAction}
                 onSubmit={(e) => {
+                  if (authBusy) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setAuthSlow(false);
                   setError("");
                   setDismissedLoginSubmissionId(loginState.submissionId);
                   if (isSignUp) {
@@ -380,6 +407,7 @@ export function AuthPageClient() {
                           }}
                           onBlur={() => setEmailError(validateEmail(email))}
                           autoComplete="email"
+                          disabled={authBusy}
                           className={`auth-input ${emailError ? "auth-input-error" : ""}`}
                         />
                       </div>
@@ -409,11 +437,13 @@ export function AuthPageClient() {
                           autoComplete={
                             isSignUp ? "new-password" : "current-password"
                           }
+                          disabled={authBusy}
                           className="auth-input auth-input-pw"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
+                          disabled={authBusy}
                           aria-label={showPassword ? "隐藏密码" : "显示密码"}
                           className="auth-eye"
                         >
@@ -456,12 +486,14 @@ export function AuthPageClient() {
                 <button
                   type="submit"
                   disabled={
-                    loading || loginPending || (otpPhase && !otpComplete)
+                    authBusy || (otpPhase && !otpComplete)
                   }
                   className="auth-submit"
                 >
                   {loading || loginPending
-                    ? "请稍候…"
+                    ? authSlow
+                      ? "网络较慢，仍在处理…"
+                      : "请稍候…"
                     : isSignUp
                       ? otpSent
                         ? otpComplete
@@ -475,10 +507,14 @@ export function AuthPageClient() {
                 <button
                   type="button"
                   onClick={() => void handleGuestLogin()}
-                  disabled={guestLoading || loading || loginPending}
+                  disabled={authBusy}
                   className="auth-guest"
                 >
-                  {guestLoading ? "正在准备访客环境…" : "游客登录"}
+                  {guestLoading
+                    ? authSlow
+                      ? "网络较慢，仍在准备…"
+                      : "正在准备访客环境…"
+                    : "游客登录"}
                 </button>
               </form>
             </div>

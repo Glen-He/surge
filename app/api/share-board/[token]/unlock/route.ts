@@ -33,14 +33,18 @@ export async function POST(
   }
   const body = await req.json().catch(() => ({}));
   const password = typeof body.password === "string" ? body.password : "";
-  if (!password || !(await verifySharePassword(password, board.passwordHash))) {
+  if (
+    !password ||
+    password.length > 64 ||
+    !(await verifySharePassword(password, board.passwordHash))
+  ) {
     return Response.json({ error: "密码不正确" }, { status: 401 });
   }
   await clearUnlockRate(rateKey, ip);
   const jar = await cookies();
-  jar.set(boardUnlockCookieName(token), boardUnlockProof(token), {
+  jar.set(boardUnlockCookieName(token), boardUnlockProof(token, board.accessEpoch), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: new URL(process.env.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
     path: `/b/${token}`,
   });

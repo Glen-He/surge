@@ -16,7 +16,7 @@ import {
 } from "@/lib/report-origin";
 import {
   REPORT_SHARED_DIR,
-  reportDir,
+  reportContentDir,
 } from "@/lib/report-storage";
 import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
 import { parseByteRange } from "@/lib/http-range";
@@ -114,8 +114,13 @@ export async function GET(
     slug: string;
     revision_id: string;
     capability_epoch: number;
+    template_key: string | null;
+    storage_key: string | null;
+    external_network_enabled: boolean;
   }>(
-    `SELECT user_id, slug, revision_id, capability_epoch FROM reports WHERE id = $1 LIMIT 1`,
+    `SELECT user_id, slug, revision_id, capability_epoch, template_key, storage_key,
+            external_network_enabled
+     FROM reports WHERE id = $1 LIMIT 1`,
     [grant.reportId],
   );
   const row = r.rows[0];
@@ -142,7 +147,12 @@ export async function GET(
     filePath = path.resolve(SHARED_DIR, segments.slice(1).join("/"));
   } else {
     try {
-      allowedRoot = reportDir(row.user_id, row.slug);
+      allowedRoot = reportContentDir({
+        userId: row.user_id,
+        slug: row.slug,
+        templateKey: row.template_key,
+        storageKey: row.storage_key,
+      });
     } catch {
       return notFound();
     }
@@ -213,6 +223,7 @@ export async function GET(
         "Content-Security-Policy": reportDocCsp(
           `${reportsOrigin()}/r/${cap}`,
           applicationOrigin(),
+          row.external_network_enabled,
         ),
       },
     });

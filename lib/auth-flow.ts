@@ -1,11 +1,28 @@
-import { authClient } from "@/lib/auth-client";
 import { toChineseError } from "@/lib/auth-errors";
 import { passwordPolicyError } from "@/lib/password-policy";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 export type GuestResult =
-  | { ok: true; ttlMinutes: number }
+  | { ok: true; ttlMinutes: number; expiresAt: string }
   | { ok: false; error: string };
+
+const AUTH_REQUEST_TIMEOUT_MS = 20_000;
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(
+    () => controller.abort(),
+    AUTH_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 /**
  * 注册/游客仍由客户端认证接口完成，成功后做一次整页导航。
@@ -31,13 +48,28 @@ export async function sendSignUpOtp(
   if (pwdError) {
     return { ok: false, error: pwdError };
   }
-  const { error } = await authClient.emailOtp.sendVerificationOtp({
-    email,
-    type: "sign-in",
-  });
-  return error
-    ? { ok: false, error: toChineseError(error) }
-    : { ok: true };
+  try {
+    const response = await fetchWithTimeout("/api/auth/register/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { error?: { code?: string; message?: string } | string; message?: string }
+      | null;
+    if (response.ok) return { ok: true };
+    const raw = typeof data?.error === "string" ? data.error : data?.message;
+    return {
+      ok: false,
+      error: raw && /[\u4e00-\u9fff]/.test(raw)
+        ? raw
+        : toChineseError(
+            typeof data?.error === "object" ? data.error : { message: raw },
+          ),
+    };
+  } catch {
+    return { ok: false, error: "网络异常，请稍后重试" };
+  }
 }
 
 /**
@@ -55,7 +87,7 @@ export async function registerWithOtp(
     return { ok: false, error: pwdError };
   }
   try {
-    const res = await fetch("/api/auth/register", {
+    const res = await fetchWithTimeout("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, otp, password }),
@@ -80,36 +112,25 @@ export async function registerWithOtp(
 }
 
 /**
- * 访客登录：认证交给 better-auth 官方 anonymous 客户端，
- * 业务沙箱（60 分钟过期 + 5 张示例卡片）交给 /api/guest-sandbox/init。
- * 认证与业务各自独立，不再手工转发认证协议头。
+ * 访客登录是一次原子服务端编排：匿名账号、固定 60 分钟租约、
+ * 五个独立模板引用全部成功后才下发会话 Cookie。客户端不再经历
+ * “先登录、再初始化”的半完成状态。
  */
 export async function signInAsGuest(): Promise<GuestResult> {
-  // 1) 官方客户端签发一次性访客账号 + 会话 cookie
-  let { error } = await authClient.signIn.anonymous();
-  if (error) {
-    // 残留的访客会话（上次初始化中断）：清掉再来一次
-    if (error.code === "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY") {
-      try {
-        await fetch("/api/auth/end-session", { method: "POST" });
-      } catch {
-        /* ignore */
-      }
-      ({ error } = await authClient.signIn.anonymous());
-    }
-    if (error) {
-      return { ok: false, error: toChineseError(error) };
-    }
-  }
-
-  // 2) 初始化访客沙箱（失败时服务端会销毁刚建的访客账号并回滚）
   try {
-    const res = await fetch("/api/guest-sandbox/init", { method: "POST" });
+    const res = await fetchWithTimeout("/api/auth/guest-login", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
     const data = (await res.json().catch(() => null)) as
-      | { ok?: boolean; ttlMinutes?: number; error?: string }
+      | {
+          ok?: boolean;
+          ttlMinutes?: number;
+          expiresAt?: string;
+          error?: string;
+        }
       | null;
-    if (!res.ok || !data?.ok) {
-      await fetch("/api/auth/end-session", { method: "POST" }).catch(() => {});
+    if (!res.ok || !data?.ok || !data.expiresAt) {
       const raw = typeof data?.error === "string" ? data.error : "";
       return {
         ok: false,
@@ -119,9 +140,18 @@ export async function signInAsGuest(): Promise<GuestResult> {
             : "访客登录失败，请稍后重试",
       };
     }
-    return { ok: true, ttlMinutes: Number(data.ttlMinutes) || 60 };
-  } catch {
-    await fetch("/api/auth/end-session", { method: "POST" }).catch(() => {});
-    return { ok: false, error: "网络异常，请稍后重试" };
+    return {
+      ok: true,
+      ttlMinutes: Number(data.ttlMinutes) || 60,
+      expiresAt: data.expiresAt,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof DOMException && error.name === "AbortError"
+          ? "访客登录超时，请重试"
+          : "网络异常，请稍后重试",
+    };
   }
 }

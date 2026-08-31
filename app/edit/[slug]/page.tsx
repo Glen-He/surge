@@ -34,6 +34,7 @@ export default async function EditReportPage({
           : fallbackTagColor(report.tag || "其他"),
         keywords: report.keywords,
         description: report.description,
+        externalNetwork: report.external_network_enabled,
       }}
     />
   );

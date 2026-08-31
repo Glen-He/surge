@@ -367,6 +367,106 @@ export async function consumeChangeToken(token: string, userId: string): Promise
   return result.rowCount === 1;
 }
 
+/**
+ * Atomically consumes the identity proof, updates the credential and revokes
+ * every other session. A successful response can therefore never leave a
+ * stolen session active because a best-effort follow-up call failed.
+ */
+export async function completePasswordChange(opts: {
+  token: string;
+  userId: string;
+  currentSessionId: string;
+  passwordHash: string;
+}): Promise<boolean> {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`credential-change:${opts.userId}`],
+    );
+    const proof = await client.query(
+      `UPDATE account_changes SET consumed = TRUE
+       WHERE id = $1 AND user_id = $2 AND type = 'password_change'
+         AND consumed = FALSE AND expires_at > NOW()`,
+      [opts.token, opts.userId],
+    );
+    if (proof.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    const credential = await client.query(
+      `UPDATE account SET password = $2, "updatedAt" = NOW()
+       WHERE "userId" = $1 AND "providerId" = 'credential'`,
+      [opts.userId, opts.passwordHash],
+    );
+    if (credential.rowCount !== 1) {
+      throw new Error("credential account missing during password change");
+    }
+    await client.query(
+      `DELETE FROM "session" WHERE "userId" = $1 AND id <> $2`,
+      [opts.userId, opts.currentSessionId],
+    );
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Complete an email change and revoke other sessions in the same transaction. */
+export async function completeEmailChange(opts: {
+  token: string;
+  userId: string;
+  currentSessionId: string;
+  originalEmail: string;
+  expectedVersion: number;
+  newEmail: string;
+}): Promise<"ok" | "invalid-proof" | "conflict"> {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [`credential-change:${opts.userId}`],
+    );
+    const proof = await client.query(
+      `UPDATE account_changes SET consumed = TRUE
+       WHERE id = $1 AND user_id = $2 AND type = 'email_change'
+         AND consumed = FALSE AND expires_at > NOW()`,
+      [opts.token, opts.userId],
+    );
+    if (proof.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      return "invalid-proof";
+    }
+    const updated = await client.query(
+      `UPDATE "user"
+       SET email = $1, version = version + 1, "updatedAt" = NOW()
+       WHERE id = $2 AND lower(email) = lower($3) AND version = $4`,
+      [opts.newEmail, opts.userId, opts.originalEmail, opts.expectedVersion],
+    );
+    if (updated.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      return "conflict";
+    }
+    await client.query(
+      `DELETE FROM "session" WHERE "userId" = $1 AND id <> $2`,
+      [opts.userId, opts.currentSessionId],
+    );
+    await client.query("COMMIT");
+    return "ok";
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 // 当前用户版本号（用于多设备并发修改邮箱）
 export async function getUserVersion(userId: string): Promise<number> {
   const r = await db.query<{ version: number }>(

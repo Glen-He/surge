@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 
+const DB_QUERY_TIMEOUT_MS = Number(process.env.DB_QUERY_TIMEOUT_MS ?? 15_000);
+
 // 业务数据访问用共享连接池（auth 也有自己的 Pool）
 export const db = new Pool({
   connectionString: process.env.DATABASE_URL!,
@@ -8,6 +10,11 @@ export const db = new Pool({
   max: Number(process.env.DB_POOL_MAX ?? 10),
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
+  // Bound both the client wait and PostgreSQL execution. Authentication and
+  // mutations must fail visibly instead of leaving the UI pending forever.
+  query_timeout: DB_QUERY_TIMEOUT_MS,
+  statement_timeout: DB_QUERY_TIMEOUT_MS,
+  lock_timeout: Math.min(DB_QUERY_TIMEOUT_MS, 5_000),
 });
 
 /**

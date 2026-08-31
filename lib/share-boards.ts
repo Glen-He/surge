@@ -9,6 +9,12 @@ import {
   unlockProof,
   verifyUnlockProof,
 } from "./shares";
+import {
+  decryptShareToken,
+  encryptShareToken,
+  ensureShareTokensProtected,
+  shareTokenHash,
+} from "./share-token-store";
 
 export const MAX_SHARE_BOARDS = 20;
 export const MAX_BOARD_ITEMS = 100;
@@ -24,6 +30,7 @@ export type ShareBoardSummary = {
   itemCount: number;
   createdAt: Date;
   updatedAt: Date;
+  expiresAt: Date | null;
 };
 
 export type ShareBoardItemView = {
@@ -44,13 +51,16 @@ export type ShareBoardManageView = ShareBoardSummary & {
 type BoardRow = {
   id: string;
   user_id: string;
-  token: string;
+  token: string | null;
+  token_enc: string | null;
   title: string;
   password_hash: string | null;
   disabled_at: Date | null;
   view_count: string | number;
   created_at: Date;
   updated_at: Date;
+  expires_at: Date | null;
+  access_epoch: number;
   item_count?: string | number;
 };
 
@@ -59,6 +69,8 @@ export type PublicShareBoard = {
   token: string;
   title: string;
   passwordHash: string | null;
+  accessEpoch: number;
+  expiresAt: Date | null;
   items: ShareBoardItemView[];
 };
 
@@ -67,6 +79,8 @@ export type PublicBoardReport = {
   boardTitle: string;
   boardToken: string;
   boardPasswordHash: string | null;
+  boardAccessEpoch: number;
+  boardExpiresAt: Date | null;
   reportId: string;
   reportTitle: string;
   revisionId: string;
@@ -80,10 +94,34 @@ export function normalizeBoardTitle(value: unknown): string | null {
   return title;
 }
 
+/** Parse a calendar-day expiry at the end of that day in the product timezone. */
+export function parseBoardExpiry(
+  value: unknown,
+  now = Date.now(),
+): Date | null | "invalid" {
+  if (value === null || value === "" || value === undefined) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "invalid";
+  }
+  const [year, month, day] = value.split("-").map(Number);
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendar.getUTCFullYear() !== year ||
+    calendar.getUTCMonth() !== month - 1 ||
+    calendar.getUTCDate() !== day
+  ) {
+    return "invalid";
+  }
+  const expiry = new Date(`${value}T23:59:59.999+08:00`);
+  return expiry.getTime() > now ? expiry : "invalid";
+}
+
 function toSummary(row: BoardRow): ShareBoardSummary {
+  const token = row.token ?? (row.token_enc ? decryptShareToken(row.token_enc) : "");
+  if (!token) throw new Error("share board token is unavailable");
   return {
     id: row.id,
-    token: row.token,
+    token,
     title: row.title,
     hasPassword: !!row.password_hash,
     disabled: !!row.disabled_at,
@@ -91,6 +129,7 @@ function toSummary(row: BoardRow): ShareBoardSummary {
     itemCount: Number(row.item_count ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    expiresAt: row.expires_at,
   };
 }
 
@@ -98,16 +137,21 @@ export function boardUnlockCookieName(token: string): string {
   return `board_${token}`;
 }
 
-export function boardUnlockProof(token: string): string {
-  return unlockProof(`board:${token}`);
+export function boardUnlockProof(token: string, accessEpoch: number): string {
+  return unlockProof(`board:${token}:${accessEpoch}`);
 }
 
-export function verifyBoardUnlockProof(token: string, proof?: string): boolean {
-  return verifyUnlockProof(`board:${token}`, proof);
+export function verifyBoardUnlockProof(
+  token: string,
+  accessEpoch: number,
+  proof?: string,
+): boolean {
+  return verifyUnlockProof(`board:${token}:${accessEpoch}`, proof);
 }
 
 export async function listShareBoards(userId: string): Promise<ShareBoardSummary[]> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const result = await db.query<BoardRow>(
     `SELECT b.*, count(i.id)::text AS item_count
        FROM share_boards b
@@ -151,6 +195,7 @@ export async function listShareBoardsForReport(
   slug: string,
 ): Promise<(ShareBoardSummary & { included: boolean })[] | null> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const own = await db.query<{ id: string }>(
     `SELECT id FROM reports WHERE user_id = $1 AND slug = $2 LIMIT 1`,
     [userId, slug],
@@ -176,9 +221,11 @@ export async function createShareBoard(
   userId: string,
   title: string,
   passwordHash: string | null,
+  expiresAt: Date | null,
   initialReportSlug?: string,
 ): Promise<ShareBoardSummary> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const client = await db.connect();
   const id = generateShareId();
   const token = generateShareToken();
@@ -202,9 +249,10 @@ export async function createShareBoard(
       if (!reportId) throw new ShareBoardError("报告不存在", 404);
     }
     await client.query(
-      `INSERT INTO share_boards (id, user_id, token, title, password_hash)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [id, userId, token, title, passwordHash],
+      `INSERT INTO share_boards
+         (id, user_id, token_hash, token_enc, title, password_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, userId, shareTokenHash(token), encryptShareToken(token), title, passwordHash, expiresAt],
     );
     if (reportId) {
       await client.query(
@@ -230,6 +278,7 @@ export async function createShareBoard(
     itemCount: initialReportSlug ? 1 : 0,
     createdAt: now,
     updatedAt: now,
+    expiresAt,
   };
 }
 
@@ -307,7 +356,12 @@ export async function setBoardMembership(
 export async function updateShareBoard(
   userId: string,
   boardId: string,
-  changes: { title?: string; passwordHash?: string | null; disabled?: boolean },
+  changes: {
+    title?: string;
+    passwordHash?: string | null;
+    disabled?: boolean;
+    expiresAt?: Date | null;
+  },
 ): Promise<void> {
   await ensureOtpMigration();
   const client = await db.connect();
@@ -315,13 +369,18 @@ export async function updateShareBoard(
     await client.query("BEGIN");
     const board = await lockOwnedBoard(client, userId, boardId);
     const nextDisabled = changes.disabled ?? !!board.disabled_at;
-    const accessChanged = nextDisabled !== !!board.disabled_at || changes.passwordHash !== undefined;
+    const accessChanged =
+      nextDisabled !== !!board.disabled_at ||
+      changes.passwordHash !== undefined ||
+      changes.expiresAt !== undefined;
     if (accessChanged) await bumpBoardReportEpochs(client, boardId);
     await client.query(
       `UPDATE share_boards
           SET title = COALESCE($3, title),
               password_hash = CASE WHEN $4::boolean THEN $5 ELSE password_hash END,
               disabled_at = CASE WHEN $6::boolean THEN NOW() ELSE NULL END,
+              expires_at = CASE WHEN $7::boolean THEN $8 ELSE expires_at END,
+              access_epoch = access_epoch + CASE WHEN $9::boolean THEN 1 ELSE 0 END,
               updated_at = NOW()
         WHERE id = $1 AND user_id = $2`,
       [
@@ -331,6 +390,9 @@ export async function updateShareBoard(
         changes.passwordHash !== undefined,
         changes.passwordHash ?? null,
         nextDisabled,
+        changes.expiresAt !== undefined,
+        changes.expiresAt ?? null,
+        accessChanged,
       ],
     );
     await client.query("COMMIT");
@@ -344,6 +406,7 @@ export async function updateShareBoard(
 
 export async function rotateShareBoardToken(userId: string, boardId: string): Promise<string> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const client = await db.connect();
   const token = generateShareToken();
   try {
@@ -351,8 +414,11 @@ export async function rotateShareBoardToken(userId: string, boardId: string): Pr
     await lockOwnedBoard(client, userId, boardId);
     await bumpBoardReportEpochs(client, boardId);
     await client.query(
-      `UPDATE share_boards SET token = $3, updated_at = NOW() WHERE id = $1 AND user_id = $2`,
-      [boardId, userId, token],
+      `UPDATE share_boards
+       SET token = NULL, token_hash = $3, token_enc = $4,
+           access_epoch = access_epoch + 1, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2`,
+      [boardId, userId, shareTokenHash(token), encryptShareToken(token)],
     );
     await client.query("COMMIT");
     return token;
@@ -406,9 +472,12 @@ function itemFromRow(row: {
 
 export async function findPublicShareBoard(token: string): Promise<PublicShareBoard | null> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const board = await db.query<BoardRow>(
-    `SELECT * FROM share_boards WHERE token = $1 AND disabled_at IS NULL LIMIT 1`,
-    [token],
+    `SELECT * FROM share_boards
+     WHERE token_hash = $1 AND disabled_at IS NULL
+       AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1`,
+    [shareTokenHash(token)],
   );
   const row = board.rows[0];
   if (!row) return null;
@@ -432,9 +501,11 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
   );
   return {
     id: row.id,
-    token: row.token,
+    token,
     title: row.title,
     passwordHash: row.password_hash,
+    accessEpoch: row.access_epoch,
+    expiresAt: row.expires_at,
     items: items.rows.map(itemFromRow),
   };
 }
@@ -444,33 +515,39 @@ export async function findPublicBoardReport(
   itemId: string,
 ): Promise<PublicBoardReport | null> {
   await ensureOtpMigration();
+  await ensureShareTokensProtected();
   const result = await db.query<{
     board_id: string;
     board_title: string;
-    board_token: string;
     password_hash: string | null;
+    access_epoch: number;
+    expires_at: Date | null;
     report_id: string;
     report_title: string;
     revision_id: string;
     capability_epoch: number;
   }>(
-    `SELECT b.id AS board_id, b.title AS board_title, b.token AS board_token,
-            b.password_hash, r.id AS report_id, r.title AS report_title,
+    `SELECT b.id AS board_id, b.title AS board_title,
+            b.password_hash, b.access_epoch, b.expires_at,
+            r.id AS report_id, r.title AS report_title,
             r.revision_id, r.capability_epoch
        FROM share_boards b
        JOIN share_board_items i ON i.board_id = b.id
        JOIN reports r ON r.id = i.report_id
-      WHERE b.token = $1 AND b.disabled_at IS NULL AND i.id = $2
+      WHERE b.token_hash = $1 AND b.disabled_at IS NULL
+        AND (b.expires_at IS NULL OR b.expires_at > NOW()) AND i.id = $2
       LIMIT 1`,
-    [token, itemId],
+    [shareTokenHash(token), itemId],
   );
   const row = result.rows[0];
   if (!row) return null;
   return {
     boardId: row.board_id,
     boardTitle: row.board_title,
-    boardToken: row.board_token,
+    boardToken: token,
     boardPasswordHash: row.password_hash,
+    boardAccessEpoch: row.access_epoch,
+    boardExpiresAt: row.expires_at,
     reportId: row.report_id,
     reportTitle: row.report_title,
     revisionId: row.revision_id,
@@ -479,7 +556,8 @@ export async function findPublicBoardReport(
 }
 
 export async function incrementBoardView(token: string): Promise<void> {
-  await db.query(`UPDATE share_boards SET view_count = view_count + 1 WHERE token = $1`, [token]);
+  await ensureShareTokensProtected();
+  await db.query(`UPDATE share_boards SET view_count = view_count + 1 WHERE token_hash = $1`, [shareTokenHash(token)]);
 }
 
 export async function shouldCountBoardView(token: string, ip: string): Promise<boolean> {

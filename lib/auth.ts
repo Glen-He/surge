@@ -12,9 +12,19 @@ import {
 import { checkOtpRateLimit, recordOtpSent } from "./account";
 import {
   GUEST_EMAIL_DOMAIN,
+  verifyGuestInternalProof,
   isGuestEmail,
 } from "./guest-sandbox";
 import { passwordPolicyError } from "./password-policy";
+import { clientIp } from "./client-ip";
+import { consumeSharedRateLimit } from "./db-rate-limit";
+import { verifyPasswordLoginInternalProof } from "./auth-attempts";
+import {
+  registrationIsOpen,
+  verifyRegistrationInternalProof,
+} from "./registration-policy";
+import { db } from "./db";
+import { verifyInternalAuthProof } from "./internal-auth-proof";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -25,6 +35,10 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
+
+const AUTH_DB_QUERY_TIMEOUT_MS = Number(
+  process.env.AUTH_DB_QUERY_TIMEOUT_MS ?? 15_000,
+);
 
 export const auth = betterAuth({
   // 官方建议：生产环境显式配置 baseURL（读 BETTER_AUTH_URL），
@@ -37,6 +51,9 @@ export const auth = betterAuth({
     max: Number(process.env.DB_POOL_MAX ?? 10),
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
+    query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+    statement_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+    lock_timeout: Math.min(AUTH_DB_QUERY_TIMEOUT_MS, 5_000),
   }),
 
   // 匿名访客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
@@ -49,6 +66,7 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       // 访客不设密码，重置链接无消费方，仅短路避免向假域名发信
       if (isGuestEmail(user.email)) return;
@@ -134,6 +152,130 @@ export const auth = betterAuth({
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      // Credential and account lifecycle mutations must go through the custom
+      // routes, where recent-authentication claims, cooling periods, cleanup,
+      // and session revocation are enforced atomically. Better Auth's native
+      // endpoints would otherwise form a second, weaker policy surface.
+      if (
+        ctx.path === "/change-password" ||
+        ctx.path === "/change-email" ||
+        ctx.path === "/delete-user"
+      ) {
+        throw new APIError("FORBIDDEN", {
+          message: "请使用平台账号设置入口",
+        });
+      }
+      if (
+        ctx.path === "/set-password" &&
+        !verifyInternalAuthProof(
+          "set-password",
+          "",
+          ctx.headers?.get("x-surge-set-password-proof"),
+        )
+      ) {
+        throw new APIError("FORBIDDEN", {
+          message: "请使用平台注册入口",
+        });
+      }
+      if (
+        ctx.path === "/sign-out" &&
+        !verifyInternalAuthProof(
+          "end-session",
+          "",
+          ctx.headers?.get("x-surge-end-session-proof"),
+        )
+      ) {
+        throw new APIError("FORBIDDEN", {
+          message: "请使用平台退出登录入口",
+        });
+      }
+      if (ctx.path === "/sign-in/email") {
+        const email =
+          typeof ctx.body?.email === "string"
+            ? ctx.body.email.trim().toLowerCase()
+            : "";
+        if (
+          !email ||
+          !verifyPasswordLoginInternalProof(
+            email,
+            ctx.headers?.get("x-surge-password-login-proof"),
+          )
+        ) {
+          throw new APIError("FORBIDDEN", {
+            message: "请使用登录页完成登录",
+          });
+        }
+      }
+      if (
+        ctx.path === "/sign-in/anonymous" &&
+        !verifyGuestInternalProof(ctx.headers?.get("x-surge-guest-proof"))
+      ) {
+        throw new APIError("FORBIDDEN", {
+          message: "请使用访客登录入口",
+        });
+      }
+      // This application supports exactly one account-creation workflow: OTP
+      // verification followed by transactional password initialization in the
+      // custom /api/auth/register saga. Native password signup is never valid.
+      if (ctx.path === "/sign-up/email") {
+        throw new APIError("FORBIDDEN", { message: "请使用验证码注册" });
+      }
+      // Closing public registration must be enforced beneath the UI and custom
+      // route. Better Auth's native email/OTP endpoints are public and can
+      // otherwise create a user when the submitted email does not exist.
+      if (!registrationIsOpen()) {
+        const isOtpSignIn =
+          ctx.path === "/sign-in/email-otp" ||
+          (ctx.path === "/email-otp/send-verification-otp" &&
+            (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
+        if (isOtpSignIn) {
+          const email =
+            typeof ctx.body?.email === "string"
+              ? ctx.body.email.trim().toLowerCase()
+              : "";
+          if (email && !isGuestEmail(email)) {
+            const existing = await db.query(
+              `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+              [email],
+            );
+            if (!existing.rows[0]) {
+              throw new APIError("FORBIDDEN", {
+                message: "当前未开放新账号注册",
+              });
+            }
+          }
+        }
+      } else {
+        // When registration is open, new-user OTP endpoints still require a
+        // server-only HMAC proof. This prevents bypassing the transactional
+        // custom route and creating a passwordless half-account directly.
+        const isOtpSignIn =
+          ctx.path === "/sign-in/email-otp" ||
+          (ctx.path === "/email-otp/send-verification-otp" &&
+            (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
+        if (isOtpSignIn) {
+          const email =
+            typeof ctx.body?.email === "string"
+              ? ctx.body.email.trim().toLowerCase()
+              : "";
+          if (email && !isGuestEmail(email)) {
+            const existing = await db.query(
+              `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+              [email],
+            );
+            if (
+              !existing.rows[0] &&
+              !verifyRegistrationInternalProof(
+                email,
+                ctx.headers?.get("x-surge-registration-proof"),
+              )
+            ) {
+              throw new APIError("FORBIDDEN", { message: "请使用注册页完成注册" });
+            }
+          }
+        }
+      }
+
       // 用户首次注册时由服务端分配一个不可见的随机 ID 作为用户名。
       // sign-in/email-otp 只在用户不存在时才会用 name 建号，老用户不受影响。
       if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email-otp") {
@@ -151,7 +293,10 @@ export const auth = betterAuth({
       // ── 重置密码的复杂度校验（客户端之外的服务端强制点）──
       // reset-password 是 better-auth 内置端点、不经过自建路由，
       // 密码策略必须在这里拦，否则直连 API 可设置纯数字等弱密码
-      if (ctx.path === "/reset-password") {
+      if (
+        ctx.path === "/reset-password" ||
+        ctx.path === "/email-otp/reset-password"
+      ) {
         const pwd =
           typeof ctx.body?.newPassword === "string" ? ctx.body.newPassword : "";
         const pwdErr = passwordPolicyError(pwd);
@@ -185,6 +330,16 @@ export const auth = betterAuth({
                 rl.reason === "daily_limit"
                   ? "今日验证码发送次数已达上限，请明天再试"
                   : `请 ${rl.retryAfter} 秒后再试`,
+            });
+          }
+          const sourceIp = clientIp(ctx.headers ?? new Headers());
+          const [byIp, global] = await Promise.all([
+            consumeSharedRateLimit("otp-send-ip", sourceIp, 30, 60 * 60),
+            consumeSharedRateLimit("otp-send-global", "global", 1_000, 24 * 60 * 60),
+          ]);
+          if (!byIp.allowed || !global.allowed) {
+            throw new APIError("TOO_MANY_REQUESTS", {
+              message: "验证码发送过于频繁，请稍后再试",
             });
           }
         }

@@ -8,6 +8,7 @@ import {
   hashSharePassword,
   listSharesBySlug,
 } from "@/lib/shares";
+import { encryptShareToken, shareTokenHash } from "@/lib/share-token-store";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +61,9 @@ export async function POST(
     typeof body.password === "string" && body.password.trim()
       ? body.password.trim()
       : null;
-  if (password && (password.length < 4 || password.length > 64)) {
+  if (password && (password.length < 8 || password.length > 64)) {
     return Response.json(
-      { error: "密码长度需在 4 ~ 64 位之间" },
+      { error: "密码长度需在 8 ~ 64 位之间" },
       { status: 400 },
     );
   }
@@ -108,9 +109,10 @@ export async function POST(
     id = generateShareId();
     token = generateShareToken();
     await client.query(
-      `INSERT INTO report_shares (id, report_id, token, password_hash, expires_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [id, reportId, token, passwordHash, expiresAt],
+      `INSERT INTO report_shares
+         (id, report_id, token_hash, token_enc, password_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, reportId, shareTokenHash(token), encryptShareToken(token), passwordHash, expiresAt],
     );
     await client.query("COMMIT");
   } catch (e) {

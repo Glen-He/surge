@@ -43,6 +43,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "排序与项目列表不匹配" }, { status: 400 });
   }
 
-  await reorderReports(session.user.id, items);
+  if (!(await reorderReports(session.user.id, items))) {
+    return Response.json(
+      { error: "项目列表已发生变化，请刷新后重试" },
+      { status: 409 },
+    );
+  }
   return Response.json({ ok: true });
 }

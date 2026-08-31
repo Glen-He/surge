@@ -16,7 +16,8 @@ const nextConfig: NextConfig = {
         // 全站基础安全头：
         // - nosniff：阻止 MIME 嗅探
         // - Referrer-Policy：跨站只泄露 origin，分享 token 不进第三方 referer
-        // - HSTS：生产 https 下强制 180 天
+        // HSTS 由 proxy.ts 仅在当前配置 origin 确实为 HTTPS 时注入，
+        // 不能在这里无条件下发，否则 Safari 会把本地 HTTP 资源升级为 HTTPS。
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
@@ -28,26 +29,17 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=15552000; includeSubDomains",
-          },
-        ],
-      },
-      {
-        // 主站页面仅允许同源嵌入。必须排除 /r/*：next.config headers 的优先级
-        // 高于 Route Handler 响应头，否则会覆盖报告路由精确的 frame-ancestors
-        // 与 capability 资源 CSP，导致独立内容域 iframe 被浏览器拦截。
-        source: "/((?!r/).*)",
-        headers: [
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
         ],
       },
       {
         // 分享页禁止索引（与 robots.txt 双保险：robots 只约束守规矩的爬虫，
         // X-Robots-Tag 对收到链接的爬虫也生效）
         source: "/s/:token*",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
       },
       {
         // 分享面板及面板内报告同样是持有链接才可访问的内容。

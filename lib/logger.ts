@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 // 轻量结构化日志（服务端）：单行 JSON 输出，带时间/级别/模块/上下文。
 // 不引入外部依赖；生产用 LOG_LEVEL=debug|info|warn|error 控制输出级别。
 //
@@ -19,6 +21,50 @@ function minLevel(): number {
 
 const isErr = (x: unknown): x is Error => x instanceof Error;
 
+function fingerprint(value: string): string {
+  const salt = process.env.LOG_REDACTION_SECRET ?? process.env.BETTER_AUTH_SECRET ?? "local";
+  return createHash("sha256").update(salt).update("\0").update(value).digest("hex").slice(0, 12);
+}
+
+function sanitizeText(value: string): string {
+  return value
+    .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [redacted]")
+    .replace(/\bsgk_[A-Za-z0-9_-]+\b/g, "sgk_[redacted]")
+    .replace(
+      /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+      (email) => `fp:${fingerprint(email.toLowerCase())}`,
+    )
+    .replace(
+      /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+      (address) => `fp:${fingerprint(address)}`,
+    )
+    .replace(/\/(?:s|b|r)\/[^\s/?#]+/g, (match) => `${match.slice(0, 3)}[redacted]`);
+}
+
+function sanitizeValue(key: string, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  const lower = key.toLowerCase();
+  if (/password|secret|authorization|cookie|token|otp|capability/.test(lower)) {
+    return "[redacted]";
+  }
+  if (typeof value === "string") {
+    if (/email|ip|useragent|user_agent/.test(lower)) return `fp:${fingerprint(value)}`;
+    // Bearer credentials and common personal identifiers must never reach
+    // process logs, even when embedded inside a generic error message.
+    return sanitizeText(value);
+  }
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(key, item));
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([childKey, child]) => [
+        childKey,
+        sanitizeValue(childKey, child),
+      ]),
+    );
+  }
+  return value;
+}
+
 function emit(level: Level, scope: string, msg: string, a?: unknown, b?: unknown) {
   if (ORDER[level] < minLevel()) return;
   const err = isErr(a) ? a : isErr(b) ? b : undefined;
@@ -30,10 +76,12 @@ function emit(level: Level, scope: string, msg: string, a?: unknown, b?: unknown
     scope,
     msg,
   };
-  if (ctx && typeof ctx === "object") Object.assign(line, ctx);
+  if (ctx && typeof ctx === "object") Object.assign(line, sanitizeValue("context", ctx));
   if (err) {
-    line.error = err.message;
-    line.stack = err.stack;
+    line.error = sanitizeText(err.message);
+    if (process.env.NODE_ENV !== "production" || minLevel() <= ORDER.debug) {
+      line.stack = err.stack ? sanitizeText(err.stack) : undefined;
+    }
   }
 
   const text = JSON.stringify(line, (_k, v) =>

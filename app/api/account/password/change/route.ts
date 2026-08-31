@@ -1,11 +1,7 @@
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getApiSession } from "@/lib/api-session";
 import { passwordPolicyError } from "@/lib/password-policy";
-import {
-  consumeChangeToken,
-  logSecurity,
-} from "@/lib/account";
+import { completePasswordChange, logSecurity } from "@/lib/account";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +25,19 @@ export async function POST(req: Request) {
     return Response.json({ error: pwdError }, { status: 400 });
   }
 
-  // Claim before mutating credentials: concurrent retries cannot reuse the same
-  // identity proof. A downstream failure requires re-verification by design.
-  if (!(await consumeChangeToken(token, session.user.id))) {
-    return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
-  }
-
-  // hash 后更新密码（internalAdapter 直接写入的是 hash）
+  // Hash outside the transaction, then atomically claim the proof, update the
+  // credential and revoke all other sessions inside PostgreSQL.
   const context = await auth.$context;
   const passwordHash = await context.password.hash(newPassword);
-  await context.internalAdapter.updatePassword(session.user.id, passwordHash);
-
-  // 其他设备会话失效，当前设备保持登录
-  try {
-    await auth.api.revokeOtherSessions({ headers: await headers() });
-  } catch {
-    // 撤销失败不影响修改结果
+  if (
+    !(await completePasswordChange({
+      token,
+      userId: session.user.id,
+      currentSessionId: session.session.id,
+      passwordHash,
+    }))
+  ) {
+    return Response.json({ error: "验证已过期，请重新开始" }, { status: 400 });
   }
 
   await logSecurity({ userId: session.user.id, action: "PASSWORD_CHANGED" });

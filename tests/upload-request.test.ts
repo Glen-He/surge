@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/upload-gate", () => ({
+  tryAcquireUploadLease: vi.fn(async () => ({ release: vi.fn(async () => {}) })),
+}));
 import { MAX_MULTIPART_BYTES, readUploadForm } from "@/lib/upload-request";
 
 describe("readUploadForm", () => {

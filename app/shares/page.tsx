@@ -34,6 +34,12 @@ export default async function SharesPage() {
     listAllShares(session.user.id),
     listShareBoardsWithItems(session.user.id),
   ]);
+  const minExpiryDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
@@ -59,6 +65,7 @@ export default async function SharesPage() {
         </div>
 
         <ShareBoardsManager
+          minExpiryDate={minExpiryDate}
           initialBoards={boards.map((board) => ({
             id: board.id,
             token: board.token,
@@ -67,6 +74,7 @@ export default async function SharesPage() {
             disabled: board.disabled,
             viewCount: board.viewCount,
             itemCount: board.itemCount,
+            expiresAt: board.expiresAt?.toISOString() ?? null,
             items: board.items,
           }))}
         />

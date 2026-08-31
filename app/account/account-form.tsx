@@ -6,6 +6,7 @@ import { CardHead } from "@/components/card-head";
 import { EmailChangeModal } from "./email-change-modal";
 import { PasswordChangeModal } from "./password-change-modal";
 import { SignOutModal } from "./sign-out-modal";
+import { clearGuestClientState } from "@/lib/guest-session-client";
 import { DeleteAccountModal } from "./delete-account-modal";
 import { ApiTokensCard } from "./api-tokens-card";
 
@@ -116,6 +117,7 @@ export function AccountForm({
   const [openSignOut, setOpenSignOut] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
 
   // 冷却期截止日期 = 申请时间 + 15 天
   const deletionLabel = (() => {
@@ -132,12 +134,33 @@ export function AccountForm({
   async function handleSignOut() {
     if (signOutLoading) return;
     setSignOutLoading(true);
+    setSignOutError("");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 20_000);
     try {
       // 统一走自建 end-session：访客账号会被销毁沙箱，真实用户注销会话
-      await fetch("/api/auth/end-session", { method: "POST" });
+      const response = await fetch("/api/auth/end-session", {
+        method: "POST",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setSignOutError(data?.error ?? "退出失败，请重试");
+        return;
+      }
+      clearGuestClientState();
       router.push("/");
       router.refresh();
+    } catch (error) {
+      setSignOutError(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "退出超时，请重试"
+          : "网络异常，请重试",
+      );
     } finally {
+      window.clearTimeout(timer);
       setSignOutLoading(false);
     }
   }
@@ -289,9 +312,13 @@ export function AccountForm({
       />
       <SignOutModal
         open={openSignOut}
-        onClose={() => setOpenSignOut(false)}
+        onClose={() => {
+          setOpenSignOut(false);
+          setSignOutError("");
+        }}
         onConfirm={handleSignOut}
         loading={signOutLoading}
+        error={signOutError}
       />
       <DeleteAccountModal
         open={openDelete}

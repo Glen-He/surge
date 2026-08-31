@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { tmpdir } from "node:os";
 import { db } from "./db";
 import { logger } from "./logger";
 
@@ -27,6 +28,18 @@ export const REPORT_DEMO_TEMPLATES_DIR = path.join(
   "reports",
   "demo-templates",
 );
+
+// 模板 key 永远由服务端允许列表映射，不把数据库字符串当文件路径。
+// 即使数据库被意外写入 ../，也无法越界读取服务器文件。
+export const DEMO_TEMPLATE_KEYS = [
+  "tpl-01",
+  "tpl-02",
+  "tpl-03",
+  "tpl-04",
+  "tpl-05",
+] as const;
+export type DemoTemplateKey = (typeof DEMO_TEMPLATE_KEYS)[number];
+const DEMO_TEMPLATE_KEY_SET = new Set<string>(DEMO_TEMPLATE_KEYS);
 
 function assertSafeDataDir(dir: string): void {
   const root = path.parse(dir).root;
@@ -79,6 +92,57 @@ export function reportDir(userId: string, slug: string): string {
   return resolved;
 }
 
+const STORAGE_KEY_RE = /^a_[0-9a-f]{32}$/;
+
+export function newReportStorageKey(): string {
+  return `a_${randomUUID().replaceAll("-", "")}`;
+}
+
+export function reportArtifactsDir(userId: string): string {
+  return path.join(userReportsDir(userId), "artifacts");
+}
+
+export function reportStagingDir(userId: string): string {
+  return path.join(userReportsDir(userId), ".staging");
+}
+
+/** Resolve an immutable artifact only after validating its opaque server key. */
+export function reportArtifactDir(userId: string, storageKey: string): string {
+  if (!STORAGE_KEY_RE.test(storageKey)) {
+    throw new Error("Invalid report storage key");
+  }
+  return path.join(reportArtifactsDir(userId), storageKey);
+}
+
+export function isDemoTemplateKey(value: string): value is DemoTemplateKey {
+  return DEMO_TEMPLATE_KEY_SET.has(value);
+}
+
+/** Resolve a server-owned, immutable demo template through a strict allowlist. */
+export function demoTemplateDir(templateKey: string): string {
+  if (!isDemoTemplateKey(templateKey)) {
+    throw new Error("Unknown report template key");
+  }
+  return path.join(REPORT_DEMO_TEMPLATES_DIR, templateKey);
+}
+
+/**
+ * Resolve the content root for a report row. User reports use private storage;
+ * guest demos use one shared read-only template until their file is replaced.
+ */
+export function reportContentDir(report: {
+  userId: string;
+  slug: string;
+  templateKey?: string | null;
+  storageKey?: string | null;
+}): string {
+  if (report.templateKey) return demoTemplateDir(report.templateKey);
+  if (report.storageKey) {
+    return reportArtifactDir(report.userId, report.storageKey);
+  }
+  return reportDir(report.userId, report.slug);
+}
+
 /** Recursive size without following symlinks. Missing directories count as zero. */
 export async function dirSizeBytes(dir: string): Promise<number> {
   let rootEntries;
@@ -122,12 +186,20 @@ export async function reconcileReportSizes(): Promise<{ updated: number }> {
     user_id: string;
     slug: string;
     size_bytes: string;
-  }>(`SELECT id, user_id, slug, size_bytes::text FROM reports WHERE size_bytes = 0`);
+    storage_key: string | null;
+  }>(`SELECT id, user_id, slug, size_bytes::text
+             , storage_key
+      FROM reports
+      WHERE size_bytes = 0 AND template_key IS NULL`);
   let updated = 0;
   for (const row of rows) {
     let dir: string;
     try {
-      dir = reportDir(row.user_id, row.slug);
+      dir = reportContentDir({
+        userId: row.user_id,
+        slug: row.slug,
+        storageKey: row.storage_key,
+      });
     } catch {
       continue;
     }
@@ -270,9 +342,16 @@ export async function purgeTrash(): Promise<void> {
         if (!isManifest(parsed)) throw new Error("invalid trash manifest");
         manifest = parsed;
       } catch (error) {
-        logger.warn("storage-recovery", "回收区 manifest 无法解析，已保留", error as Error, {
-          entry: entry.name,
-        });
+        if (await isOlderThan(manifestPath, recoveryRetentionMs())) {
+          await fs.rm(manifestPath, { force: true });
+          logger.warn("storage-recovery", "已删除超过保留期的无效回收区 manifest", {
+            entry: entry.name,
+          });
+        } else {
+          logger.warn("storage-recovery", "回收区 manifest 无法解析，暂时保留", error as Error, {
+            entry: entry.name,
+          });
+        }
         continue;
       }
       const payload = path.join(REPORT_TRASH_DIR, manifest.payload);
@@ -318,9 +397,16 @@ export async function purgeTrash(): Promise<void> {
       manifests.flatMap((entry) => [entry.name, entry.name.replace(/\.json$/, ".data")]),
     );
     const unknown = entries.filter((entry) => !known.has(entry.name));
-    if (unknown.length > 0) {
-      logger.warn("storage-recovery", "回收区存在无 manifest 数据，为避免误删已保留", {
-        count: unknown.length,
+    let removedUnknown = 0;
+    for (const entry of unknown) {
+      const full = path.join(REPORT_TRASH_DIR, entry.name);
+      if (!(await isOlderThan(full, recoveryRetentionMs()))) continue;
+      await fs.rm(full, { recursive: true, force: true, maxRetries: 3 });
+      removedUnknown += 1;
+    }
+    if (unknown.length > removedUnknown) {
+      logger.warn("storage-recovery", "回收区存在无 manifest 数据，保留至恢复期结束", {
+        count: unknown.length - removedUnknown,
       });
     }
   } finally {
@@ -329,4 +415,120 @@ export async function purgeTrash(): Promise<void> {
       .catch(() => {});
     client.release();
   }
+}
+
+function positiveEnvMs(name: string, fallbackMinutes: number): number {
+  const minutes = Number(process.env[name] ?? fallbackMinutes);
+  return Number.isFinite(minutes) && minutes > 0
+    ? minutes * 60 * 1000
+    : fallbackMinutes * 60 * 1000;
+}
+
+function orphanGraceMs(): number {
+  return positiveEnvMs("STORAGE_ORPHAN_GRACE_MINUTES", 60);
+}
+
+function recoveryRetentionMs(): number {
+  const hours = Number(process.env.STORAGE_RECOVERY_RETENTION_HOURS ?? 168);
+  return (Number.isFinite(hours) && hours > 0 ? hours : 168) * 60 * 60 * 1000;
+}
+
+async function isOlderThan(full: string, ageMs: number): Promise<boolean> {
+  try {
+    const stat = await fs.lstat(full);
+    return Date.now() - stat.mtimeMs >= ageMs;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function removeIfStale(full: string, graceMs: number): Promise<boolean> {
+  if (!(await isOlderThan(full, graceMs))) return false;
+  await fs.rm(full, { recursive: true, force: true, maxRetries: 3 });
+  return true;
+}
+
+/**
+ * Reconcile the persistent volume against database pointers. Only data older
+ * than the grace period is removed, so an upload being streamed/staged is
+ * never mistaken for an orphan. The global storage lock closes the short
+ * publish-before-DB-switch window across all application instances.
+ */
+export async function purgeOrphanedReportStorage(): Promise<{ removed: number }> {
+  const client = await db.connect();
+  const globalKey = "storage-quota:global";
+  let removed = 0;
+  try {
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
+      globalKey,
+    ]);
+    await fs.mkdir(REPORT_USERS_DIR, { recursive: true });
+    const [{ rows: reports }, { rows: users }] = await Promise.all([
+      client.query<{
+        user_id: string;
+        slug: string;
+        template_key: string | null;
+        storage_key: string | null;
+      }>(`SELECT user_id, slug, template_key, storage_key FROM reports`),
+      client.query<{ id: string }>(`SELECT id FROM "user"`),
+    ]);
+    const knownUsers = new Set(users.map((row) => row.id));
+    const currentArtifacts = new Set(
+      reports
+        .filter((row) => row.storage_key)
+        .map((row) => `${row.user_id}\0${row.storage_key}`),
+    );
+    const currentLegacy = new Set(
+      reports
+        .filter((row) => !row.template_key && !row.storage_key)
+        .map((row) => `${row.user_id}\0${row.slug}`),
+    );
+    const grace = orphanGraceMs();
+    const userEntries = await fs.readdir(REPORT_USERS_DIR, { withFileTypes: true });
+
+    for (const userEntry of userEntries) {
+      if (!userEntry.isDirectory() || userEntry.name === ".trash") continue;
+      const userId = userEntry.name;
+      const userDir = userReportsDir(userId);
+      if (!knownUsers.has(userId)) {
+        if (await removeIfStale(userDir, grace)) removed += 1;
+        continue;
+      }
+      const entries = await fs.readdir(userDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(userDir, entry.name);
+        if (entry.name === ".staging") {
+          const staged = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
+          for (const item of staged) {
+            if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
+          }
+          continue;
+        }
+        if (entry.name === "artifacts") {
+          const artifacts = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
+          for (const item of artifacts) {
+            if (currentArtifacts.has(`${userId}\0${item.name}`)) continue;
+            if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
+          }
+          continue;
+        }
+        if (currentLegacy.has(`${userId}\0${entry.name}`)) continue;
+        if (await removeIfStale(full, grace)) removed += 1;
+      }
+    }
+
+    const osEntries = await fs.readdir(tmpdir(), { withFileTypes: true });
+    for (const entry of osEntries) {
+      if (!entry.name.startsWith("surge-upload-")) continue;
+      if (await removeIfStale(path.join(tmpdir(), entry.name), grace)) removed += 1;
+    }
+  } finally {
+    await client
+      .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
+      .catch(() => {});
+    client.release();
+  }
+  if (removed > 0) logger.info("storage", "已清理孤儿存储", { removed });
+  return { removed };
 }

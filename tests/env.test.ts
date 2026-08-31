@@ -7,6 +7,7 @@ describe("生产内容域环境约束", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://user:pass@db/surge");
     vi.stubEnv("BETTER_AUTH_SECRET", "a".repeat(32));
     vi.stubEnv("SHARE_SECRET", "b".repeat(32));
+    vi.stubEnv("MAINTENANCE_SECRET", "c".repeat(32));
     vi.stubEnv("SMTP_HOST", "smtp.example.com");
     vi.stubEnv("SMTP_PORT", "465");
     vi.stubEnv("SMTP_USER", "surge@example.com");

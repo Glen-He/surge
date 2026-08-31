@@ -19,6 +19,7 @@ process.env.REPORTS_ORIGIN = reportsURL;
 process.env.REPORTS_DATA_DIR =
   process.env.E2E_REPORTS_DATA_DIR ?? "/tmp/surge-e2e-reports";
 process.env.SHARE_SECRET = "e2e-share-secret-at-least-32-characters";
+process.env.MAINTENANCE_SECRET = "e2e-maintenance-secret-at-least-32-characters";
 process.env.SMTP_HOST = "localhost";
 process.env.SMTP_PORT = "465";
 process.env.SMTP_USER = "e2e@example.test";

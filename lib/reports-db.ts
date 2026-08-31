@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, withStorageLocks } from "./db";
 import { ensureOtpMigration } from "./schema";
 
 export type DbReport = {
@@ -15,6 +15,9 @@ export type DbReport = {
   keywords: string;
   sort_order: number | null;
   size_bytes: number;
+  template_key: string | null;
+  storage_key: string | null;
+  external_network_enabled: boolean;
   created_at: Date;
 };
 
@@ -35,20 +38,34 @@ export type ReportOrderItem = { slug: string; date: string };
 export async function reorderReports(
   userId: string,
   items: ReportOrderItem[],
-): Promise<void> {
-  await db.query(
-    `UPDATE reports AS r
-     SET sort_order = ordered.ordinality - 1,
-         date = ordered.date
-     FROM unnest($2::text[], $3::text[])
-       WITH ORDINALITY AS ordered(slug, date, ordinality)
-     WHERE r.user_id = $1 AND r.slug = ordered.slug`,
-    [
-      userId,
-      items.map((item) => item.slug),
-      items.map((item) => item.date),
-    ],
-  );
+): Promise<boolean> {
+  return withStorageLocks(userId, async (client) => {
+    await client.query("BEGIN");
+    try {
+      const result = await client.query(
+        `UPDATE reports AS r
+         SET sort_order = ordered.ordinality - 1,
+             date = ordered.date
+         FROM unnest($2::text[], $3::text[])
+           WITH ORDINALITY AS ordered(slug, date, ordinality)
+         WHERE r.user_id = $1 AND r.slug = ordered.slug`,
+        [
+          userId,
+          items.map((item) => item.slug),
+          items.map((item) => item.date),
+        ],
+      );
+      if (result.rowCount !== items.length) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    }
+  }, { global: false });
 }
 
 // 查某用户的单个报告（用于归属校验）
