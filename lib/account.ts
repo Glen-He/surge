@@ -62,9 +62,9 @@ export async function checkOtpRateLimit(opts: {
 }): Promise<OtpRateLimit> {
   const email = opts.email.toLowerCase().trim();
 
-  // 访客与真实邮箱统一频控（60s 冷却 + 自然日 10 次）：
-  // 访客虽不消耗 SMTP 配额，但接口层同样不能只靠前端按钮挡连点；
-  // 每个访客 email 唯一，频控互不影响。
+  // 游客与真实邮箱统一频控（60s 冷却 + 自然日 10 次）：
+  // 游客虽不消耗 SMTP 配额，但接口层同样不能只靠前端按钮挡连点；
+  // 每个游客 email 唯一，频控互不影响。
   await ensureOtpMigration();
   const client = await db.connect();
   try {
@@ -277,7 +277,7 @@ export async function sendOtpMail(opts: {
   /** HTML 版本：可选，传入后以 multipart/alternative 发送（优先展示 HTML） */
   html?: string;
 }) {
-  // 访客不发真实邮件：验证码已由调用方的响应体（guestOtpResponse）直接返回
+  // 游客不发真实邮件：验证码已由调用方的响应体（guestOtpResponse）直接返回
   if (isGuestEmail(opts.to)) return;
   await transporter.sendMail({
     from: process.env.SMTP_USER,

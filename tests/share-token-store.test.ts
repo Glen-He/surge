@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  decryptSharePasscode,
   decryptShareToken,
+  encryptSharePasscode,
   encryptShareToken,
   shareTokenHash,
 } from "@/lib/share-token-store";
@@ -17,6 +19,14 @@ describe("分享令牌持久化保护", () => {
     expect(decryptShareToken(second)).toBe("BearerToken123");
   });
 
+  it("提取码使用独立派生密钥加密并可往返", () => {
+    const tokenCiphertext = encryptShareToken("A7B2");
+    const passcodeCiphertext = encryptSharePasscode("A7B2");
+    expect(passcodeCiphertext).not.toBe(tokenCiphertext);
+    expect(decryptSharePasscode(passcodeCiphertext)).toBe("A7B2");
+    expect(() => decryptShareToken(passcodeCiphertext)).toThrow();
+  });
+
   it("查询指纹稳定但不包含明文", () => {
     const hash = shareTokenHash("BearerToken123");
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
@@ -26,7 +36,11 @@ describe("分享令牌持久化保护", () => {
 
   it("密文被篡改时拒绝解密", () => {
     const encrypted = encryptShareToken("BearerToken123");
-    const tampered = `${encrypted.slice(0, -1)}${encrypted.endsWith("A") ? "B" : "A"}`;
+    const parts = encrypted.split(".");
+    const ciphertext = Buffer.from(parts[3], "base64url");
+    ciphertext[0] ^= 1;
+    parts[3] = ciphertext.toString("base64url");
+    const tampered = parts.join(".");
     expect(() => decryptShareToken(tampered)).toThrow();
   });
 });

@@ -10,6 +10,7 @@ import {
   verifyUnlockProof,
 } from "./shares";
 import {
+  decryptSharePasscode,
   decryptShareToken,
   encryptShareToken,
   ensureShareTokensProtected,
@@ -25,6 +26,7 @@ export type ShareBoardSummary = {
   token: string;
   title: string;
   hasPassword: boolean;
+  passcode: string | null;
   disabled: boolean;
   viewCount: number;
   itemCount: number;
@@ -55,6 +57,7 @@ type BoardRow = {
   token_enc: string | null;
   title: string;
   password_hash: string | null;
+  password_enc: string | null;
   disabled_at: Date | null;
   view_count: string | number;
   created_at: Date;
@@ -66,9 +69,11 @@ type BoardRow = {
 
 export type PublicShareBoard = {
   id: string;
+  ownerId: string;
   token: string;
   title: string;
   passwordHash: string | null;
+  usesPasscode: boolean;
   accessEpoch: number;
   expiresAt: Date | null;
   items: ShareBoardItemView[];
@@ -76,9 +81,11 @@ export type PublicShareBoard = {
 
 export type PublicBoardReport = {
   boardId: string;
+  boardOwnerId: string;
   boardTitle: string;
   boardToken: string;
   boardPasswordHash: string | null;
+  boardUsesPasscode: boolean;
   boardAccessEpoch: number;
   boardExpiresAt: Date | null;
   reportId: string;
@@ -124,6 +131,7 @@ function toSummary(row: BoardRow): ShareBoardSummary {
     token,
     title: row.title,
     hasPassword: !!row.password_hash,
+    passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
     disabled: !!row.disabled_at,
     viewCount: Number(row.view_count),
     itemCount: Number(row.item_count ?? 0),
@@ -221,6 +229,7 @@ export async function createShareBoard(
   userId: string,
   title: string,
   passwordHash: string | null,
+  passwordEnc: string | null,
   expiresAt: Date | null,
   initialReportSlug?: string,
 ): Promise<ShareBoardSummary> {
@@ -250,9 +259,18 @@ export async function createShareBoard(
     }
     await client.query(
       `INSERT INTO share_boards
-         (id, user_id, token_hash, token_enc, title, password_hash, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, userId, shareTokenHash(token), encryptShareToken(token), title, passwordHash, expiresAt],
+         (id, user_id, token_hash, token_enc, title, password_hash, password_enc, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        userId,
+        shareTokenHash(token),
+        encryptShareToken(token),
+        title,
+        passwordHash,
+        passwordEnc,
+        expiresAt,
+      ],
     );
     if (reportId) {
       await client.query(
@@ -273,6 +291,7 @@ export async function createShareBoard(
     token,
     title,
     hasPassword: !!passwordHash,
+    passcode: passwordEnc ? decryptSharePasscode(passwordEnc) : null,
     disabled: false,
     viewCount: 0,
     itemCount: initialReportSlug ? 1 : 0,
@@ -359,6 +378,7 @@ export async function updateShareBoard(
   changes: {
     title?: string;
     passwordHash?: string | null;
+    passwordEnc?: string | null;
     disabled?: boolean;
     expiresAt?: Date | null;
   },
@@ -378,9 +398,10 @@ export async function updateShareBoard(
       `UPDATE share_boards
           SET title = COALESCE($3, title),
               password_hash = CASE WHEN $4::boolean THEN $5 ELSE password_hash END,
-              disabled_at = CASE WHEN $6::boolean THEN NOW() ELSE NULL END,
-              expires_at = CASE WHEN $7::boolean THEN $8 ELSE expires_at END,
-              access_epoch = access_epoch + CASE WHEN $9::boolean THEN 1 ELSE 0 END,
+              password_enc = CASE WHEN $4::boolean THEN $6 ELSE password_enc END,
+              disabled_at = CASE WHEN $7::boolean THEN NOW() ELSE NULL END,
+              expires_at = CASE WHEN $8::boolean THEN $9 ELSE expires_at END,
+              access_epoch = access_epoch + CASE WHEN $10::boolean THEN 1 ELSE 0 END,
               updated_at = NOW()
         WHERE id = $1 AND user_id = $2`,
       [
@@ -389,6 +410,7 @@ export async function updateShareBoard(
         changes.title ?? null,
         changes.passwordHash !== undefined,
         changes.passwordHash ?? null,
+        changes.passwordEnc ?? null,
         nextDisabled,
         changes.expiresAt !== undefined,
         changes.expiresAt ?? null,
@@ -501,9 +523,11 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
   );
   return {
     id: row.id,
+    ownerId: row.user_id,
     token,
     title: row.title,
     passwordHash: row.password_hash,
+    usesPasscode: !!row.password_enc,
     accessEpoch: row.access_epoch,
     expiresAt: row.expires_at,
     items: items.rows.map(itemFromRow),
@@ -518,8 +542,10 @@ export async function findPublicBoardReport(
   await ensureShareTokensProtected();
   const result = await db.query<{
     board_id: string;
+    board_owner_id: string;
     board_title: string;
     password_hash: string | null;
+    password_enc: string | null;
     access_epoch: number;
     expires_at: Date | null;
     report_id: string;
@@ -527,8 +553,8 @@ export async function findPublicBoardReport(
     revision_id: string;
     capability_epoch: number;
   }>(
-    `SELECT b.id AS board_id, b.title AS board_title,
-            b.password_hash, b.access_epoch, b.expires_at,
+    `SELECT b.id AS board_id, b.user_id AS board_owner_id, b.title AS board_title,
+            b.password_hash, b.password_enc, b.access_epoch, b.expires_at,
             r.id AS report_id, r.title AS report_title,
             r.revision_id, r.capability_epoch
        FROM share_boards b
@@ -543,9 +569,11 @@ export async function findPublicBoardReport(
   if (!row) return null;
   return {
     boardId: row.board_id,
+    boardOwnerId: row.board_owner_id,
     boardTitle: row.board_title,
     boardToken: token,
     boardPasswordHash: row.password_hash,
+    boardUsesPasscode: !!row.password_enc,
     boardAccessEpoch: row.access_epoch,
     boardExpiresAt: row.expires_at,
     reportId: row.report_id,

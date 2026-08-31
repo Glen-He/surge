@@ -53,12 +53,12 @@ export async function POST(req: Request) {
       10 * 60,
     );
     if (!rate.allowed) {
-      logger.warn("guest-login", "访客登录频率超限", {
+      logger.warn("guest-login", "游客登录频率超限", {
         requestId,
         durationMs: Date.now() - startedAt,
       });
       return NextResponse.json(
-        { error: "访客登录过于频繁，请稍后再试" },
+        { error: "游客登录过于频繁，请稍后再试" },
         { status: 429 },
       );
     }
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         durationMs: Date.now() - startedAt,
       });
       return NextResponse.json(
-        { error: "访客登录失败，请稍后重试" },
+        { error: "游客登录失败，请稍后重试" },
         { status: authResponse.status === 429 ? 429 : 503 },
       );
     }
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
       response.headers.append("set-cookie", cookie);
     }
     response.headers.set("Cache-Control", "no-store");
-    logger.info("guest-login", "访客登录完成", {
+    logger.info("guest-login", "游客登录完成", {
       requestId,
       durationMs: Date.now() - startedAt,
     });
@@ -123,19 +123,19 @@ export async function POST(req: Request) {
       } catch (cleanupError) {
         logger.error(
           "guest-login",
-          "访客初始化失败后销毁临时账号失败",
+          "游客初始化失败后销毁临时账号失败",
           cleanupError as Error,
           { requestId, guestId },
         );
       }
     }
-    logger.error("guest-login", "访客登录失败", error as Error, {
+    logger.error("guest-login", "游客登录失败", error as Error, {
       requestId,
       stage,
       durationMs: Date.now() - startedAt,
     });
     return NextResponse.json(
-      { error: "访客登录失败，请稍后重试" },
+      { error: "游客登录失败，请稍后重试" },
       { status: 503 },
     );
   }

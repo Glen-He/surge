@@ -109,7 +109,7 @@ function EmailChangeDialog({
         return;
       }
       applyOtpRetry(data, setOldDailyLimit, setOldCooldown, 60);
-      // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
+      // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
       setOldSending(false);
@@ -170,7 +170,7 @@ function EmailChangeDialog({
       applyOtpRetry(data, setNewDailyLimit, setNewCooldown, 60);
       setNewEmail(value);
       setNewSent(true);
-      // 访客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
+      // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
     } finally {
       setNewSending(false);

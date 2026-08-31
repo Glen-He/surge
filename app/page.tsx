@@ -12,7 +12,7 @@ export default async function AuthPage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-  // 访客会话已过 60 分钟：销毁沙箱，落到登录页并展示「访客体验已结束」提示
+  // 游客会话已过 60 分钟：销毁沙箱，落到登录页并展示「游客体验已结束」提示
   if (session && (await expireGuestIfNeeded(session))) {
     redirect("/?guestExpired=1");
   }

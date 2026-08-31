@@ -165,7 +165,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
       <div className="card-main shifted max-h-[83px] overflow-y-auto">
         {isGuest ? (
           <p className="text-[15px] leading-[1.5] text-[#6e6e73]">
-            访客模式不支持 API 令牌，注册正式账号后可用
+            游客模式不支持 API 令牌，注册正式账号后可用
           </p>
         ) : !loaded ? (
           <p className="text-[15px] leading-[1.5] text-[#86868b]">加载中…</p>

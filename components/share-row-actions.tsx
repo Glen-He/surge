@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { shareClipboardText } from "@/lib/share-copy";
 
 // 分享管理页行操作：复制 / 撤销
 export function ShareRowActions({
   shareId,
   token,
+  passcode,
   active,
 }: {
   shareId: string;
   token: string;
+  passcode: string | null;
   active: boolean;
 }) {
   const router = useRouter();
@@ -18,12 +21,12 @@ export function ShareRowActions({
   const [revoking, setRevoking] = useState(false);
 
   async function copy() {
-    const url = `${location.origin}/s/${token}`;
+    const value = shareClipboardText(`${location.origin}/s/${token}`, passcode);
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(value);
     } catch {
       const ta = document.createElement("textarea");
-      ta.value = url;
+      ta.value = value;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");

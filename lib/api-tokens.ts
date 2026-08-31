@@ -16,7 +16,7 @@ import { logger } from "./logger";
 // - 明文 sgk_ + 43 位 base64url（32 字节 CSPRNG，≈256bit 熵），不可枚举
 // - 库里只存 SHA-256 指纹，无法恢复明文
 // - 令牌具有 256-bit 随机性，指纹等值定位不受低熵密码猜解威胁
-// - 更换（rotate）立即失效旧值；撤销即时生效；访客禁止使用
+// - 更换（rotate）立即失效旧值；撤销即时生效；游客禁止使用
 
 /** 令牌认证失败限速：同 IP 20 次 / 10 分钟 */
 const AUTH_FAIL_LIMIT = 20;
@@ -72,7 +72,7 @@ export async function getApiToken(
 
 /**
  * 创建令牌（每用户仅一个）：返回含明文。
- * 访客拒绝；已有令牌拒绝（先撤销或用更换）。
+ * 游客拒绝；已有令牌拒绝（先撤销或用更换）。
  */
 export async function createApiToken(
   userId: string,
@@ -80,7 +80,7 @@ export async function createApiToken(
   name = "",
 ): Promise<{ token: ApiTokenInfo } | { error: string }> {
   if (isGuestEmail(email)) {
-    return { error: "访客模式不支持 API 令牌，注册正式账号后可用" };
+    return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
   }
   await ensureOtpMigration();
   const token = generateApiToken();
@@ -128,7 +128,7 @@ export async function rotateApiToken(
   email: string,
 ): Promise<{ token: ApiTokenInfo } | { error: string }> {
   if (isGuestEmail(email)) {
-    return { error: "访客模式不支持 API 令牌，注册正式账号后可用" };
+    return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
   }
   await ensureOtpMigration();
   const token = generateApiToken();

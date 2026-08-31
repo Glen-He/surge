@@ -216,7 +216,7 @@ export async function createReport(
         if (Number(own.rows[0]?.n ?? 0) >= 1) {
           return {
             ok: false,
-            error: "访客模式最多上传 1 个项目，删除后可再次上传",
+            error: "游客模式最多上传 1 个项目，删除后可再次上传",
             status: 403,
           };
         }

@@ -10,12 +10,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
-  // 未登录 → 登录页；访客沙箱到期 → 销毁并回登录页
+  // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
 
   const deletionRequestedAt = await getDeletionRequestedAt(session.user.id);
 
-  // 访客：读沙箱到期时间（倒计时展示 + 守望器到期前提醒/到点退出）
+  // 游客：读沙箱到期时间（倒计时展示 + 守望器到期前提醒/到点退出）
   const guestExpiry = isGuestEmail(session.user.email)
     ? await getGuestExpiry(session.user.id)
     : null;

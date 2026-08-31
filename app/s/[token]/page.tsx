@@ -7,6 +7,7 @@ import { ReportFrame } from "@/components/report-frame";
 import { after } from "next/server";
 import { logger } from "@/lib/logger";
 import { reportDocumentUrl } from "@/lib/report-origin";
+import { getOptionalSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -40,20 +41,28 @@ export default async function SharePage({
       </main>
     );
   }
+  const session = await getOptionalSession();
+  const isOwner = session?.user.id === found.ownerId;
 
   // 密码校验（cookie 里必须有本 token 的有效 HMAC 证明）
-  if (found.share.password_hash) {
+  if (found.share.password_hash && !isOwner) {
     const jar = await cookies();
     const proof = jar.get(`share_${token}`)?.value;
     if (!verifyUnlockProof(token, proof)) {
-      return <SharePasswordGate token={token} title={found.reportTitle} />;
+      return (
+        <SharePasswordGate
+          token={token}
+          title={found.reportTitle}
+          usesPasscode={!!found.share.passcode}
+        />
+      );
     }
   }
 
   // 浏览量统计（密码通过后）：同 IP 同 token 1 小时内只计 1 次（防刷）
   const ip = clientIp(await headers());
   // 浏览计数是旁路指标，限流存储短暂故障不能阻断报告本身。
-  if (await shouldCountView(token, ip).catch(() => false)) {
+  if (!isOwner && await shouldCountView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementShareView(token).catch((error) => {
         logger.warn("share-view", "浏览量记录失败", error as Error);

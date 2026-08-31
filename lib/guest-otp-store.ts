@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 访客验证码的轻量发布-订阅 store。
+ * 游客验证码的轻量发布-订阅 store。
  *
  * 事件驱动架构：验证码显示的唯一入口是 showGuestOtpFromResponse() ——
  * 即"用户点击获取验证码 → 发送接口成功返回 → 响应体携带 guestOtp 字段"。
@@ -40,7 +40,7 @@ export function showGuestOtp(code: string, ttlSec = 600) {
   }, 5_000);
 }
 
-/** 从"发送验证码"接口的响应体中提取 guestOtp 并显示（非访客响应无此字段，静默跳过） */
+/** 从"发送验证码"接口的响应体中提取 guestOtp 并显示（非游客响应无此字段，静默跳过） */
 export function showGuestOtpFromResponse(data: unknown) {
   const otp = (data as { guestOtp?: { code?: string; expiresIn?: number } })
     ?.guestOtp;

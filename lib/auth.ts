@@ -56,7 +56,7 @@ export const auth = betterAuth({
     lock_timeout: Math.min(AUTH_DB_QUERY_TIMEOUT_MS, 5_000),
   }),
 
-  // 匿名访客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
+  // 匿名游客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
   // 磁盘目录），同 IP 10 分钟最多 5 次（沿用原 guest-login 路由的额度）
   rateLimit: {
     customRules: {
@@ -68,7 +68,7 @@ export const auth = betterAuth({
     enabled: true,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
-      // 访客不设密码，重置链接无消费方，仅短路避免向假域名发信
+      // 游客不设密码，重置链接无消费方，仅短路避免向假域名发信
       if (isGuestEmail(user.email)) return;
       await recordOtpSent(user.email, "OTP_SENT_FORGET_PASSWORD");
       const tpl = renderResetPasswordEmail({ url });
@@ -114,13 +114,13 @@ export const auth = betterAuth({
       emailDomainName: GUEST_EMAIL_DOMAIN,
       generateRandomEmail: async () =>
         `guest_${randomUUID().replace(/-/g, "").slice(0, 10)}@${GUEST_EMAIL_DOMAIN}`,
-      generateName: async () => "访客用户",
+      generateName: async () => "游客用户",
     }),
     emailOTP({
       // 用验证码邮件替代默认的验证链接邮件，避免双发
       overrideDefaultEmailVerification: true,
       sendVerificationOTP: async ({ email, otp, type }) => {
-        // 访客不走 better-auth OTP 邮件链路（自建路由已处理访客场景），仅短路防向假域名发信
+        // 游客不走 better-auth OTP 邮件链路（自建路由已处理游客场景），仅短路防向假域名发信
         if (isGuestEmail(email)) return;
         // 发送成功后记录频控日志（注册 / 登录 / 找回密码等所有 better-auth OTP 都经过这里）
         await recordOtpSent(email, `OTP_SENT_${type ?? "GENERIC"}`);
@@ -211,7 +211,7 @@ export const auth = betterAuth({
         !verifyGuestInternalProof(ctx.headers?.get("x-surge-guest-proof"))
       ) {
         throw new APIError("FORBIDDEN", {
-          message: "请使用访客登录入口",
+          message: "请使用游客登录入口",
         });
       }
       // This application supports exactly one account-creation workflow: OTP
@@ -321,7 +321,7 @@ export const auth = betterAuth({
       }
 
       if (otpEmail) {
-        // 访客邮箱免频控（不占每日 10 次配额、不占 60 秒冷却）
+        // 游客邮箱免频控（不占每日 10 次配额、不占 60 秒冷却）
         if (!isGuestEmail(otpEmail)) {
           const rl = await checkOtpRateLimit({ email: otpEmail });
           if (!rl.ok) {

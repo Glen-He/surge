@@ -10,7 +10,7 @@ import { clearGuestClientState } from "@/lib/guest-session-client";
 import { DeleteAccountModal } from "./delete-account-modal";
 import { ApiTokensCard } from "./api-tokens-card";
 
-/** 访客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
+/** 游客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
 function GuestCountdown({ expiresAt }: { expiresAt: string }) {
   // 首帧渲染占位，挂载后再计时（避免服务端/客户端时间差导致的水合不一致）
   const [left, setLeft] = useState<number | null>(null);
@@ -52,7 +52,7 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3.5 2" />
       </svg>
-      访客会话剩余
+      游客会话剩余
       <span
         className="text-[14px] font-semibold"
         style={{
@@ -138,7 +138,7 @@ export function AccountForm({
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 20_000);
     try {
-      // 统一走自建 end-session：访客账号会被销毁沙箱，真实用户注销会话
+      // 统一走自建 end-session：游客账号会被销毁沙箱，真实用户注销会话
       const response = await fetch("/api/auth/end-session", {
         method: "POST",
         signal: controller.signal,
