@@ -8,6 +8,7 @@ import {
   validateReportMeta,
 } from "@/lib/report-upload";
 import { readUploadForm } from "@/lib/upload-request";
+import { uploadFailureResponse } from "@/lib/upload-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function PATCH(
   }
 
   const parsed = await readUploadForm(req);
-  if (!parsed.ok) return parsed.response;
+  if (!parsed.ok) return uploadFailureResponse(parsed);
   const { form, file, cleanup } = parsed.value;
   try {
     const meta = metaFromForm(form);
@@ -37,20 +38,20 @@ export async function PATCH(
     // 先校验元信息，再动文件：避免字段不合法却已把报告文件换掉
     const metaInvalid = validateReportMeta(meta);
     if (metaInvalid) {
-      return Response.json({ error: metaInvalid }, { status: 400 });
+      return uploadFailureResponse(metaInvalid);
     }
 
     if (file) {
       const result = await replaceReportFile(session.user.id, slug, file, meta);
       if (!result.ok) {
-        return Response.json({ error: result.error }, { status: result.status });
+        return uploadFailureResponse(result);
       }
       return Response.json({ ok: true });
     }
 
     const result = await updateReportMeta(session.user.id, slug, meta);
     if (!result.ok) {
-      return Response.json({ error: result.error }, { status: result.status });
+      return uploadFailureResponse(result);
     }
     return Response.json({ ok: true });
   } finally {
@@ -76,7 +77,7 @@ export async function DELETE(
 
   const result = await deleteReport(session.user.id, slug);
   if (!result.ok) {
-    return Response.json({ error: result.error }, { status: result.status });
+    return uploadFailureResponse(result);
   }
   return Response.json({ ok: true });
 }

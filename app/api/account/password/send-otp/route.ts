@@ -63,7 +63,7 @@ export async function POST() {
   } catch (err) {
     // 详细错误只进服务端日志；响应体给通用文案，不向客户端泄露
     // SMTP 配置/内部栈等实现细节（debug 字段属于信息泄露，已移除）
-    logger.error("send-otp/password", "发送失败", err as Error);
+    logger.error("send-otp/password", "otp send failed", err as Error);
     return Response.json(
       { error: "验证码发送失败，请稍后重试" },
       { status: 500 },

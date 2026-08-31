@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     try {
       await destroyGuestUser(session.user.id);
     } catch (error) {
-      logger.error("deletion/schedule", "销毁游客沙箱失败", error as Error, {
+      logger.error("deletion/schedule", "failed to destroy guest sandbox", error as Error, {
         userId: session.user.id,
       });
       return Response.json({ error: "删除失败，请重试" }, { status: 500 });

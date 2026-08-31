@@ -7,7 +7,7 @@ import {
   findPublicBoardReport,
   verifyBoardUnlockProof,
 } from "@/lib/share-boards";
-import { issueCapability } from "@/lib/report-capability";
+import { issueCapability, reportBridgeToken } from "@/lib/report-capability";
 import { reportDocumentUrl } from "@/lib/report-origin";
 import { getOptionalSession } from "@/lib/session";
 
@@ -36,11 +36,7 @@ export default async function ShareBoardReportPage({
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
     if (!verifyBoardUnlockProof(token, found.boardAccessEpoch, proof)) {
       return (
-        <ShareBoardPasswordGate
-          token={token}
-          title={found.boardTitle}
-          usesPasscode={found.boardUsesPasscode}
-        />
+        <ShareBoardPasswordGate token={token} title={found.boardTitle} />
       );
     }
   }
@@ -63,7 +59,11 @@ export default async function ShareBoardReportPage({
           返回
         </Link>
       </header>
-      <ReportFrame src={reportDocumentUrl(capability)} title={found.reportTitle} />
+      <ReportFrame
+        src={reportDocumentUrl(capability)}
+        title={found.reportTitle}
+        bridgeToken={reportBridgeToken(capability)}
+      />
     </main>
   );
 }

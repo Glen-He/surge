@@ -20,20 +20,24 @@ export function isTagColor(v: string | null | undefined): v is TagColor {
   return TAG_PALETTE.some((c) => c.bg === v);
 }
 
-// 旧数据兜底：无 tag_color 时按标签文字哈希稳定映射到色板（同标签同色）
-export function fallbackTagColor(tag: string): TagColor {
-  const i =
-    Math.abs([...tag].reduce((a, c) => a + c.charCodeAt(0), 0)) %
-    TAG_PALETTE.length;
-  return TAG_PALETTE[i].bg;
+/** 数据库已通过约束保证色值合法；违反不变量时立即失败，禁止静默伪造颜色。 */
+export function requireTagColor(value: string): TagColor {
+  if (!isTagColor(value)) {
+    throw new Error("report tag color violates database invariant");
+  }
+  return value;
 }
 
 // 该底色上的文字颜色（用于标签 chip 渲染）
-export function tagTextColor(bg: string): string {
-  return TAG_PALETTE.find((c) => c.bg === bg)?.text ?? "#475569";
+export function tagTextColor(bg: TagColor): string {
+  const color = TAG_PALETTE.find((c) => c.bg === bg);
+  if (!color) throw new Error("report tag color violates palette invariant");
+  return color.text;
 }
 
 // 该底色对应的选择器展示色（中间色调）
-export function tagSwatchColor(bg: string): string {
-  return TAG_PALETTE.find((c) => c.bg === bg)?.swatch ?? "#94A3B8";
+export function tagSwatchColor(bg: TagColor): string {
+  const color = TAG_PALETTE.find((c) => c.bg === bg);
+  if (!color) throw new Error("report tag color violates palette invariant");
+  return color.swatch;
 }

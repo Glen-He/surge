@@ -14,18 +14,17 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   TOO_MANY_REQUESTS: "操作过于频繁，请稍后再试",
   RATE_LIMIT: "操作过于频繁，请稍后再试",
   INVALID_EMAIL: "邮箱格式不正确",
+  INVALID_TOKEN: "链接无效，请重新发起重置",
+  EXPIRED_TOKEN: "链接已过期，请重新发起重置",
 };
 
 export function toChineseError(
-  error: { code?: string; message?: string } | undefined,
+  error: { code?: string } | undefined,
+  fallback = "操作失败，请稍后重试",
 ): string {
-  if (!error) return "操作失败，请稍后重试";
+  if (!error) return fallback;
   if (error.code && AUTH_ERROR_MESSAGES[error.code]) {
     return AUTH_ERROR_MESSAGES[error.code];
   }
-  // 英文消息（better-auth 未知错误）不直接展示，统一中文兜底；
-  // 服务端路由已翻译过的中文消息原样透传
-  const msg = error.message ?? "";
-  if (msg && /[\u4e00-\u9fff]/.test(msg)) return msg;
-  return "操作失败，请稍后重试";
+  return fallback;
 }

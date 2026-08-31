@@ -59,7 +59,7 @@ export async function POST() {
       ...guestOtpResponse(email, code),
     });
   } catch (err) {
-    logger.error("send-otp/deletion", "验证码发送失败", err as Error);
+    logger.error("send-otp/deletion", "otp send failed", err as Error);
     return Response.json(
       { error: "验证码发送失败，请稍后重试" },
       { status: 500 },

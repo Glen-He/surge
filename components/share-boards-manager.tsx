@@ -243,7 +243,7 @@ export function ShareBoardsManager({
                       {board.disabled ? "已停用" : "生效中"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.hasPassword ? board.passcode ? `提取码 ${board.passcode}` : "密码保护" : "无需提取码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
+                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
                 </div>
                 <button type="button" onClick={() => openSettings(board)} className="h-8 rounded-full bg-[#f2f2f7] px-3 text-[12px] font-medium hover:bg-[#e8e8ed]">设置</button>
               </div>

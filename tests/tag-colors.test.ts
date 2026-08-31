@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TAG_COLOR,
   TAG_PALETTE,
-  fallbackTagColor,
   isTagColor,
+  requireTagColor,
   tagSwatchColor,
   tagTextColor,
 } from "@/lib/tag-colors";
@@ -27,18 +27,16 @@ describe("标签色板", () => {
     expect(isTagColor("")).toBe(false);
   });
 
-  it("fallbackTagColor：同标签稳定同色，输出在色板内", () => {
-    expect(fallbackTagColor("周报")).toBe(fallbackTagColor("周报"));
-    for (const tag of ["a", "b", "绩效", "季度总结"]) {
-      expect(isTagColor(fallbackTagColor(tag))).toBe(true);
-    }
+  it("requireTagColor 只接受数据库色板约束允许的值", () => {
+    expect(requireTagColor(DEFAULT_TAG_COLOR)).toBe(DEFAULT_TAG_COLOR);
+    expect(() => requireTagColor("#FF0000")).toThrow(
+      "report tag color violates database invariant",
+    );
   });
 
-  it("tagTextColor / tagSwatchColor：已知色返回对应值，未知色返回灰兜底", () => {
+  it("tagTextColor / tagSwatchColor 返回色板定义", () => {
     const blue = TAG_PALETTE.find((c) => c.name === "Blue")!;
     expect(tagTextColor(blue.bg)).toBe(blue.text);
     expect(tagSwatchColor(blue.bg)).toBe(blue.swatch);
-    expect(tagTextColor("#000000")).toBe("#475569");
-    expect(tagSwatchColor("#000000")).toBe("#94A3B8");
   });
 });

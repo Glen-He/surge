@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { toChineseError } from "@/lib/auth-errors";
 import { clientIp } from "@/lib/client-ip";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import {
@@ -24,8 +25,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "邮箱格式不正确" }, { status: 400 });
   }
 
-  // Durable abuse controls sit in front of SMTP and work across all Node
-  // instances. The email-specific cooldown remains enforced by auth.ts.
+  // 持久化的滥用防护位于 SMTP 之前，且跨所有 Node 实例生效；
+  // 邮箱维度的冷却仍由 auth.ts 执行。
   const ip = clientIp(req.headers);
   const [address, global] = await Promise.all([
     consumeSharedRateLimit("registration-otp-ip", ip, 8, 60 * 60),
@@ -50,9 +51,18 @@ export async function POST(req: Request) {
       body: JSON.stringify({ email, type: "sign-in" }),
     }),
   );
-  const data = await response.json().catch(() => null);
-  return NextResponse.json(data ?? { success: response.ok }, {
-    status: response.status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  const data = (await response.json().catch(() => null)) as
+    | { code?: string; error?: { code?: string } }
+    | null;
+  const headers = { "Cache-Control": "no-store" };
+  if (response.ok) {
+    return NextResponse.json(data ?? { success: true }, {
+      status: response.status,
+      headers,
+    });
+  }
+  return NextResponse.json(
+    { error: toChineseError({ code: data?.code ?? data?.error?.code }) },
+    { status: response.status, headers },
+  );
 }

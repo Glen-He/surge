@@ -10,7 +10,7 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    console.error("page error boundary captured an error", error);
   }, [error]);
 
   return (

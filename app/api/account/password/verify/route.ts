@@ -42,8 +42,8 @@ export async function POST(req: Request) {
         { status: 429 },
       );
     }
-    // verifyPassword only validates the current credential. Unlike signInEmail,
-    // it does not create or rotate a session as a side effect.
+    // verifyPassword 只校验当前凭据；与 signInEmail 不同，
+    // 不会产生创建或轮换 session 的副作用。
     try {
       await auth.api.verifyPassword({
         body: { password },

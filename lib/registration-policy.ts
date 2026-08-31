@@ -5,8 +5,8 @@ type RegistrationMode = "open" | "closed";
 function registrationMode(): RegistrationMode {
   const configured = process.env.REGISTRATION_MODE?.trim().toLowerCase();
   if (configured === "open" || configured === "closed") return configured;
-  // Public account creation is deny-by-default in production. Local
-  // development stays convenient unless explicitly configured otherwise.
+  // 生产环境公开注册默认拒绝（deny-by-default）；
+  // 本地开发保持便利，除非显式配置为关闭。
   return process.env.NODE_ENV === "production" ? "closed" : "open";
 }
 
@@ -14,7 +14,7 @@ export function registrationIsOpen(): boolean {
   return registrationMode() === "open";
 }
 
-/** Auth-handler proof that is generated only inside the custom registration saga. */
+/** 仅在自建注册流程内部生成的 auth-handler proof */
 export function registrationInternalProof(email: string): string {
   return internalAuthProof("registration", email.trim().toLowerCase());
 }

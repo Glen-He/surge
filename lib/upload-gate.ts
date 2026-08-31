@@ -15,15 +15,15 @@ export function validateUploadGateSettings(): void {
     UPLOAD_MAX_CONCURRENCY < 1 ||
     UPLOAD_MAX_CONCURRENCY > 32
   ) {
-    throw new Error("UPLOAD_MAX_CONCURRENCY 必须是 1–32 之间的整数");
+    throw new Error("UPLOAD_MAX_CONCURRENCY must be an integer between 1 and 32");
   }
 }
 
 export type UploadLease = { release: () => Promise<void> };
 
 /**
- * Acquire one database-backed slot without holding a pool connection for the
- * whole upload. Expiring leases recover automatically after a process crash.
+ * 获取一个数据库背书的上传并发名额，且不全程占用连接池连接。
+ * 租约带过期时间，进程崩溃后可自动恢复。
  */
 export async function tryAcquireUploadLease(): Promise<UploadLease | null> {
   const holder = randomUUID();
@@ -73,7 +73,7 @@ export async function tryAcquireUploadLease(): Promise<UploadLease | null> {
         [LEASE_SECONDS, holder],
       )
       .catch((error) => {
-        logger.warn("upload-gate", "续租上传并发名额失败", error as Error);
+        logger.warn("upload-gate", "failed to renew upload slot lease", error as Error);
       });
   }, RENEW_MS);
   timer.unref();
@@ -86,7 +86,11 @@ export async function tryAcquireUploadLease(): Promise<UploadLease | null> {
       await db
         .query("DELETE FROM upload_leases WHERE holder = $1", [holder])
         .catch((error) => {
-          logger.warn("upload-gate", "释放上传并发名额失败，等待租约过期", error as Error);
+          logger.warn(
+            "upload-gate",
+            "failed to release upload slot lease; waiting for expiry",
+            error as Error,
+          );
         });
     },
   };

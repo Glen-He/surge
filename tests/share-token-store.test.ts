@@ -8,7 +8,12 @@ import {
 } from "@/lib/share-token-store";
 
 describe("分享令牌持久化保护", () => {
-  beforeEach(() => vi.stubEnv("SHARE_SECRET", "share-test-secret-at-least-32-characters"));
+  beforeEach(() =>
+    vi.stubEnv(
+      "SHARE_TOKEN_ENCRYPTION_KEY",
+      "share-test-token-encryption-key-at-least-32-characters",
+    ),
+  );
   afterEach(() => vi.unstubAllEnvs());
 
   it("AES-GCM 加密可往返且同一令牌每次密文不同", () => {
@@ -42,5 +47,13 @@ describe("分享令牌持久化保护", () => {
     parts[3] = ciphertext.toString("base64url");
     const tampered = parts.join(".");
     expect(() => decryptShareToken(tampered)).toThrow();
+  });
+
+  it("不再从 SHARE_SECRET 回退派生加密密钥", () => {
+    vi.stubEnv("SHARE_TOKEN_ENCRYPTION_KEY", "");
+    vi.stubEnv("SHARE_SECRET", "legacy-share-secret-at-least-32-characters");
+    expect(() => encryptShareToken("BearerToken123")).toThrow(
+      "SHARE_TOKEN_ENCRYPTION_KEY",
+    );
   });
 });

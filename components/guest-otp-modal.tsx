@@ -63,7 +63,7 @@ export function GuestOtpModal() {
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* ignore */
+      /* 忽略 */
     }
   }
 

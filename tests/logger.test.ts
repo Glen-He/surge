@@ -9,7 +9,10 @@ describe("结构化日志脱敏", () => {
 
   it("错误消息中的分享路径、邮箱、IP 和 Bearer 令牌不会原样输出", () => {
     vi.stubEnv("LOG_LEVEL", "debug");
-    vi.stubEnv("LOG_REDACTION_SECRET", "log-redaction-test-secret");
+    vi.stubEnv(
+      "LOG_REDACTION_SECRET",
+      "log-redaction-test-secret-at-least-32-characters",
+    );
     const write = vi.spyOn(console, "error").mockImplementation(() => {});
     logger.error(
       "test",

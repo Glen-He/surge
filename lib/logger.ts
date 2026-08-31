@@ -1,12 +1,16 @@
-import { createHash } from "node:crypto";
+import { createHmac, hkdfSync } from "node:crypto";
 
 // 轻量结构化日志（服务端）：单行 JSON 输出，带时间/级别/模块/上下文。
 // 不引入外部依赖；生产用 LOG_LEVEL=debug|info|warn|error 控制输出级别。
 //
+// 规范：message 一律英文（面向开发排查），业务参数全部放 ctx 对象；
+// 用户可见文案禁止写入 message（用户文案见 lib/auth-errors.ts、
+// lib/upload-errors.ts、lib/password-policy.ts 等文案模块）。
+//
 // 用法：
-//   logger.error("register", "sign-in/email-otp 失败", e);
-//   logger.warn("storage", "全站占用达预警线", { gb: 16.2 });
-//   logger.info("seed", "默认用户已创建", { email });
+//   logger.error("register", "sign-in/email-otp failed", e);
+//   logger.warn("storage", "site usage reached warning threshold", { usedGB: 16.2 });
+//   logger.info("seed", "default user created", { email });
 
 type Ctx = Record<string, unknown>;
 type Level = "debug" | "info" | "warn" | "error";
@@ -22,8 +26,14 @@ function minLevel(): number {
 const isErr = (x: unknown): x is Error => x instanceof Error;
 
 function fingerprint(value: string): string {
-  const salt = process.env.LOG_REDACTION_SECRET ?? process.env.BETTER_AUTH_SECRET ?? "local";
-  return createHash("sha256").update(salt).update("\0").update(value).digest("hex").slice(0, 12);
+  const root = process.env.LOG_REDACTION_SECRET ?? process.env.BETTER_AUTH_SECRET;
+  if (!root || root.length < 32) {
+    throw new Error("LOG_REDACTION_SECRET or BETTER_AUTH_SECRET is required");
+  }
+  const key = Buffer.from(
+    hkdfSync("sha256", root, "surge-log-redaction", "v1", 32),
+  );
+  return createHmac("sha256", key).update(value).digest("hex").slice(0, 12);
 }
 
 function sanitizeText(value: string): string {
@@ -49,8 +59,8 @@ function sanitizeValue(key: string, value: unknown): unknown {
   }
   if (typeof value === "string") {
     if (/email|ip|useragent|user_agent/.test(lower)) return `fp:${fingerprint(value)}`;
-    // Bearer credentials and common personal identifiers must never reach
-    // process logs, even when embedded inside a generic error message.
+    // Bearer 凭证与常见个人标识绝不能进入运行日志，
+    // 即使它们嵌在通用错误 message 里也要先脱敏。
     return sanitizeText(value);
   }
   if (Array.isArray(value)) return value.map((item) => sanitizeValue(key, item));

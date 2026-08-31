@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { findValidShare, verifyUnlockProof, shouldCountView, incrementShareView } from "@/lib/shares";
 import { clientIp } from "@/lib/client-ip";
-import { issueCapability } from "@/lib/report-capability";
+import { issueCapability, reportBridgeToken } from "@/lib/report-capability";
 import { SharePasswordGate } from "./password-gate";
 import { ReportFrame } from "@/components/report-frame";
 import { after } from "next/server";
@@ -12,7 +12,7 @@ import { getOptionalSession } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 // 分享落地页（无需登录）：
-// - token 无效 / 已撤销 / 已过期 → 失效提示页
+// - token 无效 / 已过期 → 失效提示页
 // - 有密码且未解锁 → 密码门（客户端组件）
 // - 其余 → 验证通过后签发 capability，iframe 指向 /r/<cap>/report.html
 //   （runtime 只认 capability，不知道访问者是谁）
@@ -35,7 +35,7 @@ export default async function SharePage({
           </div>
           <h1 className="text-[17px] font-semibold text-[#1d1d1f]">链接无效或已失效</h1>
           <p className="mt-2 text-[13px] leading-[1.55] text-[#6e6e73]">
-            该分享链接不存在、已被撤销或已过期，请联系分享者获取新链接。
+            该分享链接不存在或已过期，请联系分享者获取新链接。
           </p>
         </div>
       </main>
@@ -50,11 +50,7 @@ export default async function SharePage({
     const proof = jar.get(`share_${token}`)?.value;
     if (!verifyUnlockProof(token, proof)) {
       return (
-        <SharePasswordGate
-          token={token}
-          title={found.reportTitle}
-          usesPasscode={!!found.share.passcode}
-        />
+        <SharePasswordGate token={token} title={found.reportTitle} />
       );
     }
   }
@@ -65,7 +61,7 @@ export default async function SharePage({
   if (!isOwner && await shouldCountView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementShareView(token).catch((error) => {
-        logger.warn("share-view", "浏览量记录失败", error as Error);
+        logger.warn("share-view", "failed to record share view", error as Error);
       });
     });
   }
@@ -103,6 +99,7 @@ export default async function SharePage({
       <ReportFrame
         src={reportDocumentUrl(capability)}
         title={found.reportTitle}
+        bridgeToken={reportBridgeToken(capability)}
       />
     </main>
   );

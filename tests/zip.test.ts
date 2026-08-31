@@ -18,7 +18,7 @@ function crc32(input: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-/** Minimal stored ZIP writer, kept in tests so extraction has no writer dependency. */
+/** 最小 stored（无压缩）ZIP 写入器：仅测试用，避免为解压测试引入写入依赖 */
 function makeZip(entries: ZipEntry[]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
@@ -116,7 +116,7 @@ describe("unzipStream", () => {
         ])),
         await tempDir(),
       ),
-    ).rejects.toThrow("重复文件路径");
+    ).rejects.toMatchObject({ code: "ZIP_DUPLICATE_PATH" });
   });
 
   it("在写入前拒绝文件数和总大小超限", async () => {
@@ -126,10 +126,10 @@ describe("unzipStream", () => {
     ]);
     await expect(
       unzipStream(await archiveFile(zip), await tempDir(), { maxFiles: 1 }),
-    ).rejects.toThrow("文件数量");
+    ).rejects.toMatchObject({ code: "ZIP_FILE_COUNT" });
     await expect(
       unzipStream(await archiveFile(zip), await tempDir(), { maxTotalBytes: 9 }),
-    ).rejects.toThrow("总大小");
+    ).rejects.toMatchObject({ code: "ZIP_TOTAL_SIZE" });
   });
 
   it("拒绝 Unix 符号链接条目", async () => {
@@ -138,6 +138,6 @@ describe("unzipStream", () => {
         await archiveFile(makeZip([{ name: "link", data: "report.html", mode: 0o120777 }])),
         await tempDir(),
       ),
-    ).rejects.toThrow("符号链接");
+    ).rejects.toMatchObject({ code: "ZIP_SYMLINK" });
   });
 });

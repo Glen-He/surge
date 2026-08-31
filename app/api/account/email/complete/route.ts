@@ -64,8 +64,8 @@ export async function POST(req: Request) {
     return Response.json({ error: res.error }, { status: 400 });
   }
 
-  // Proof consumption, optimistic email update and session revocation are one
-  // transaction: success never leaves an old device authorized.
+  // proof 消费、乐观锁更新邮箱和撤销 session 在同一事务完成：
+  // 成功后不会留下仍获授权的旧设备。
   const result = await completeEmailChange({
     token,
     userId: session.user.id,

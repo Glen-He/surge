@@ -9,13 +9,14 @@ import {
   encryptShareToken,
   shareTokenHash,
 } from "@/lib/share-token-store";
+import { generateShareToken } from "@/lib/shares";
 
 const fixture = {
   userId: "",
   reportId: randomUUID(),
   slug: `e2e_${randomUUID().slice(0, 8)}`,
   storageKey: `a_${randomUUID().replaceAll("-", "")}`,
-  token: `E2E${randomUUID().replace(/-/g, "")}`,
+  token: generateShareToken(),
   title: "PDF 浏览器回归测试",
 };
 
@@ -141,6 +142,20 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
     }),
   ).toBe(true);
 
+  await report.locator("body").evaluate(() => {
+    window.parent.postMessage(
+      {
+        __surgeReportPdf: {
+          action: "preview",
+          url: "./paper.pdf",
+          bridgeToken: "forged",
+        },
+      },
+      "*",
+    );
+  });
+  await expect(page.locator("iframe.report-pdf-preview")).toHaveCount(0);
+
   const dialogPromise = page.waitForEvent("dialog");
   await Promise.all([
     dialogPromise.then(async (dialog) => {
@@ -154,12 +169,58 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
     await new Promise((resolve) => setTimeout(resolve, 300));
     await route.continue();
   });
+  await page.evaluate(() => {
+    const state = window as typeof window & {
+      __pdfLoadingTransitions?: string[];
+      __pdfLoadingObserver?: MutationObserver;
+    };
+    state.__pdfLoadingTransitions = [];
+    let previous = "";
+    const sample = () => {
+      const current = document.querySelector(".report-pdf-loading")
+        ? "visible"
+        : "hidden";
+      if (current === previous) return;
+      previous = current;
+      state.__pdfLoadingTransitions?.push(current);
+    };
+    state.__pdfLoadingObserver = new MutationObserver(sample);
+    state.__pdfLoadingObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+    sample();
+  });
   await report.locator("#preview").click();
   const preview = page.locator("iframe.report-pdf-preview");
   await expect(preview).toBeVisible();
+  const pdfModal = page.locator(".security-modal");
+  const pdfModalClose = page.getByRole("button", { name: "关闭" });
+  await expect(pdfModal).toBeFocused();
+  await expect(pdfModalClose).not.toBeFocused();
+  await expect(pdfModalClose).toHaveCSS("outline-style", "none");
   await expect(preview).toHaveAttribute("src", /\/r\/[^/]+\/paper\.pdf$/);
   await expect(page.getByRole("status")).toContainText("正在加载 PDF");
-  await expect(page.getByRole("status")).toBeHidden({ timeout: 7_000 });
+  await page.waitForTimeout(4_300);
+  await expect(page.getByRole("status")).toBeHidden();
+  const loadingTransitions = await page.evaluate(() => {
+    const state = window as typeof window & {
+      __pdfLoadingTransitions?: string[];
+      __pdfLoadingObserver?: MutationObserver;
+    };
+    state.__pdfLoadingObserver?.disconnect();
+    return state.__pdfLoadingTransitions ?? [];
+  });
+  const firstVisible = loadingTransitions.indexOf("visible");
+  const firstHiddenAfterVisible = loadingTransitions.indexOf(
+    "hidden",
+    firstVisible + 1,
+  );
+  expect(firstVisible).toBeGreaterThanOrEqual(0);
+  expect(firstHiddenAfterVisible).toBeGreaterThan(firstVisible);
+  expect(loadingTransitions.slice(firstHiddenAfterVisible + 1)).not.toContain(
+    "visible",
+  );
 
   await page.getByRole("button", { name: "关闭" }).click();
   const downloadPromise = page.waitForEvent("download");

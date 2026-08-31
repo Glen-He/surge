@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import { showGuestOtpFromResponse } from "@/lib/guest-otp-store";
 import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
@@ -33,6 +33,7 @@ function DeleteAccountDialog({
   const [cooldown, setCooldown] = useOtpCooldown();
   // 每日上限：按钮静态禁用"明日再试"，不跑秒级倒计时
   const [dailyLimit, setDailyLimit] = useState(false);
+  const otpRef = useRef<HTMLInputElement | null>(null);
 
   async function sendOtp() {
     if (otpSending || cooldown > 0 || loading) return;
@@ -51,6 +52,7 @@ function DeleteAccountDialog({
       applyOtpRetry(data, setDailyLimit, setCooldown, 60);
       // 游客模式：响应体直接携带验证码，立即显示（事件驱动，无轮询）
       showGuestOtpFromResponse(data);
+      otpRef.current?.focus({ preventScroll: true });
     } finally {
       setOtpSending(false);
     }
@@ -86,6 +88,7 @@ function DeleteAccountDialog({
       {/* 单行：验证码输入（浅 44）+ 获取验证码（深 42，光学小 1px） */}
       <div className="mt-4 flex items-center gap-2.5">
         <input
+          ref={otpRef}
           value={otp}
           onChange={(e) => {
             setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));

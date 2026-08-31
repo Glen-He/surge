@@ -82,9 +82,9 @@ export function isTrustedMutationRequest(
     }
   }
 
-  // Browser session mutations always carry at least Origin, Fetch Metadata or
-  // Referer. Header-less non-browser clients have no ambient browser cookies;
-  // public programmatic access belongs under /api/v1 with Bearer credentials.
+  // 浏览器会话变更请求至少携带 Origin、Fetch Metadata 或 Referer 之一。
+  // 无这些头的非浏览器客户端没有浏览器环境 cookie；
+  // 公开的程序化访问应走 /api/v1 的 Bearer 凭证。
   return !!origin || fetchSite === "same-origin" || !!referer || !request.headers.get("cookie");
 }
 

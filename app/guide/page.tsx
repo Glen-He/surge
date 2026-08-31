@@ -278,7 +278,7 @@ function GuideContent() {
           </div>
         </section>
 
-        {/* 2 Prompt */}
+        {/* 第 2 部分：Prompt */}
         <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={2}>Prompt</SectionTitle>
           {/* 两个用法卡间距与到下方模板的间距一致（均 24px） */}

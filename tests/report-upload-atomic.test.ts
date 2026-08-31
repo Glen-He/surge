@@ -85,7 +85,7 @@ describe("不可变报告替换", () => {
       size: 3,
     });
 
-    expect(result).toMatchObject({ ok: false, status: 500 });
+    expect(result).toMatchObject({ ok: false, code: "REPLACE_FAILED" });
     await expect(
       fs.readFile(
         path.join(reportArtifactDir(userId, oldStorageKey), "report.html"),

@@ -38,7 +38,7 @@ export async function POST() {
     try {
       await destroyGuestUser(guestId);
     } catch (error) {
-      logger.error("end-session", "销毁游客沙箱失败", error as Error, {
+      logger.error("end-session", "failed to destroy guest sandbox", error as Error, {
         guestId,
       });
       return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
@@ -75,13 +75,13 @@ export async function POST() {
       signOutResp = await auth.handler(signOutReq as Request);
       await signOutResp.text(); // consume body
       if (!signOutResp.ok) {
-        logger.error("end-session", "better-auth 服务端会话撤销失败", {
+        logger.error("end-session", "better-auth server-side sign-out failed", {
           status: signOutResp.status,
         });
         return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
       }
     } catch (error) {
-      logger.error("end-session", "better-auth 服务端会话撤销异常", error as Error);
+      logger.error("end-session", "better-auth server-side sign-out threw", error as Error);
       return NextResponse.json({ error: "退出失败，请重试" }, { status: 503 });
     }
   }

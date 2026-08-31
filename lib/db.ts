@@ -10,17 +10,17 @@ export const db = new Pool({
   max: Number(process.env.DB_POOL_MAX ?? 10),
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
-  // Bound both the client wait and PostgreSQL execution. Authentication and
-  // mutations must fail visibly instead of leaving the UI pending forever.
+  // 同时约束客户端等待与 PostgreSQL 执行：认证与写操作必须显式失败，
+  // 而不是让 UI 永远挂起。
   query_timeout: DB_QUERY_TIMEOUT_MS,
   statement_timeout: DB_QUERY_TIMEOUT_MS,
   lock_timeout: Math.min(DB_QUERY_TIMEOUT_MS, 5_000),
 });
 
 /**
- * Serializes operations that affect the site-wide quota as well as one user's
- * files. Every caller acquires locks in the same global -> user order and uses
- * the lock-holding client for DB work, so DB_POOL_MAX=1 cannot self-deadlock.
+ * 串行化同时影响全站配额与单用户文件的操作。
+ * 所有调用方都按「全局 → 用户」的顺序加锁，并用持锁连接执行数据库工作，
+ * 因此 DB_POOL_MAX=1 也不会自死锁。
  */
 export async function withStorageLocks<T>(
   userId: string,

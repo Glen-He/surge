@@ -41,7 +41,7 @@ const DEMO_TEMPLATE_KEY_SET = new Set<string>(DEMO_TEMPLATE_KEYS);
 function assertSafeDataDir(dir: string): void {
   const root = path.parse(dir).root;
   if (dir === root || dir === process.cwd()) {
-    throw new Error(`REPORTS_DATA_DIR points at an unsafe broad directory: ${dir}`);
+    throw new Error("REPORTS_DATA_DIR points at an unsafe broad directory");
   }
 }
 
@@ -91,7 +91,7 @@ export function reportStagingDir(userId: string): string {
   return path.join(userReportsDir(userId), ".staging");
 }
 
-/** Resolve an immutable artifact only after validating its opaque server key. */
+/** 校验不透明服务端 key 之后才解析不可变 artifact 目录 */
 export function reportArtifactDir(userId: string, storageKey: string): string {
   if (!STORAGE_KEY_RE.test(storageKey)) {
     throw new Error("Invalid report storage key");
@@ -103,7 +103,7 @@ function isDemoTemplateKey(value: string): value is DemoTemplateKey {
   return DEMO_TEMPLATE_KEY_SET.has(value);
 }
 
-/** Resolve a server-owned, immutable demo template through a strict allowlist. */
+/** 经严格白名单解析服务端掌管的不可变演示模板 */
 export function demoTemplateDir(templateKey: string): string {
   if (!isDemoTemplateKey(templateKey)) {
     throw new Error("Unknown report template key");
@@ -112,8 +112,8 @@ export function demoTemplateDir(templateKey: string): string {
 }
 
 /**
- * Resolve the content root for a report row. User reports use private storage;
- * guest demos use one shared read-only template until their file is replaced.
+ * 解析报告行的内容根目录。用户报告走私有存储；
+ * 游客演示在文件被替换前共用一份只读模板。
  */
 export function reportContentDir(report: {
   userId: string;
@@ -212,9 +212,8 @@ function isManifest(value: unknown): value is TrashManifest {
 }
 
 /**
- * Crash recovery for cross-resource deletes. A manifest is persisted before
- * the directory is hidden. At startup, DB state decides whether to restore the
- * payload (delete never committed) or remove it (delete committed).
+ * 跨资源删除的崩溃恢复：目录被隐藏前先持久化 manifest。
+ * 启动时按数据库状态决定恢复 payload（删除未提交）还是清除（删除已提交）。
  */
 export async function purgeTrash(): Promise<void> {
   const client = await db.connect();
@@ -243,11 +242,11 @@ export async function purgeTrash(): Promise<void> {
       } catch (error) {
         if (await isOlderThan(manifestPath, recoveryRetentionMs())) {
           await fs.rm(manifestPath, { force: true });
-          logger.warn("storage-recovery", "已删除超过保留期的无效回收区 manifest", {
+          logger.warn("storage-recovery", "removed invalid trash manifest past retention", {
             entry: entry.name,
           });
         } else {
-          logger.warn("storage-recovery", "回收区 manifest 无法解析，暂时保留", error as Error, {
+          logger.warn("storage-recovery", "trash manifest unparsable; kept for now", error as Error, {
             entry: entry.name,
           });
         }
@@ -264,7 +263,7 @@ export async function purgeTrash(): Promise<void> {
       const original = userReportsDir(manifest.userId);
       try {
         await restoreTrashedDir(original, payload, manifestPath);
-        logger.warn("storage-recovery", "已恢复未提交删除的存储数据", {
+        logger.warn("storage-recovery", "restored storage data with uncommitted delete", {
           kind: manifest.kind,
           userId: manifest.userId,
         });
@@ -273,9 +272,9 @@ export async function purgeTrash(): Promise<void> {
           await fs.rm(manifestPath, { force: true });
           continue;
         }
-        // Never overwrite an existing live directory. Preserve both copies for
-        // operator inspection instead of guessing which one is authoritative.
-        logger.error("storage-recovery", "回收区数据自动恢复失败，已保留", error as Error, {
+        // 绝不覆盖已存在的线上目录：两份都保留给运维排查，
+        // 而不是猜测哪一份才是权威数据。
+        logger.error("storage-recovery", "trash restore failed; data kept", error as Error, {
           kind: manifest.kind,
           userId: manifest.userId,
         });
@@ -293,7 +292,7 @@ export async function purgeTrash(): Promise<void> {
       removedUnknown += 1;
     }
     if (unknown.length > removedUnknown) {
-      logger.warn("storage-recovery", "回收区存在无 manifest 数据，保留至恢复期结束", {
+      logger.warn("storage-recovery", "manifest-less trash data kept until retention ends", {
         count: unknown.length - removedUnknown,
       });
     }
@@ -338,10 +337,9 @@ async function removeIfStale(full: string, graceMs: number): Promise<boolean> {
 }
 
 /**
- * Reconcile the persistent volume against database pointers. Only data older
- * than the grace period is removed, so an upload being streamed/staged is
- * never mistaken for an orphan. The global storage lock closes the short
- * publish-before-DB-switch window across all application instances.
+ * 用数据库指针核对持久卷。只清理超过宽限期的数据，
+ * 避免把正在流式写入/暂存的上传误判为孤儿；全站存储锁
+ * 在所有实例间关闭「先落盘、后切库」的短暂窗口。
  */
 export async function purgeOrphanedReportStorage(): Promise<{ removed: number }> {
   const client = await db.connect();
@@ -409,6 +407,6 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
       .catch(() => {});
     client.release();
   }
-  if (removed > 0) logger.info("storage", "已清理孤儿存储", { removed });
+  if (removed > 0) logger.info("storage", "orphaned storage purged", { removed });
   return { removed };
 }

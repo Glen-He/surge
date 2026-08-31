@@ -7,6 +7,7 @@ describe("生产内容域环境约束", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://user:pass@db/surge");
     vi.stubEnv("BETTER_AUTH_SECRET", "a".repeat(32));
     vi.stubEnv("SHARE_SECRET", "b".repeat(32));
+    vi.stubEnv("SHARE_TOKEN_ENCRYPTION_KEY", "f".repeat(32));
     vi.stubEnv("MAINTENANCE_SECRET", "c".repeat(32));
     vi.stubEnv("SMTP_HOST", "smtp.example.com");
     vi.stubEnv("SMTP_PORT", "465");
@@ -22,14 +23,22 @@ describe("生产内容域环境约束", () => {
     expect(() => validateProductionEnvironment()).toThrow("REPORTS_ORIGIN");
 
     vi.stubEnv("REPORTS_ORIGIN", "https://glenhe.com");
-    expect(() => validateProductionEnvironment()).toThrow("独立主机名");
+    expect(() => validateProductionEnvironment()).toThrow("distinct from the main site");
 
     vi.stubEnv("REPORTS_ORIGIN", "http://reports.glenhe.com");
-    expect(() => validateProductionEnvironment()).toThrow("必须使用 HTTPS");
+    expect(() => validateProductionEnvironment()).toThrow("must use HTTPS");
   });
 
   it("接受独立、无路径的 HTTPS 内容域", () => {
     vi.stubEnv("REPORTS_ORIGIN", "https://reports.glenhe.com");
     expect(() => validateProductionEnvironment()).not.toThrow();
+  });
+
+  it("要求独立的分享令牌加密根密钥", () => {
+    vi.stubEnv("REPORTS_ORIGIN", "https://reports.glenhe.com");
+    vi.stubEnv("SHARE_TOKEN_ENCRYPTION_KEY", "");
+    expect(() => validateProductionEnvironment()).toThrow(
+      "SHARE_TOKEN_ENCRYPTION_KEY",
+    );
   });
 });

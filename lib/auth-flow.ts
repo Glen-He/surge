@@ -1,4 +1,3 @@
-import { toChineseError } from "@/lib/auth-errors";
 import { passwordPolicyError } from "@/lib/password-policy";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -55,17 +54,14 @@ export async function sendSignUpOtp(
       body: JSON.stringify({ email }),
     });
     const data = (await response.json().catch(() => null)) as
-      | { error?: { code?: string; message?: string } | string; message?: string }
+      | { error?: string }
       | null;
     if (response.ok) return { ok: true };
-    const raw = typeof data?.error === "string" ? data.error : data?.message;
     return {
       ok: false,
-      error: raw && /[\u4e00-\u9fff]/.test(raw)
-        ? raw
-        : toChineseError(
-            typeof data?.error === "object" ? data.error : { message: raw },
-          ),
+      error: typeof data?.error === "string"
+        ? data.error
+        : "验证码发送失败，请稍后重试",
     };
   } catch {
     return { ok: false, error: "网络异常，请稍后重试" };
@@ -99,10 +95,7 @@ export async function registerWithOtp(
       const raw = typeof data?.error === "string" ? data.error : "";
       return {
         ok: false,
-        error:
-          raw && /[\u4e00-\u9fff]/.test(raw)
-            ? raw
-            : "注册失败，请稍后重试",
+        error: raw || "注册失败，请稍后重试",
       };
     }
     return { ok: true };
@@ -134,10 +127,7 @@ export async function signInAsGuest(): Promise<GuestResult> {
       const raw = typeof data?.error === "string" ? data.error : "";
       return {
         ok: false,
-        error:
-          raw && /[\u4e00-\u9fff]/.test(raw)
-            ? raw
-            : "游客登录失败，请稍后重试",
+        error: raw || "游客登录失败，请稍后重试",
       };
     }
     return {

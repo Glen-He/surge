@@ -124,12 +124,8 @@ export const auth = betterAuth({
         if (isGuestEmail(email)) return;
         // 发送成功后记录频控日志（注册 / 登录 / 找回密码等所有 better-auth OTP 都经过这里）
         await recordOtpSent(email, `OTP_SENT_${type ?? "GENERIC"}`);
-        // better-auth change-email 端点已禁用，老用户/异常调用兜底走 new_email 模板；
-        // 其余场景（sign-up / sign-in / forgot-password 等）走 login 通用验证码模板
-        const tpl = renderOtpEmail(
-          type === "change-email" ? "new_email" : "login",
-          { code: otp },
-        );
+        // 修改邮箱只走自建流程；better-auth OTP 统一使用登录验证码模板。
+        const tpl = renderOtpEmail("login", { code: otp });
         await transporter.sendMail({
           from: process.env.SMTP_USER,
           to: email,
@@ -152,10 +148,9 @@ export const auth = betterAuth({
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      // Credential and account lifecycle mutations must go through the custom
-      // routes, where recent-authentication claims, cooling periods, cleanup,
-      // and session revocation are enforced atomically. Better Auth's native
-      // endpoints would otherwise form a second, weaker policy surface.
+      // 凭据与账号生命周期变更必须走自建路由：近期认证声明、冷却期、
+      // 清理与会话撤销在路由内原子执行。Better Auth 原生端点否则会形成
+      // 第二套更弱的策略面。
       if (
         ctx.path === "/change-password" ||
         ctx.path === "/change-email" ||
@@ -214,15 +209,13 @@ export const auth = betterAuth({
           message: "请使用游客登录入口",
         });
       }
-      // This application supports exactly one account-creation workflow: OTP
-      // verification followed by transactional password initialization in the
-      // custom /api/auth/register saga. Native password signup is never valid.
+      // 本应用只支持一条建号路径：OTP 验证后在自建 /api/auth/register
+      // 流程内事务化初始化密码。原生密码注册永远无效。
       if (ctx.path === "/sign-up/email") {
         throw new APIError("FORBIDDEN", { message: "请使用验证码注册" });
       }
-      // Closing public registration must be enforced beneath the UI and custom
-      // route. Better Auth's native email/OTP endpoints are public and can
-      // otherwise create a user when the submitted email does not exist.
+      // 关闭公开注册必须在 UI 与自建路由之下强制执行。Better Auth 原生
+      // email/OTP 端点是公开的，否则邮箱不存在时仍可能直接建出用户。
       if (!registrationIsOpen()) {
         const isOtpSignIn =
           ctx.path === "/sign-in/email-otp" ||
@@ -246,9 +239,8 @@ export const auth = betterAuth({
           }
         }
       } else {
-        // When registration is open, new-user OTP endpoints still require a
-        // server-only HMAC proof. This prevents bypassing the transactional
-        // custom route and creating a passwordless half-account directly.
+        // 注册开放时，新用户 OTP 端点仍要求服务端专属 HMAC proof，
+        // 防止绕过事务化自建路由、直接创建无密码的半成品账号。
         const isOtpSignIn =
           ctx.path === "/sign-in/email-otp" ||
           (ctx.path === "/email-otp/send-verification-otp" &&

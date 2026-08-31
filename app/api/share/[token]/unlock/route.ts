@@ -4,6 +4,7 @@ import {
   checkUnlockRate,
   clearUnlockRate,
   findValidShare,
+  recordUnlockFailure,
   unlockCookieName,
   unlockProof,
   verifySharePassword,
@@ -11,9 +12,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// 密码解锁：校验通过后签发 HMAC 证明 cookie（HttpOnly + Path 绑定本 token
-// 的两个消费端点都覆盖不到——page 是 GET HTML、asset 是子资源，
-// 因此 Path 直接给 /，值本身不可伪造，安全性由 HMAC 保证）。
+// 密码解锁：校验通过后签发 HMAC 证明 cookie（HttpOnly + Path 绑定本 token）。
+// 报告子资源使用 capability，不消费分享 cookie，因此无需把 cookie 扩散到全站。
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ token: string }> },
@@ -40,19 +40,21 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const password =
     typeof body.password === "string"
-      ? found.share.passcode
-        ? body.password.toUpperCase()
-        : body.password
+      ? body.password.toUpperCase()
       : "";
   if (
     !password ||
-    password.length > 64 ||
+    password.length !== 4 ||
     !(await verifySharePassword(password, found.share.password_hash))
   ) {
-    return Response.json(
-      { error: found.share.passcode ? "提取码不正确" : "密码不正确" },
-      { status: 401 },
-    );
+    const failureRate = await recordUnlockFailure(token);
+    if (!failureRate.ok) {
+      return Response.json(
+        { error: `尝试次数过多，请 ${failureRate.retryAfter} 秒后再试` },
+        { status: 429 },
+      );
+    }
+    return Response.json({ error: "提取码不正确" }, { status: 401 });
   }
 
   await clearUnlockRate(token, ip);
@@ -61,7 +63,7 @@ export async function POST(
     httpOnly: true,
     secure: new URL(process.env.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
-    path: "/",
+    path: `/s/${token}`,
     // 会话级：不设 maxAge，关浏览器即失；重新打开需再次输入密码
   });
   return Response.json({ ok: true });

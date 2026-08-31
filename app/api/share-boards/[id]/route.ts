@@ -4,9 +4,12 @@ import {
   MAX_BOARD_TITLE_LENGTH,
   normalizeBoardTitle,
   parseBoardExpiry,
-  ShareBoardError,
   updateShareBoard,
 } from "@/lib/share-boards";
+import {
+  shareBoardErrorResponse,
+  ShareBoardError,
+} from "@/lib/share-board-errors";
 import {
   generateSharePasscode,
   hashSharePassword,
@@ -84,7 +87,7 @@ export async function PATCH(
     return Response.json({ ok: true, passcode });
   } catch (error) {
     if (error instanceof ShareBoardError) {
-      return Response.json({ error: error.message }, { status: error.status });
+      return shareBoardErrorResponse(error);
     }
     throw error;
   }
@@ -102,7 +105,7 @@ export async function DELETE(
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof ShareBoardError) {
-      return Response.json({ error: error.message }, { status: error.status });
+      return shareBoardErrorResponse(error);
     }
     throw error;
   }

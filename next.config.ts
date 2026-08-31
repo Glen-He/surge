@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
     // 50MB 文件，因此为 multipart 边界和元数据额外预留 1MB。
     proxyClientMaxBodySize: "51mb",
   },
-  // unzipper contains optional adapters (including S3) behind runtime require().
-  // Keep it as a native Node dependency so Turbopack does not resolve unused
-  // optional adapters into the application bundle.
+  // unzipper 在运行时 require() 之后藏着可选适配器（含 S3）。
+  // 保留为原生 Node 依赖，避免 Turbopack 把未使用的可选适配器
+  // 解析进应用 bundle。
   serverExternalPackages: ["unzipper"],
   async headers() {
     return [
@@ -51,9 +51,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Capability URLs are bearer credentials and must not be indexed or
-        // leak through a Referer header. Route handlers repeat these headers
-        // so the invariant also holds outside this Next.js config.
+        // capability URL 属于持有即凭证（bearer credential），禁止被索引，
+        // 也不能经 Referer 头泄露。路由处理器会重复这些头，
+        // 保证该不变量在本 Next.js 配置之外同样成立。
         source: "/r/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },

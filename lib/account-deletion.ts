@@ -61,7 +61,7 @@ export async function purgeExpiredDeletions(): Promise<void> {
       failures += 1;
       logger.error(
         "account-deletion",
-        "清理单个到期账号失败，继续处理其他账号",
+        "failed to purge one expired account; continuing with others",
         error as Error,
         { userId: row.id },
       );
@@ -73,11 +73,10 @@ export async function purgeExpiredDeletions(): Promise<void> {
 }
 
 /**
- * Compensating transaction for DB + filesystem account deletion.
+ * 数据库 + 文件系统账号删除的补偿事务。
  *
- * The directory is atomically hidden first. If the conditional DB delete no
- * longer applies (for example the user cancelled concurrently), it is restored.
- * A committed DB deletion leaves any cleanup failure in .trash for startup retry.
+ * 目录先被原子隐藏；若条件删除在数据库侧已不成立（例如用户并发取消了删除），
+ * 则恢复目录。数据库删除提交后，残余清理失败保留在 .trash 交由启动任务重试。
  */
 export async function deleteUserPermanently(
   userId: string,
@@ -116,9 +115,9 @@ export async function deleteUserPermanently(
       await client.query(`DELETE FROM otp_codes WHERE lower(email) = lower($1)`, [
         email,
       ]);
-      // Better Auth identifiers are either the email itself or
-      // "<purpose>-otp-<email>". A suffix comparison avoids treating email
-      // characters such as % and _ as LIKE wildcards.
+      // Better Auth 的 identifier 要么是邮箱本身，要么是
+      // "<purpose>-otp-<email>"。用后缀比较，避免把邮箱中的
+      // % 和 _ 等字符当作 LIKE 通配符。
       await client.query(
         `DELETE FROM verification
          WHERE lower(identifier) = lower($1)
@@ -140,7 +139,7 @@ export async function deleteUserPermanently(
         (restoreError) => {
           logger.error(
             "account-deletion",
-            "数据库删除失败且用户目录恢复失败",
+            "db deletion failed and user dir restore also failed",
             restoreError as Error,
             { userId, reason },
           );
@@ -152,7 +151,7 @@ export async function deleteUserPermanently(
     await removeTrashedDir(moved.trashed, moved.manifest).catch((error) => {
       logger.warn(
         "account-deletion",
-        "账号已删除，用户目录将由启动任务重试清理",
+        "account deleted; user dir left for startup retry",
         error as Error,
         { userId, reason },
       );

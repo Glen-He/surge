@@ -7,13 +7,29 @@ export type ReportPdfMessage = {
   action: ReportPdfAction;
   url: string;
   title?: string;
+  bridgeToken: string;
 };
 
+export type PdfLoadState = "loading" | "slow" | "ready" | "error";
+export type PdfLoadEvent = "slow" | "ready" | "error";
+
 /**
- * Treat every message from uploaded report HTML as untrusted. A PDF action may
- * only target a .pdf resource inside the exact capability directory that
- * supplied report.html; it cannot turn the trusted parent into a same-origin
- * navigation/download gadget for the rest of the application.
+ * PDF 加载状态只能从进行中状态走向终态，不能由迟到的 timer/event
+ * 把已经可见的阅读器重新盖住，也不能把明确的加载错误伪装成成功。
+ */
+export function advancePdfLoadState(
+  state: PdfLoadState,
+  event: PdfLoadEvent,
+): PdfLoadState {
+  if (state === "ready" || state === "error") return state;
+  if (event === "slow") return state === "loading" ? "slow" : state;
+  return event;
+}
+
+/**
+ * 上传的报告 HTML 发来的消息一律视为不可信。PDF 动作只能指向
+ * 提供 report.html 的同一 capability 目录内的 .pdf 资源，
+ * 不能把可信父页面变成针对应用其余部分的同源导航/下载跳板。
  */
 export function resolveReportPdfUrl(
   reportSrc: string,
@@ -43,13 +59,17 @@ export function resolveReportPdfUrl(
   }
 }
 
-export function isReportPdfMessage(value: unknown): value is ReportPdfMessage {
+export function isReportPdfMessage(
+  value: unknown,
+  expectedBridgeToken: string,
+): value is ReportPdfMessage {
   if (!value || typeof value !== "object") return false;
   const message = value as Partial<ReportPdfMessage>;
   return (
     (message.action === "preview" || message.action === "download") &&
     typeof message.url === "string" &&
-    (message.title === undefined || typeof message.title === "string")
+    (message.title === undefined || typeof message.title === "string") &&
+    message.bridgeToken === expectedBridgeToken
   );
 }
 

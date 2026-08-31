@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { EditReportForm } from "@/components/edit-report-form";
 import { requireSession } from "@/lib/session";
 import { getReportBySlug } from "@/lib/reports-db";
-import { fallbackTagColor, isTagColor } from "@/lib/tag-colors";
+import { requireTagColor } from "@/lib/tag-colors";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,7 @@ export default async function EditReportPage({
         title: report.title,
         date: report.date,
         tag: report.tag,
-        tagColor: isTagColor(report.tag_color)
-          ? report.tag_color
-          : fallbackTagColor(report.tag || "其他"),
+        tagColor: requireTagColor(report.tag_color),
         keywords: report.keywords,
         description: report.description,
         externalNetwork: report.external_network_enabled,

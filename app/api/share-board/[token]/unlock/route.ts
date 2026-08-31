@@ -8,6 +8,7 @@ import {
 import {
   checkUnlockRate,
   clearUnlockRate,
+  recordUnlockFailure,
   verifySharePassword,
 } from "@/lib/shares";
 
@@ -34,19 +35,21 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const password =
     typeof body.password === "string"
-      ? board.usesPasscode
-        ? body.password.toUpperCase()
-        : body.password
+      ? body.password.toUpperCase()
       : "";
   if (
     !password ||
-    password.length > 64 ||
+    password.length !== 4 ||
     !(await verifySharePassword(password, board.passwordHash))
   ) {
-    return Response.json(
-      { error: board.usesPasscode ? "提取码不正确" : "密码不正确" },
-      { status: 401 },
-    );
+    const failureRate = await recordUnlockFailure(rateKey);
+    if (!failureRate.ok) {
+      return Response.json(
+        { error: `尝试次数过多，请 ${failureRate.retryAfter} 秒后再试` },
+        { status: 429 },
+      );
+    }
+    return Response.json({ error: "提取码不正确" }, { status: 401 });
   }
   await clearUnlockRate(rateKey, ip);
   const jar = await cookies();

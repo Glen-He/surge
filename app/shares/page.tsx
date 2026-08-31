@@ -17,12 +17,10 @@ function fmtDate(d: Date | null): string {
 
 const STATUS_CLASS: Record<string, string> = {
   active: "bg-[#e9fbe9] text-[#166534]",
-  revoked: "bg-[#f2f2f7] text-[#6e6e73]",
   expired: "bg-[#f2f2f7] text-[#6e6e73]",
 };
 const STATUS_LABEL: Record<string, string> = {
   active: "生效中",
-  revoked: "已撤销",
   expired: "已过期",
 };
 
@@ -120,11 +118,7 @@ export default async function SharesPage() {
                         </Link>
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-[#6e6e73]">
-                        {s.password_hash
-                          ? s.passcode
-                            ? `提取码 ${s.passcode}`
-                            : "密码保护"
-                          : "公开"}
+                        {s.passcode ? `提取码 ${s.passcode}` : "公开"}
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-[#6e6e73]">
                         {s.expires_at ? fmtDate(s.expires_at) : "永久"}

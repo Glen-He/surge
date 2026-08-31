@@ -40,7 +40,7 @@ export async function logSecurity(opts: {
       ],
     );
   } catch (err) {
-    logger.error("security-log", "写入安全日志失败", err as Error);
+    logger.error("security-log", "failed to write security log", err as Error);
   }
 }
 
@@ -71,8 +71,8 @@ export async function checkOtpRateLimit(opts: {
       `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
       [`otp-rate:${email}`],
     );
-    // Keep only the current natural day's reservation rows for this address;
-    // long-term audit events use distinct actions and are retained.
+    // 仅保留该邮箱当日自然日的频控预留行；
+    // 长期审计事件使用不同的 action，不受此清理影响。
     await client.query(
       `DELETE FROM security_logs
        WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
@@ -116,8 +116,8 @@ export async function checkOtpRateLimit(opts: {
       };
     }
 
-    // Reserve before SMTP. A failed send intentionally consumes the slot: fail
-    // closed against retry storms and provider outages.
+    // 先占位再发信：发送失败也故意消耗名额，对重试风暴与
+    // 邮件服务商故障保持失败关闭（fail closed）。
     await client.query(
       `INSERT INTO security_logs (action, email)
        VALUES ('OTP_RATE_RESERVED', $1)`,
@@ -150,14 +150,11 @@ const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 3;
 
 function otpSecret(): string {
-  const secret =
-    process.env.OTP_SECRET ??
-    process.env.BETTER_AUTH_SECRET ??
-    process.env.AUTH_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error("缺少 OTP_SECRET 或 BETTER_AUTH_SECRET");
+  const secret = process.env.OTP_SECRET ?? process.env.BETTER_AUTH_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("OTP_SECRET or BETTER_AUTH_SECRET is required");
   }
-  return secret ?? "surge-dev-otp-secret";
+  return secret;
 }
 
 function hashOtp(email: string, purpose: string, code: string): string {
@@ -366,9 +363,9 @@ export async function consumeChangeToken(token: string, userId: string): Promise
 }
 
 /**
- * Atomically consumes the identity proof, updates the credential and revokes
- * every other session. A successful response can therefore never leave a
- * stolen session active because a best-effort follow-up call failed.
+ * 原子地消费身份凭证、更新密码并撤销其余全部会话。
+ * 因此一次成功响应绝不会因为后续尽力而为的调用失败，
+ * 而留下一个被盗会话仍处于活跃状态。
  */
 export async function completePasswordChange(opts: {
   token: string;
@@ -415,7 +412,7 @@ export async function completePasswordChange(opts: {
   }
 }
 
-/** Complete an email change and revoke other sessions in the same transaction. */
+/** 在同一事务内完成邮箱变更并撤销其余会话 */
 export async function completeEmailChange(opts: {
   token: string;
   userId: string;

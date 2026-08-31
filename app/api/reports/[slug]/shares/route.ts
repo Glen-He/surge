@@ -38,7 +38,6 @@ export async function GET(
       hasPassword: !!s.password_hash,
       passcode: s.passcode,
       expiresAt: s.expires_at,
-      revokedAt: s.revoked_at,
       viewCount: Number(s.view_count),
       createdAt: s.created_at,
     })),
@@ -81,8 +80,8 @@ export async function POST(
   }
   const expiresAt =
     days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
-  // scrypt is intentionally expensive and synchronous; compute it before the
-  // transaction so it does not hold the report row lock or a DB connection.
+  // scrypt 有意采用高成本同步计算；放在事务前执行，避免长时间占用
+  // report row lock 或 DB connection。
   const passwordHash = passcode ? await hashSharePassword(passcode) : null;
   const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
 
@@ -146,7 +145,6 @@ export async function POST(
       hasPassword: !!passcode,
       passcode,
       expiresAt,
-      revokedAt: null,
       viewCount: 0,
       createdAt: new Date(),
     },

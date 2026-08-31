@@ -4,6 +4,7 @@ vi.mock("@/lib/upload-gate", () => ({
   tryAcquireUploadLease: vi.fn(async () => ({ release: vi.fn(async () => {}) })),
 }));
 import { MAX_MULTIPART_BYTES, readUploadForm } from "@/lib/upload-request";
+import { uploadFailureResponse } from "@/lib/upload-errors";
 
 describe("readUploadForm", () => {
   it("在解析前拒绝错误类型、缺失长度和超限请求", async () => {
@@ -11,7 +12,7 @@ describe("readUploadForm", () => {
       new Request("http://local/upload", { method: "POST", body: "x" }),
     );
     expect(wrongType.ok).toBe(false);
-    if (!wrongType.ok) expect(wrongType.response.status).toBe(415);
+    if (!wrongType.ok) expect(uploadFailureResponse(wrongType).status).toBe(415);
 
     const noLength = await readUploadForm(
       new Request("http://local/upload", {
@@ -20,7 +21,7 @@ describe("readUploadForm", () => {
       }),
     );
     expect(noLength.ok).toBe(false);
-    if (!noLength.ok) expect(noLength.response.status).toBe(411);
+    if (!noLength.ok) expect(uploadFailureResponse(noLength).status).toBe(411);
 
     const tooLarge = await readUploadForm(
       new Request("http://local/upload", {
@@ -32,7 +33,7 @@ describe("readUploadForm", () => {
       }),
     );
     expect(tooLarge.ok).toBe(false);
-    if (!tooLarge.ok) expect(tooLarge.response.status).toBe(413);
+    if (!tooLarge.ok) expect(uploadFailureResponse(tooLarge).status).toBe(413);
   });
 
   it("解析有效 multipart 表单", async () => {

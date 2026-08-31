@@ -25,8 +25,8 @@ export async function POST(req: Request) {
     return Response.json({ error: pwdError }, { status: 400 });
   }
 
-  // Hash outside the transaction, then atomically claim the proof, update the
-  // credential and revoke all other sessions inside PostgreSQL.
+  // 在事务外完成哈希，再在 PostgreSQL 内原子地：消费凭证、
+  // 更新凭据并撤销其余全部会话。
   const context = await auth.$context;
   const passwordHash = await context.password.hash(newPassword);
   if (
