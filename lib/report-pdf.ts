@@ -1,7 +1,7 @@
 export const REPORT_PDF_MESSAGE_KEY = "__surgeReportPdf";
 export const REPORT_PDF_DOWNLOAD_PARAM = "__surge_download";
 
-export type ReportPdfAction = "preview" | "download";
+type ReportPdfAction = "preview" | "download";
 
 export type ReportPdfMessage = {
   action: ReportPdfAction;

@@ -13,8 +13,6 @@ export async function register() {
     await context.runMigrations();
     const { ensureSchemaVersioned } = await import("./lib/migrations");
     await ensureSchemaVersioned();
-    const { ensureShareTokensProtected } = await import("./lib/share-token-store");
-    await ensureShareTokensProtected();
     const { validateReportStorageConfiguration } = await import(
       "./lib/report-storage"
     );

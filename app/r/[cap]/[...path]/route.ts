@@ -2,7 +2,6 @@ import { createReadStream, promises as fs } from "fs";
 import path from "path";
 import { Readable } from "stream";
 import { db } from "@/lib/db";
-import { ensureOtpMigration } from "@/lib/schema";
 import {
   reportResourceEtag,
   requestMatchesEtag,
@@ -105,20 +104,17 @@ export async function GET(
   const grant = verifyCapability(cap);
   if (!grant) return notFound();
 
-  await ensureOtpMigration();
-
   // 报告定位 + 当前世代/纪元校验：报告被删除、文件被替换（revision 轮换）
   // 或权限被吊销（epoch 递增，如撤销分享）后，旧 capability 立即整体失效
   const r = await db.query<{
     user_id: string;
-    slug: string;
     revision_id: string;
     capability_epoch: number;
     template_key: string | null;
     storage_key: string | null;
     external_network_enabled: boolean;
   }>(
-    `SELECT user_id, slug, revision_id, capability_epoch, template_key, storage_key,
+    `SELECT user_id, revision_id, capability_epoch, template_key, storage_key,
             external_network_enabled
      FROM reports WHERE id = $1 LIMIT 1`,
     [grant.reportId],
@@ -149,7 +145,6 @@ export async function GET(
     try {
       allowedRoot = reportContentDir({
         userId: row.user_id,
-        slug: row.slug,
         templateKey: row.template_key,
         storageKey: row.storage_key,
       });
@@ -165,8 +160,7 @@ export async function GET(
   let realFile: string;
   let stat: Awaited<ReturnType<typeof fs.stat>>;
   try {
-    // realpath closes the read-time symlink escape for legacy/on-disk data as
-    // well as archives accepted by older application versions.
+    // 即使持久卷内容被外部篡改，realpath 仍会在读取阶段阻断符号链接越界。
     const [realRoot, resolvedFile] = await Promise.all([
       fs.realpath(allowedRoot),
       fs.realpath(filePath),

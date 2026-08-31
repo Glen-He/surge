@@ -14,10 +14,6 @@ import {
   type ReportDropPosition,
 } from "@/lib/report-order";
 
-export type SortKey = "date_desc" | "date_asc" | "title_asc" | "title_desc";
-
-export type SortOrQuery = { q: string; sort: SortKey };
-
 // 搜索工具栏：居中；即时过滤（Spotlight 式，输入停顿 300ms 自动生效），
 // 回车立即提交；叉叉清除搜索
 export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {

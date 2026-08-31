@@ -1,28 +1,26 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import {
+  REPORT_DATA_DIR,
   REPORT_DEMO_TEMPLATES_DIR,
-  REPORT_USERS_DIR,
+  assertSafeReportSlug,
   demoTemplateDir,
   reportArtifactDir,
   reportArtifactsDir,
   reportContentDir,
-  reportDir,
   userReportsDir,
 } from "@/lib/report-storage";
 
 describe("report storage path boundaries", () => {
   it("为合法用户和 slug 生成根目录内路径", () => {
-    expect(userReportsDir("user-1")).toBe(path.join(REPORT_USERS_DIR, "user-1"));
-    expect(reportDir("user-1", "r_1234")).toBe(
-      path.join(REPORT_USERS_DIR, "user-1", "r_1234"),
-    );
+    expect(userReportsDir("user-1")).toBe(path.join(REPORT_DATA_DIR, "user-1"));
+    expect(() => assertSafeReportSlug("r_1234")).not.toThrow();
   });
 
   it.each(["", ".", "..", "../other", "a/b", "a\\b", "a\0b"])(
     "拒绝非法报告 slug %j",
     (slug) => {
-      expect(() => reportDir("user-1", slug)).toThrow();
+      expect(() => assertSafeReportSlug(slug)).toThrow();
     },
   );
 
@@ -41,7 +39,6 @@ describe("report storage path boundaries", () => {
     expect(
       reportContentDir({
         userId: "user-1",
-        slug: "demo_1234",
         templateKey: "tpl-02",
       }),
     ).toBe(path.join(REPORT_DEMO_TEMPLATES_DIR, "tpl-02"));
@@ -55,11 +52,16 @@ describe("report storage path boundaries", () => {
     expect(
       reportContentDir({
         userId: "user-1",
-        slug: "r_1234",
         storageKey: key,
       }),
-    ).toBe(path.join(REPORT_USERS_DIR, "user-1", "artifacts", key));
+    ).toBe(path.join(REPORT_DATA_DIR, "user-1", "artifacts", key));
     expect(() => reportArtifactDir("user-1", "../r_1234")).toThrow();
     expect(() => reportArtifactDir("user-1", "a_not-hex")).toThrow();
+  });
+
+  it("拒绝没有内容指针的报告", () => {
+    expect(() => reportContentDir({ userId: "user-1" })).toThrow(
+      "Report content pointer is missing",
+    );
   });
 });

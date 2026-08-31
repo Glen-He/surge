@@ -1,6 +1,5 @@
 import { getApiSession } from "@/lib/api-session";
 import { db } from "@/lib/db";
-import { ensureOtpMigration } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +16,6 @@ export async function DELETE(
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const { id } = await params;
-  await ensureOtpMigration();
 
   const client = await db.connect();
   try {

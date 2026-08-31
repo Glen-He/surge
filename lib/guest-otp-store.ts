@@ -27,7 +27,7 @@ export function subscribeGuestOtp(listener: Listener) {
   };
 }
 
-export function showGuestOtp(code: string, ttlSec = 600) {
+function showGuestOtp(code: string, ttlSec = 600) {
   if (hideTimer) clearTimeout(hideTimer);
   current = {
     code,
@@ -47,10 +47,4 @@ export function showGuestOtpFromResponse(data: unknown) {
   if (otp?.code && /^\d{6}$/.test(otp.code)) {
     showGuestOtp(otp.code, typeof otp.expiresIn === "number" ? otp.expiresIn : 600);
   }
-}
-
-export function hideGuestOtp() {
-  if (hideTimer) clearTimeout(hideTimer);
-  current = null;
-  listeners.forEach((l) => l(null));
 }

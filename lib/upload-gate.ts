@@ -5,7 +5,7 @@ import { logger } from "./logger";
 const LEASE_SECONDS = 10 * 60;
 const RENEW_MS = 2 * 60 * 1000;
 
-export const UPLOAD_MAX_CONCURRENCY = Number(
+const UPLOAD_MAX_CONCURRENCY = Number(
   process.env.UPLOAD_MAX_CONCURRENCY ?? 2,
 );
 

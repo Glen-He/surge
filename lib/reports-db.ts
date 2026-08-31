@@ -1,5 +1,4 @@
 import { db, withStorageLocks } from "./db";
-import { ensureOtpMigration } from "./schema";
 
 export type DbReport = {
   id: string;
@@ -23,7 +22,6 @@ export type DbReport = {
 
 // 查某用户的所有报告：日期永远是第一排序键；同一天才使用手动顺序。
 export async function getReportsByUser(userId: string): Promise<DbReport[]> {
-  await ensureOtpMigration();
   const r = await db.query<DbReport>(
     `SELECT * FROM reports WHERE user_id = $1
      ORDER BY date DESC, sort_order ASC NULLS LAST, created_at DESC`,
@@ -73,7 +71,6 @@ export async function getReportBySlug(
   userId: string,
   slug: string,
 ): Promise<DbReport | null> {
-  await ensureOtpMigration();
   const r = await db.query<DbReport>(
     `SELECT * FROM reports WHERE user_id = $1 AND slug = $2 LIMIT 1`,
     [userId, slug],

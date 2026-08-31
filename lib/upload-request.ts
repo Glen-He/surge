@@ -19,14 +19,14 @@ export const MAX_MULTIPART_BYTES = MAX_ZIP_BYTES + 1024 * 1024;
 const MAX_FIELD_BYTES = 8 * 1024;
 const MAX_FIELDS = 8;
 
-export type StagedUpload = {
+type StagedUpload = {
   name: string;
   type: string;
   path: string;
   size: number;
 };
 
-export type ParsedUploadForm = {
+type ParsedUploadForm = {
   form: FormData;
   file: StagedUpload | null;
   cleanup: () => Promise<void>;

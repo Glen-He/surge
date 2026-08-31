@@ -17,7 +17,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-在 `.env.local` 中至少配置 `DATABASE_URL` 和 `BETTER_AUTH_SECRET`。本地未设置 `REPORTS_DATA_DIR` 时，为兼容旧数据使用 `reports/users`；此默认值不允许用于生产。
+在 `.env.local` 中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定；本地也应使用当前 checkout 之外的专用目录。
 
 ```bash
 pnpm lint
@@ -37,7 +37,7 @@ pnpm check  # 一次执行全部检查
 | `BETTER_AUTH_SECRET` | 会话与内部密钥派生的高熵根密钥 |
 | `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
 | `REPORTS_ORIGIN` | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站 |
-| `REPORTS_DATA_DIR` | 代码/镜像目录之外的持久卷，生产必填 |
+| `REPORTS_DATA_DIR` | checkout 之外的持久化报告目录，所有环境必填 |
 | `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（生产必填） |
 | `SHARE_TOKEN_ENCRYPTION_KEY` | 可选的分享 URL 令牌和 4 位提取码独立加密根密钥；设置后需持久保存 |
 | `OTP_SECRET` | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生 |
@@ -61,7 +61,8 @@ Node 运行时的 `instrumentation.register()` 会在接受流量前依次：
 
 1. 执行 Better Auth 官方迁移；
 2. 在 PostgreSQL advisory lock 保护下执行项目版本化迁移；
-3. 验证持久化目录与五个只读游客模板，再执行可重试的清理/回填任务。
+3. 验证持久化目录与五个只读游客模板；
+4. 启动可重试的后台清理任务。
 
 迁移失败会使实例启动失败，不会带着半完成 schema 接受请求。多实例可并发启动，但发布前仍应同时备份 PostgreSQL 和 `REPORTS_DATA_DIR`，并在预发环境验证迁移。
 
@@ -73,7 +74,7 @@ pnpm build
 pnpm start
 ```
 
-- `REPORTS_DATA_DIR` 必须指向容器镜像/代码 checkout 之外的持久卷；生产启动会拒绝不安全路径。
+- `REPORTS_DATA_DIR` 必须指向容器镜像/代码 checkout 之外的持久卷；缺失或指向不安全路径时实例拒绝启动。
 - 反向代理应是应用的唯一入口，应用端口必须由防火墙限制为仅本机/内网代理可访问。代理覆盖（不是追加客户端传入的）`Host`、`X-Forwarded-Host`、`X-Forwarded-Proto` 与 `X-Forwarded-For`，只允许 HTTPS，把单请求体上限设为 `51 MiB`，并保留 `Content-Length`。上传缺少该头时返回 `411`，超限时在解析 multipart 前返回 `413`。
 - 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/r/*`；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
 - readiness probe 指向 `GET /api/health`：数据库、报告卷可写且剩余空间高于保护线时返回 `200`，否则返回 `503`。
@@ -84,7 +85,7 @@ pnpm start
 
 上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 2 GiB，站点总量硬上限 20 GiB。上传先取得 PostgreSQL 中的短租约，因此多实例也不会同时产生过多临时文件；系统临时卷和报告卷都通过剩余空间保护线后才写入。
 
-每次创建或替换都会发布一个新的不可变文件版本，再用单条数据库更新切换 `revision + storage_key`。旧分享链接的 URL 形式不变；未替换的历史报告继续从旧目录读取，替换后自动迁入新布局。进程在任意一步崩溃都不会让旧凭证读到新文件，未被数据库引用的版本、上传临时目录、已删除账号目录和系统临时上传会在安全等待期后回收。
+每次创建或替换都会发布一个新的不可变文件版本，再用单条数据库更新切换 `revision + storage_key`。每条报告必须且只能具有 `template_key` 或 `storage_key` 之一，私有 artifact 必须记录正数 `size_bytes`。旧分享链接的 URL 形式不变，未被数据库引用的版本、上传临时目录、已删除账号目录和系统临时上传会在安全等待期后回收。
 
 账号物理删除会在同一事务中删除该账号的 OTP、Better Auth 验证记录以及含邮箱/IP/浏览器信息的安全日志，再级联删除会话、令牌、分享和报告。其余过期验证码和验证记录会周期清理，安全日志按配置的保留期滚动删除。
 

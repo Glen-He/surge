@@ -5,7 +5,6 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
-import { db } from "./db";
 
 function key(): Buffer {
   const root = process.env.SHARE_TOKEN_ENCRYPTION_KEY ?? process.env.SHARE_SECRET;
@@ -66,43 +65,4 @@ export function encryptSharePasscode(passcode: string): string {
 
 export function decryptSharePasscode(value: string): string {
   return decrypt(value, passcodeKey());
-}
-
-let hardened: Promise<void> | null = null;
-
-async function hardenLegacyTokens(): Promise<void> {
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      "SELECT pg_advisory_xact_lock(hashtextextended('share-token-hardening', 0))",
-    );
-    for (const table of ["report_shares", "share_boards"] as const) {
-      const rows = await client.query<{ id: string; token: string }>(
-        `SELECT id, token FROM ${table} WHERE token IS NOT NULL AND token_hash IS NULL FOR UPDATE`,
-      );
-      for (const row of rows.rows) {
-        await client.query(
-          `UPDATE ${table} SET token_hash = $2, token_enc = $3, token = NULL WHERE id = $1`,
-          [row.id, shareTokenHash(row.token), encryptShareToken(row.token)],
-        );
-      }
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-export function ensureShareTokensProtected(): Promise<void> {
-  if (!hardened) {
-    hardened = hardenLegacyTokens().catch((error) => {
-      hardened = null;
-      throw error;
-    });
-  }
-  return hardened;
 }

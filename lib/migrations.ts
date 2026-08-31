@@ -267,9 +267,9 @@ const SECURITY_RATE_LIMITS: Migration = {
 MIGRATIONS.push(SECURITY_RATE_LIMITS);
 
 // ── v10：报告存储字节记账 + 日期数据库约束 ──
-// size_bytes 让每次上传无需递归扫描整个持久卷。旧数据由启动回填
-// 任务从文件系统校准。日期约束 NOT VALID 避免历史脏数据阻塞发布，
-// 但会立即拒绝之后的非法写入；应用层同时做严格日历校验。
+// size_bytes 让每次上传无需递归扫描整个持久卷。v10 为既有行暂设 0，
+// v22 在数据转正后要求私有 artifact 的记账必须为正数。日期约束
+// NOT VALID 避免当时的数据阻塞发布，但会立即拒绝之后的非法写入。
 const REPORT_STORAGE_ACCOUNTING: Migration = {
   version: 10,
   name: "report-storage-accounting",
@@ -362,8 +362,8 @@ MIGRATIONS.push(REPORT_TEMPLATE_REFERENCE);
 // ── v14：不可变报告版本 + 跨实例上传租约──
 // storage_key 指向用户目录下不可变的 artifacts/<key>。替换文件时先发布
 // 新目录，再用一次 UPDATE 切换数据库指针；无论进程在哪一步崩溃，旧
-// capability 都不会读取到新字节。NULL 保留给共享模板和旧版 slug 目录，
-// 由后台清理任务渐进回收，不需要停机搬迁历史文件。
+// capability 都不会读取到新字节。v14 曾为数据转正暂时允许 NULL，
+// v21/v22 已将内容来源收紧为严格二选一。
 const IMMUTABLE_REPORT_STORAGE: Migration = {
   version: 14,
   name: "immutable-report-storage",
@@ -484,6 +484,62 @@ const SHARE_PASSCODE_RECOVERY: Migration = {
 };
 
 MIGRATIONS.push(SHARE_PASSCODE_RECOVERY);
+
+// ── v21：每条报告必须且只能有一种内容来源──
+// 发布迁移期间以 NOT VALID 先约束新写入，v22 在数据转正后完成验证。
+const REPORT_CONTENT_SOURCE_REQUIRED: Migration = {
+  version: 21,
+  name: "report-content-source-required",
+  statements: [
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_one_content_source`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_exactly_one_content_source`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_exactly_one_content_source
+       CHECK (num_nonnulls(template_key, storage_key) = 1) NOT VALID`,
+  ],
+};
+
+MIGRATIONS.push(REPORT_CONTENT_SOURCE_REQUIRED);
+
+// ── v22：收紧最终运行时不变量──
+// 生产数据完成转正后，不再保留明文 token 列、请求期加固任务或零字节
+// 报告回填。迁移先验证数据完整性，异常时整体回滚并拒绝实例启动。
+const FINAL_RUNTIME_INVARIANTS: Migration = {
+  version: 22,
+  name: "final-runtime-invariants",
+  statements: [
+    `ALTER TABLE reports VALIDATE CONSTRAINT reports_exactly_one_content_source`,
+    `DO $$
+     BEGIN
+       IF EXISTS (
+         SELECT 1 FROM report_shares
+         WHERE token IS NOT NULL OR token_hash IS NULL OR token_enc IS NULL
+       ) THEN
+         RAISE EXCEPTION 'report share token migration is incomplete';
+       END IF;
+       IF EXISTS (
+         SELECT 1 FROM share_boards
+         WHERE token IS NOT NULL OR token_hash IS NULL OR token_enc IS NULL
+       ) THEN
+         RAISE EXCEPTION 'share board token migration is incomplete';
+       END IF;
+     END $$`,
+    `ALTER TABLE report_shares ALTER COLUMN token_hash SET NOT NULL`,
+    `ALTER TABLE report_shares ALTER COLUMN token_enc SET NOT NULL`,
+    `ALTER TABLE report_shares DROP COLUMN token`,
+    `ALTER TABLE share_boards ALTER COLUMN token_hash SET NOT NULL`,
+    `ALTER TABLE share_boards ALTER COLUMN token_enc SET NOT NULL`,
+    `ALTER TABLE share_boards DROP COLUMN token`,
+    `DROP INDEX IF EXISTS report_shares_token_hash_unique`,
+    `CREATE UNIQUE INDEX report_shares_token_hash_unique ON report_shares (token_hash)`,
+    `DROP INDEX IF EXISTS share_boards_token_hash_unique`,
+    `CREATE UNIQUE INDEX share_boards_token_hash_unique ON share_boards (token_hash)`,
+    `ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_storage_size_positive`,
+    `ALTER TABLE reports ADD CONSTRAINT reports_storage_size_positive
+       CHECK (size_bytes >= 0 AND (storage_key IS NULL OR size_bytes > 0))`,
+  ],
+};
+
+MIGRATIONS.push(FINAL_RUNTIME_INVARIANTS);
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;

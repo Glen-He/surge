@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { reportDir } from "@/lib/report-storage";
+import { reportArtifactDir } from "@/lib/report-storage";
 import {
   encryptShareToken,
   shareTokenHash,
@@ -14,6 +14,7 @@ const fixture = {
   userId: "",
   reportId: randomUUID(),
   slug: `e2e_${randomUUID().slice(0, 8)}`,
+  storageKey: `a_${randomUUID().replaceAll("-", "")}`,
   token: `E2E${randomUUID().replace(/-/g, "")}`,
   title: "PDF 浏览器回归测试",
 };
@@ -26,7 +27,7 @@ test.beforeAll(async () => {
     emailVerified: true,
   });
   fixture.userId = user.id;
-  const dir = reportDir(user.id, fixture.slug);
+  const dir = reportArtifactDir(user.id, fixture.storageKey);
   await fs.mkdir(dir, { recursive: true });
   const appOrigin = process.env.BETTER_AUTH_URL!;
   const html = `<!doctype html><html><head><title>PDF E2E</title></head><body>
@@ -59,9 +60,18 @@ test.beforeAll(async () => {
     Buffer.byteLength("%PDF-1.4\n%%EOF\n");
   await db.query(
     `INSERT INTO reports
-       (id, user_id, slug, revision_id, title, date, tag, description, keywords, size_bytes)
-     VALUES ($1, $2, $3, $4, $5, '2026-08-27', '', '', '', $6)`,
-    [fixture.reportId, user.id, fixture.slug, randomUUID(), fixture.title, sizeBytes],
+       (id, user_id, slug, revision_id, title, date, tag, description, keywords,
+        size_bytes, storage_key)
+     VALUES ($1, $2, $3, $4, $5, '2026-08-27', '', '', '', $6, $7)`,
+    [
+      fixture.reportId,
+      user.id,
+      fixture.slug,
+      randomUUID(),
+      fixture.title,
+      sizeBytes,
+      fixture.storageKey,
+    ],
   );
   await db.query(
     `INSERT INTO report_shares (id, report_id, token_hash, token_enc)
@@ -77,7 +87,10 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (!fixture.userId) return;
-  await fs.rm(reportDir(fixture.userId, fixture.slug), { recursive: true, force: true });
+  await fs.rm(reportArtifactDir(fixture.userId, fixture.storageKey), {
+    recursive: true,
+    force: true,
+  });
   await db.query(`DELETE FROM "user" WHERE id = $1`, [fixture.userId]);
 });
 

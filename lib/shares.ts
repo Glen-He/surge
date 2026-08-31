@@ -1,7 +1,6 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "node:util";
 import { db } from "./db";
-import { ensureOtpMigration } from "./schema";
 import { consumeSharedRateLimit } from "./db-rate-limit";
 import {
   clearSecurityFailures,
@@ -11,7 +10,6 @@ import {
 import {
   decryptSharePasscode,
   decryptShareToken,
-  ensureShareTokensProtected,
   shareTokenHash,
 } from "./share-token-store";
 
@@ -40,7 +38,7 @@ export function generateShareId(): string {
   return randomBytes(16).toString("hex");
 }
 
-export const SHARE_PASSCODE_LENGTH = 4;
+const SHARE_PASSCODE_LENGTH = 4;
 const SHARE_PASSCODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** Four-character, cryptographically random extraction code. */
@@ -130,18 +128,15 @@ export interface ShareRow {
 }
 
 type StoredShareRow = Omit<ShareRow, "token" | "passcode"> & {
-  token: string | null;
-  token_enc: string | null;
+  token_enc: string;
   password_enc: string | null;
 };
 
 function revealShare(row: StoredShareRow): ShareRow {
-  const token = row.token ?? (row.token_enc ? decryptShareToken(row.token_enc) : "");
-  if (!token) throw new Error("share token is unavailable");
   return {
     id: row.id,
     report_id: row.report_id,
-    token,
+    token: decryptShareToken(row.token_enc),
     password_hash: row.password_hash,
     passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
     expires_at: row.expires_at,
@@ -156,8 +151,6 @@ export async function listSharesBySlug(
   userId: string,
   slug: string,
 ): Promise<ShareRow[]> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const r = await db.query<StoredShareRow>(
     `SELECT s.* FROM report_shares s
      JOIN reports r ON r.id = s.report_id
@@ -172,8 +165,6 @@ export async function listSharesBySlug(
 export async function listAllShares(
   userId: string,
 ): Promise<(ShareRow & { report_title: string; report_slug: string })[]> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const r = await db.query<StoredShareRow & { report_title: string; report_slug: string }>(
     `SELECT s.*, r.title AS report_title, r.slug AS report_slug
      FROM report_shares s
@@ -192,7 +183,6 @@ export async function listAllShares(
 export interface ValidShare {
   share: ShareRow;
   ownerId: string;
-  ownerDir: string; // reports/users/<ownerId>/<slug>
   reportTitle: string;
   reportId: string;
   revisionId: string; // 报告内容世代（签发 capability 用）
@@ -203,18 +193,15 @@ export interface ValidShare {
 export async function findValidShare(
   token: string,
 ): Promise<ValidShare | null> {
-  await ensureOtpMigration();
-  await ensureShareTokensProtected();
   const r = await db.query<
     StoredShareRow & {
       owner_id: string;
-      slug: string;
       report_title: string;
       revision_id: string;
       capability_epoch: number;
     }
   >(
-    `SELECT s.*, r.user_id AS owner_id, r.slug, r.title AS report_title,
+    `SELECT s.*, r.user_id AS owner_id, r.title AS report_title,
             r.revision_id, r.capability_epoch
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
@@ -227,7 +214,6 @@ export async function findValidShare(
   if (row.expires_at && row.expires_at.getTime() < Date.now()) return null;
   const {
     owner_id,
-    slug,
     report_title,
     revision_id,
     capability_epoch,
@@ -237,7 +223,6 @@ export async function findValidShare(
   return {
     share,
     ownerId: owner_id,
-    ownerDir: `${owner_id}/${slug}`,
     reportTitle: report_title,
     reportId: share.report_id,
     revisionId: revision_id,
@@ -246,7 +231,6 @@ export async function findValidShare(
 }
 
 export async function incrementShareView(token: string) {
-  await ensureShareTokensProtected();
   await db.query(
     `UPDATE report_shares SET view_count = view_count + 1 WHERE token_hash = $1`,
     [shareTokenHash(token)],

@@ -21,9 +21,6 @@ vi.mock("@/lib/guest-sandbox", () => ({
   initializeGuestSandbox: mocked.initializeSandbox,
   destroyGuestUser: mocked.destroyGuest,
 }));
-vi.mock("@/lib/schema", () => ({
-  ensureOtpMigration: vi.fn(async () => {}),
-}));
 vi.mock("@/lib/logger", () => ({
   logger: {
     info: vi.fn(),

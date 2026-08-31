@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "crypto";
 import { db } from "./db";
-import { ensureOtpMigration } from "./schema";
 import {
   clearSecurityFailures,
   isSecurityRateLimited,
@@ -46,7 +45,6 @@ export type ApiTokenInfo = {
 export async function getApiToken(
   userId: string,
 ): Promise<ApiTokenInfo | null> {
-  await ensureOtpMigration();
   const { rows } = await db.query<{
     id: string;
     name: string;
@@ -82,7 +80,6 @@ export async function createApiToken(
   if (isGuestEmail(email)) {
     return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
   }
-  await ensureOtpMigration();
   const token = generateApiToken();
   let ins: { id: string; created_at: Date }[];
   try {
@@ -130,7 +127,6 @@ export async function rotateApiToken(
   if (isGuestEmail(email)) {
     return { error: "游客模式不支持 API 令牌，注册正式账号后可用" };
   }
-  await ensureOtpMigration();
   const token = generateApiToken();
   const { rows } = await db.query<{
     id: string;
@@ -174,15 +170,6 @@ export async function revokeApiToken(
   return rowCount === 1;
 }
 
-/** 撤销用户全部有效令牌（注销账号时调用） */
-export async function revokeAllApiTokens(userId: string): Promise<void> {
-  await db.query(
-    `UPDATE api_tokens SET revoked_at = NOW()
-     WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId],
-  );
-}
-
 export type TokenAuthUser = { id: string; email: string };
 
 /**
@@ -196,7 +183,6 @@ export async function authenticateApiToken(
 ): Promise<TokenAuthUser | null> {
   const bearer = authHeader?.match(/^Bearer\s+(sgk_\S+)$/i)?.[1];
   if (!bearer) return null;
-  await ensureOtpMigration();
   const { rows } = await db.query<{
     id: string;
     user_id: string;

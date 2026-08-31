@@ -23,34 +23,45 @@ vi.mock("@/lib/guest-sandbox", () => ({
 
 import { replaceReportFile } from "@/lib/report-upload";
 import {
-  REPORT_USERS_DIR,
+  REPORT_DATA_DIR,
   reportArtifactDir,
   reportArtifactsDir,
-  reportDir,
 } from "@/lib/report-storage";
 
 describe("不可变报告替换", () => {
   const userId = "atomic-user";
   const slug = "r_atomic";
-  const uploadPath = path.join(REPORT_USERS_DIR, "new-report.html");
+  const oldStorageKey = "a_11111111111111111111111111111111";
+  const uploadPath = path.join(REPORT_DATA_DIR, "new-report.html");
 
   beforeEach(async () => {
     mocked.query.mockReset();
-    await fs.rm(REPORT_USERS_DIR, { recursive: true, force: true });
-    await fs.mkdir(reportDir(userId, slug), { recursive: true });
-    await fs.writeFile(path.join(reportDir(userId, slug), "report.html"), "old");
+    await fs.rm(REPORT_DATA_DIR, { recursive: true, force: true });
+    await fs.mkdir(reportArtifactDir(userId, oldStorageKey), { recursive: true });
+    await fs.writeFile(
+      path.join(reportArtifactDir(userId, oldStorageKey), "report.html"),
+      "old",
+    );
     await fs.writeFile(uploadPath, "new");
   });
 
   afterEach(async () => {
-    await fs.rm(REPORT_USERS_DIR, { recursive: true, force: true });
+    await fs.rm(REPORT_DATA_DIR, { recursive: true, force: true });
   });
 
   function baseQueries(update: () => unknown) {
     mocked.query.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes("SELECT size_bytes::text")) {
         return {
-          rows: [{ size_bytes: "3", template_key: null, storage_key: null }],
+          rows: [
+            {
+              size_bytes: "3",
+              template_key: null,
+              storage_key: oldStorageKey,
+              date: "2026-08-25",
+              sort_order: 0,
+            },
+          ],
           rowCount: 1,
         };
       }
@@ -76,9 +87,14 @@ describe("不可变报告替换", () => {
 
     expect(result).toMatchObject({ ok: false, status: 500 });
     await expect(
-      fs.readFile(path.join(reportDir(userId, slug), "report.html"), "utf8"),
+      fs.readFile(
+        path.join(reportArtifactDir(userId, oldStorageKey), "report.html"),
+        "utf8",
+      ),
     ).resolves.toBe("old");
-    await expect(fs.readdir(reportArtifactsDir(userId))).resolves.toEqual([]);
+    await expect(fs.readdir(reportArtifactsDir(userId))).resolves.toEqual([
+      oldStorageKey,
+    ]);
   });
 
   it("成功切换后只保留数据库指向的新版本", async () => {
@@ -97,7 +113,9 @@ describe("不可变报告替换", () => {
     });
 
     expect(result.ok).toBe(true);
-    await expect(fs.access(reportDir(userId, slug))).rejects.toThrow();
+    await expect(
+      fs.access(reportArtifactDir(userId, oldStorageKey)),
+    ).rejects.toThrow();
     await expect(
       fs.readFile(path.join(reportArtifactDir(userId, storageKey), "report.html"), "utf8"),
     ).resolves.toBe("new");

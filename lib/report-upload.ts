@@ -6,13 +6,13 @@ import { unzipStream, UnzipLimitError } from "./zip";
 import { isGuestEmail } from "./guest-sandbox";
 import { logger } from "./logger";
 import {
+  assertSafeReportSlug,
   newReportStorageKey,
   reportArtifactDir,
   reportArtifactsDir,
   reportContentDir,
-  reportDir,
   reportStagingDir,
-  REPORT_USERS_DIR,
+  REPORT_DATA_DIR,
 } from "./report-storage";
 import {
   ensureStorageHeadroom,
@@ -35,8 +35,6 @@ import {
 // 网页端（/api/reports*，会话认证）与开放 API（/api/v1/reports*，令牌认证）
 // 共用这一份业务实现：字段校验、配额、advisory lock 串行化、
 // 临时目录转正/原子替换。任何规则改动只改这里。
-
-export const USERS_DIR = REPORT_USERS_DIR;
 
 export type ReportMeta = {
   title: string;
@@ -94,7 +92,7 @@ export function metaFromForm(form: FormData): ReportMeta {
 }
 
 /** 单 HTML 上传识别（文件名/类型，与前端 fileKind 同规则） */
-export function isHtmlUpload(file: { name: string; type: string }): boolean {
+function isHtmlUpload(file: { name: string; type: string }): boolean {
   return /\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html";
 }
 
@@ -139,8 +137,8 @@ async function stageReportPayload(
   storageKey: string,
   file: UploadFile,
 ): Promise<{ tmp: string; projectBytes: number }> {
-  await fs.mkdir(REPORT_USERS_DIR, { recursive: true });
-  await ensureStorageHeadroom(REPORT_USERS_DIR, MAX_PROJECT_BYTES);
+  await fs.mkdir(REPORT_DATA_DIR, { recursive: true });
+  await ensureStorageHeadroom(REPORT_DATA_DIR, MAX_PROJECT_BYTES);
   const stagingDir = reportStagingDir(userId);
   const tmp = path.join(stagingDir, `${storageKey}.${randomUUID()}.tmp`);
   await fs.mkdir(tmp, { recursive: true });
@@ -158,6 +156,7 @@ async function stageReportPayload(
       projectBytes = result.totalBytes;
       await fs.access(path.join(tmp, "report.html"));
     }
+    if (projectBytes <= 0) throw new Error("汇报文件不能为空");
     return { tmp, projectBytes };
   } catch (error) {
     await fs.rm(tmp, { recursive: true, force: true }).catch((cleanupError) => {
@@ -296,7 +295,7 @@ export async function replaceReportFile(
   if (sizeErr) return { ok: false, error: sizeErr, status: 400 };
 
   try {
-    reportDir(userId, slug);
+    assertSafeReportSlug(slug);
   } catch {
     return { ok: false, error: "项目不存在", status: 404 };
   }
@@ -402,7 +401,6 @@ export async function replaceReportFile(
       if (!current.rows[0].template_key) {
         const oldDir = reportContentDir({
           userId,
-          slug,
           storageKey: current.rows[0].storage_key,
         });
         await fs.rm(oldDir, { recursive: true, force: true, maxRetries: 3 }).catch(
@@ -434,7 +432,7 @@ export async function deleteReport(
 ): Promise<UploadResult> {
   return withStorageLocks(userId, async (client) => {
     try {
-      reportDir(userId, slug);
+      assertSafeReportSlug(slug);
     } catch {
       return { ok: false, error: "项目不存在", status: 404 };
     }
@@ -454,7 +452,6 @@ export async function deleteReport(
       if (!row.template_key) {
         const dir = reportContentDir({
           userId,
-          slug,
           storageKey: row.storage_key,
         });
         await fs.rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(
