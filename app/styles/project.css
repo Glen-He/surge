@@ -68,8 +68,9 @@
 }
 
 textarea.project-input {
-  height: auto;
-  min-height: 120px;
+  display: block;
+  height: 133px;
+  min-height: 133px;
   padding: 12px 14px;
   resize: none;
   line-height: 1.6;
@@ -84,20 +85,20 @@ textarea.project-input {
   color: var(--danger);
 }
 
-/* 报告文件卡错误槽位：上传框下方、左对齐、常驻占位，报错出现时零位移 */
+/* 报告文件卡错误槽与其余字段统一，报错出现时零位移 */
 .upload-error-slot {
-  min-height: 22px;
-  margin-top: 6px;
+  min-height: 18px;
+  margin-top: 2px;
   font-size: 12px;
   line-height: 1.5;
   color: var(--danger);
 }
 
 /* 上传区：顶部与项目说明 textarea 顶对齐（上方留出标签行高度 33px），
-   高度同为 120px，底边随之对齐 */
+   高度同为 133px，底边与日期框和关键词框对齐 */
 .upload-zone {
   margin-top: 33px;
-  height: 120px;
+  height: 133px;
   padding: 12px 16px;
   border: 1px dashed rgba(0, 0, 0, 0.12);
   border-radius: 16px;
@@ -131,10 +132,10 @@ textarea.project-input {
   color: var(--text-tertiary);
 }
 
-/* 已选文件状态：与 upload-zone 同位替换，同样顶对齐 + 120px */
+/* 已选文件状态：与 upload-zone 同位替换，同样顶对齐 + 133px */
 .file-state {
   margin-top: 33px;
-  height: 120px;
+  height: 133px;
   padding: 12px 14px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
@@ -257,4 +258,3 @@ textarea.project-input {
 .project-input-error:focus {
   border-color: var(--danger);
 }
-

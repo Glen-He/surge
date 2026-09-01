@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CardHead } from "@/components/card-head";
+import { CopyIconButton } from "@/components/copy-feedback-button";
 
 // API 令牌卡：单令牌密钥面板
 // 无令牌 → 引导创建；有令牌 → 打码显示 + 眼睛切换 + 复制图标 + 更换 + 撤销
@@ -43,35 +44,6 @@ const ICON_EYE_OFF = (
     <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
   </svg>
 );
-
-/** 复制图标：点击变 ✓ 2 秒（与验证码复制同一约定） */
-function CopyIcon({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      aria-label="复制令牌"
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        });
-      }}
-      className="ml-1 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3]"
-    >
-      {copied ? (
-        <svg viewBox="0 0 24 24" fill="none" stroke="#34c759" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
-          <path d="m5 13 4 4L19 7" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]">
-          <rect x="9" y="9" width="11" height="11" rx="2" />
-          <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-        </svg>
-      )}
-    </button>
-  );
-}
 
 export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
   const [token, setToken] = useState<TokenInfo | null>(null);
@@ -180,7 +152,13 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                   >
                     {revealed ? ICON_EYE_OFF : ICON_EYE}
                   </button>
-                  <CopyIcon text={token.token} />
+                  <CopyIconButton
+                    key={token.token}
+                    text={token.token}
+                    label="复制令牌"
+                    copiedLabel="令牌已复制"
+                    onCopyError={() => setError("复制失败，请稍后重试")}
+                  />
                 </>
               )}
             </div>

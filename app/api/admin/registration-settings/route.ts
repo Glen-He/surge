@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!(await getAdminApiSession())) {
-    return NextResponse.json({ error: "无权访问管理员后台" }, { status: 403 });
+    return NextResponse.json({ error: "无权访问管理后台" }, { status: 403 });
   }
   return NextResponse.json(await getRegistrationPolicy(), {
     headers: { "Cache-Control": "no-store" },
@@ -20,7 +20,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   const session = await getAdminApiSession();
   if (!session) {
-    return NextResponse.json({ error: "无权访问管理员后台" }, { status: 403 });
+    return NextResponse.json({ error: "无权访问管理后台" }, { status: 403 });
   }
   const body = (await req.json().catch(() => null)) as {
     enabled?: unknown;

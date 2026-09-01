@@ -13,6 +13,11 @@
   flex-shrink: 0;
 }
 
+.date-trigger-modal {
+  height: 42px;
+  border-radius: 10px;
+}
+
 .date-pop {
   position: absolute;
   z-index: 30;
@@ -27,6 +32,11 @@
     0 12px 40px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.05);
   animation: fade-in 0.15s ease;
+}
+
+.date-pop-top {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .date-pop-head {
@@ -119,6 +129,13 @@
   background: #f2f2f4;
 }
 
+.date-day-disabled,
+.date-day-disabled:hover {
+  background: transparent;
+  color: #c7c7cc;
+  cursor: not-allowed;
+}
+
 .date-day-today {
   color: var(--accent);
   font-weight: 600;
@@ -154,6 +171,13 @@
 
 .date-year:hover {
   background: #f2f2f4;
+}
+
+.date-year-disabled,
+.date-year-disabled:hover {
+  background: transparent;
+  color: #c7c7cc;
+  cursor: not-allowed;
 }
 
 .date-year-sel,
@@ -212,4 +236,3 @@
     width: 100%;
   }
 }
-

@@ -25,7 +25,13 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const items: unknown = body?.items;
-  if (!Array.isArray(items) || !items.every(isOrderItem)) {
+  const baseItems: unknown = body?.baseItems;
+  if (
+    !Array.isArray(items) ||
+    !items.every(isOrderItem) ||
+    !Array.isArray(baseItems) ||
+    !baseItems.every(isOrderItem)
+  ) {
     return Response.json({ error: "参数无效" }, { status: 400 });
   }
 
@@ -33,19 +39,33 @@ export async function POST(req: Request) {
   const mineSet = new Set(mine.map((report) => report.slug));
   const allowedDates = new Set(mine.map((report) => report.date.slice(0, 10)));
   const slugs = items.map((item) => item.slug);
+  const baseSlugs = baseItems.map((item) => item.slug);
   const valid =
     items.length === mineSet.size &&
+    baseItems.length === mineSet.size &&
     new Set(slugs).size === slugs.length &&
+    new Set(baseSlugs).size === baseSlugs.length &&
     items.every(
+      (item) => mineSet.has(item.slug) && allowedDates.has(item.date),
+    ) &&
+    baseItems.every(
       (item) => mineSet.has(item.slug) && allowedDates.has(item.date),
     );
   if (!valid) {
     return Response.json({ error: "排序与项目列表不匹配" }, { status: 400 });
   }
 
-  if (!(await reorderReports(session.user.id, items))) {
+  const result = await reorderReports(session.user.id, items, baseItems);
+  if (result !== "updated") {
+    const current = await getReportsByUser(session.user.id);
     return Response.json(
-      { error: "项目列表已发生变化，请刷新后重试" },
+      {
+        error: "项目列表已发生变化，请刷新后重试",
+        items: current.map((report) => ({
+          slug: report.slug,
+          date: report.date.slice(0, 10),
+        })),
+      },
       { status: 409 },
     );
   }

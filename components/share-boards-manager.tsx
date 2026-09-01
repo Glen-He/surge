@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { CopyPillButton } from "@/components/copy-feedback-button";
+import { DatePicker } from "@/components/date-picker";
 import { Modal } from "@/components/modal";
 import { ShareManagementEmptyState } from "@/components/share-management-empty-state";
 import { SharePasscodeControl } from "@/components/share-passcode-control";
+import { ToggleSwitch } from "@/components/toggle-switch";
 import { shareClipboardText } from "@/lib/share-copy";
 
 export type ManagedBoard = {
@@ -19,19 +22,6 @@ export type ManagedBoard = {
   expiresAt: string | null;
   items: { slug: string; date: string; title: string }[];
 };
-
-async function copyText(value: string) {
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  }
-}
 
 export function ShareBoardsManager({
   initialBoards,
@@ -57,7 +47,6 @@ export function ShareBoardsManager({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<ManagedBoard | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function createBoard() {
     if (!newTitle.trim() || creating) return;
@@ -86,14 +75,6 @@ export function ShareBoardsManager({
     } finally {
       setCreating(false);
     }
-  }
-
-  async function copyBoard(board: ManagedBoard) {
-    await copyText(
-      shareClipboardText(`${location.origin}/b/${board.token}`, board.passcode),
-    );
-    setCopiedId(board.id);
-    setTimeout(() => setCopiedId(null), 2000);
   }
 
   function openSettings(board: ManagedBoard) {
@@ -269,14 +250,17 @@ export function ShareBoardsManager({
               </div>
 
               <div className="mt-4 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => copyBoard(board)}
+                <CopyPillButton
+                  text={() =>
+                    shareClipboardText(
+                      `${location.origin}/b/${board.token}`,
+                      board.passcode,
+                    )
+                  }
+                  label="复制链接"
                   disabled={board.disabled}
                   className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[#f2f2f7] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#e8e8ed] disabled:text-[#86868b] disabled:opacity-60"
-                >
-                  {copiedId === board.id ? "已复制" : "复制链接"}
-                </button>
+                />
                 {!board.disabled && (
                   <Link
                     href={`/b/${board.token}`}
@@ -303,8 +287,21 @@ export function ShareBoardsManager({
         <div className="mt-4">
           <SharePasscodeControl enabled={newPasswordProtected} onChange={(enabled) => { setNewPasswordProtected(enabled); setNewError(""); }} disabled={creating} />
         </div>
-        <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
-        <input type="date" value={newExpiresOn} min={minExpiryDate} onChange={(event) => { setNewExpiresOn(event.target.value); setNewError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
+        <span className="mt-4 block text-[13px] font-medium">有效期（可选）</span>
+        <DatePicker
+          value={newExpiresOn}
+          min={minExpiryDate}
+          placeholder="永久有效"
+          ariaLabel="有效期"
+          clearLabel="恢复永久有效"
+          variant="modal"
+          placement="top"
+          className="mt-2"
+          onChange={(value) => {
+            setNewExpiresOn(value);
+            setNewError("");
+          }}
+        />
         <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{newError}</p>
         <div className="mt-4 flex justify-end gap-2.5">
           <button type="button" onClick={() => setNewOpen(false)} className="btn-secondary">取消</button>
@@ -339,10 +336,28 @@ export function ShareBoardsManager({
                 ) : null}
               </div>
             </div>
-            <label className="mt-4 block text-[13px] font-medium">有效期（可选）</label>
-            <input type="date" value={editExpiresOn} min={minExpiryDate} onChange={(event) => { setEditExpiresOn(event.target.value); setEditError(""); }} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
-            <div className="mt-3 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-[13px] text-[#6e6e73]"><input type="checkbox" checked={editDisabled} onChange={(event) => setEditDisabled(event.target.checked)} />暂停公开访问</label>
+            <span className="mt-4 block text-[13px] font-medium">有效期（可选）</span>
+            <DatePicker
+              value={editExpiresOn}
+              min={minExpiryDate}
+              placeholder="永久有效"
+              ariaLabel="有效期"
+              clearLabel="恢复永久有效"
+              variant="modal"
+              placement="top"
+              className="mt-2"
+              onChange={(value) => {
+                setEditExpiresOn(value);
+                setEditError("");
+              }}
+            />
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <span className="text-[13px] text-[#6e6e73]">暂停公开访问</span>
+              <ToggleSwitch
+                checked={editDisabled}
+                label="暂停公开访问"
+                onChange={setEditDisabled}
+              />
             </div>
             <div className="mt-4 rounded-[12px] bg-[#f9f9fb] p-3">
               <p className="text-[12px] leading-[1.55] text-[#6e6e73]">更换链接后，旧链接立即失效，面板内容和设置保持不变。</p>

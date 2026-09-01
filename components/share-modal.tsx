@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CopyPillButton } from "@/components/copy-feedback-button";
 import { Modal } from "@/components/modal";
+import { SelectMenu } from "@/components/select-menu";
 import { SharePasscodeControl } from "@/components/share-passcode-control";
 import { shareClipboardText } from "@/lib/share-copy";
 
@@ -78,7 +80,6 @@ function ShareDialog({
   const [error, setError] = useState("");
   const [passwordProtected, setPasswordProtected] = useState(false);
   const [days, setDays] = useState(0);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [boards, setBoards] = useState<BoardView[]>([]);
   const [boardsLoading, setBoardsLoading] = useState(true);
@@ -87,7 +88,6 @@ function ShareDialog({
   const [boardError, setBoardError] = useState("");
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [changingBoardId, setChangingBoardId] = useState<string | null>(null);
-  const [copiedBoardId, setCopiedBoardId] = useState<string | null>(null);
   // 列表滚动容器：创建新链接后回到顶部，确保置顶的新链接可见
   const listRef = useRef<HTMLDivElement>(null);
   // 达到上限：按钮禁用，提示行显示中性说明（非红色错误）
@@ -186,35 +186,6 @@ function ShareDialog({
     }
   }
 
-  async function copyLink(s: ShareView) {
-    const value = shareClipboardText(`${location.origin}/s/${s.token}`, s.passcode);
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = value;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    }
-    setCopiedId(s.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  }
-
-  async function writeClipboard(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = value;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
-  }
-
   async function createBoard() {
     const name = boardName.trim();
     if (!name || creatingBoard) return;
@@ -269,14 +240,6 @@ function ShareDialog({
     } finally {
       setChangingBoardId(null);
     }
-  }
-
-  async function copyBoard(board: BoardView) {
-    await writeClipboard(
-      shareClipboardText(`${location.origin}/b/${board.token}`, board.passcode),
-    );
-    setCopiedBoardId(board.id);
-    setTimeout(() => setCopiedBoardId(null), 2000);
   }
 
   return (
@@ -410,14 +373,17 @@ function ShareDialog({
                           </span>
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => copyBoard(board)}
+                          <CopyPillButton
+                            text={() =>
+                              shareClipboardText(
+                                `${location.origin}/b/${board.token}`,
+                                board.passcode,
+                              )
+                            }
+                            label="复制链接"
                             disabled={board.disabled}
                             className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
-                          >
-                            {copiedBoardId === board.id ? "已复制" : "复制链接"}
-                          </button>
+                          />
                           <button
                             type="button"
                             onClick={() => toggleBoard(board)}
@@ -458,30 +424,18 @@ function ShareDialog({
               <label htmlFor="share-link-expiry" className="mb-1 block text-[12px] text-[#6e6e73]">
                 有效期
               </label>
-              <div className="relative">
-                <select
-                  id="share-link-expiry"
-                  value={days}
-                  onChange={(e) => setDays(Number(e.target.value))}
-                  className="h-[38px] w-full appearance-none rounded-[10px] border border-black/12 bg-white pl-3 pr-9 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
-                >
-                  <option value={0}>永久有效</option>
-                  <option value={1}>1 天</option>
-                  <option value={7}>7 天</option>
-                  <option value={30}>30 天</option>
-                </select>
-                {/* 自定义下拉箭头：原生箭头贴边太远，内收 12px */}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-[#86868b]"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
+              <SelectMenu
+                id="share-link-expiry"
+                value={days}
+                onChange={setDays}
+                disabled={creating || limitReached}
+                options={[
+                  { value: 0, label: "永久有效" },
+                  { value: 1, label: "1 天" },
+                  { value: 7, label: "7 天" },
+                  { value: 30, label: "30 天" },
+                ]}
+              />
             </div>
             <SharePasscodeControl
               enabled={passwordProtected}
@@ -556,14 +510,17 @@ function ShareDialog({
                     </span>
                     <span className="ml-auto flex items-center gap-1.5">
                       {/* 两按钮统一 min-w + 居中：文字在“复制链接/已复制”“撤销/撤销中…”间切换时宽度不变 */}
-                      <button
-                        type="button"
-                        onClick={() => copyLink(s)}
+                      <CopyPillButton
+                        text={() =>
+                          shareClipboardText(
+                            `${location.origin}/s/${s.token}`,
+                            s.passcode,
+                          )
+                        }
+                        label="复制链接"
                         disabled={!active}
                         className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
-                      >
-                        {copiedId === s.id ? "已复制" : "复制链接"}
-                      </button>
+                      />
                       {active && (
                         <button
                           type="button"

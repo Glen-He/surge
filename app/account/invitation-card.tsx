@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CardHead } from "@/components/card-head";
+import { CopyIconButton } from "@/components/copy-feedback-button";
 import { inviteLinkFragment } from "@/lib/invite-link";
 import type { InviteSummary } from "@/lib/registration-invites";
 
@@ -16,35 +17,6 @@ const ICON_INVITE = (
   >
     <path d="M5 8h14v11H5z" />
     <path d="M4 8h16M12 8v11M7.5 8C5 6 6.5 3.5 8.5 4.2 10 4.7 11 6.2 12 8M16.5 8C19 6 17.5 3.5 15.5 4.2 14 4.7 13 6.2 12 8" />
-  </svg>
-);
-
-const ICON_COPY = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="h-[15px] w-[15px]"
-  >
-    <rect x="9" y="9" width="11" height="11" rx="2" />
-    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-  </svg>
-);
-
-const ICON_CHECK = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="#34c759"
-    strokeWidth="2.4"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="h-[14px] w-[14px]"
-  >
-    <path d="m5 13 4 4L19 7" />
   </svg>
 );
 
@@ -66,7 +38,6 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
   const [invite, setInvite] = useState<InviteSummary | null>(null);
   const [loaded, setLoaded] = useState(isGuest);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -95,7 +66,6 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
         return;
       }
       setInvite(data.invite);
-      setCopied(false);
     } catch {
       setError("网络异常，邀请码未生成");
     } finally {
@@ -117,24 +87,10 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
         return;
       }
       setInvite({ ...invite, disabledAt: new Date().toISOString() });
-      setCopied(false);
     } catch {
       setError("网络异常，邀请码未撤销");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function copyInviteLink() {
-    if (!invite?.code || invite.disabledAt) return;
-    try {
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/#${inviteLinkFragment(invite.code)}`,
-      );
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2_000);
-    } catch {
-      setError("复制失败，请稍后重试");
     }
   }
 
@@ -172,15 +128,15 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
                 {invite.code ?? "邀请码不可读取"}
               </code>
               {invite.code && (
-                <button
-                  type="button"
-                  aria-label={copied ? "邀请链接已复制" : "复制邀请链接"}
-                  title={copied ? "已复制" : "复制邀请链接"}
-                  onClick={() => void copyInviteLink()}
-                  className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3]"
-                >
-                  {copied ? ICON_CHECK : ICON_COPY}
-                </button>
+                <CopyIconButton
+                  key={invite.code}
+                  text={() =>
+                    `${window.location.origin}/#${inviteLinkFragment(invite.code!)}`
+                  }
+                  label="复制邀请链接"
+                  copiedLabel="邀请链接已复制"
+                  onCopyError={() => setError("复制失败，请稍后重试")}
+                />
               )}
               <span className="ml-auto pl-3 text-right text-[12px] leading-none text-[#86868b]">
                 {invite.useCount} 人已注册

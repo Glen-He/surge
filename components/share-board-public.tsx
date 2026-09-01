@@ -40,7 +40,7 @@ export function ShareBoardPublic({ title, token, items }: {
                 <h2 className="mb-5 text-[18px] font-semibold text-[#6e6e73]">{monthLabel(month)}</h2>
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                   {reports.map((report) => (
-                    <div key={report.id} className="group relative transition-transform duration-200 hover:-translate-y-0.5">
+                    <div key={report.id} className="group/report-card relative transition-transform duration-200 hover:-translate-y-0.5">
                       <ReportCardLink report={report} href={`/b/${token}/i/${report.id}`} />
                     </div>
                   ))}

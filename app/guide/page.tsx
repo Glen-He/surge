@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { CopyPillButton } from "@/components/copy-feedback-button";
 
 // 汇报页制作指南：从 Home 页头 / 新建项目页进入
 // 视觉与 account-shell 体系一致（1080px 轨道、白卡 22px 圆角）；
@@ -108,39 +109,12 @@ function NoteRow({
  * 按钮尺寸零变化（仅文字与配色切换）
  */
 function CopyButton() {
-  const [copied, setCopied] = useState(false);
-
-  // 与 share-modal / guest-otp-modal 同一乐观翻转模式；额外加 800ms 竞速——
-  // 文档失焦等场景下 writeText 的 Promise 可能永远 pending，竞速保证一定落到
-  // execCommand 兜底并翻转「已复制」2 秒
-  async function copy() {
-    try {
-      await Promise.race([
-        navigator.clipboard.writeText(PROMPT),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 800)),
-      ]);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = PROMPT;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   return (
-    <button
-      type="button"
-      onClick={copy}
-      className={`inline-flex h-[28px] w-[52px] items-center justify-center rounded-full text-[12px] font-semibold text-white transition-colors duration-200 ${
-        copied ? "bg-[#34c759]" : "bg-[#0071e3] hover:bg-[#0077ed]"
-      }`}
-    >
-      {copied ? "已复制" : "复制"}
-    </button>
+    <CopyPillButton
+      text={PROMPT}
+      label="复制"
+      className="inline-flex h-[28px] w-[52px] items-center justify-center rounded-full bg-[#0071e3] text-[12px] font-semibold text-white transition-colors duration-200 hover:bg-[#0077ed]"
+    />
   );
 }
 

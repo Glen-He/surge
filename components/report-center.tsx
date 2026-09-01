@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { CopyIconButton } from "@/components/copy-feedback-button";
 import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
-import { EmptyState } from "@/components/empty-state";
 import { ReportCardLink } from "@/components/report-card-link";
+import {
+  SortableReportList,
+  type SortableReportCardOptions,
+} from "@/components/report-sortable-list";
 import { OtpCodeInput } from "@/components/otp-code-input";
 import type { ReportCardView as Report } from "@/lib/report-cards";
-import {
-  moveReportToTargetDate,
-  type ReportDropPosition,
-} from "@/lib/report-order";
 
 // 搜索工具栏：居中；即时过滤（Spotlight 式，输入停顿 300ms 自动生效），
 // 回车立即提交；叉叉清除搜索
@@ -90,19 +89,6 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
   );
 }
 
-function matches(r: Report, q: string): boolean {
-  if (!q) return true;
-  const hay = [r.title, r.desc, r.tag, r.date, ...(r.keywords)]
-    .join(" ")
-    .toLowerCase();
-  return hay.includes(q);
-}
-
-function monthLabel(key: string): string {
-  const [y, m] = key.split("-");
-  return `${y} 年 ${parseInt(m, 10)} 月`;
-}
-
 // 新建项目圆形按钮：52px 苹果黑圆白＋（SVG 双线 24px stroke 2.5），
 // hover 放大 1.03 + ＋ 旋转 90° + 轻阴影（200ms ease-out），按压缩到 0.96；
 // 胶囊 Tooltip 在按钮下方（白底深字 + 细边框轻阴影），延迟 60ms 滤掉
@@ -143,7 +129,7 @@ function ShareIcon({ r }: { r: Report }) {
         onClick={() => setOpen(true)}
         aria-label={`分享 ${r.title}`}
         title="分享项目"
-        className="absolute right-14 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute right-14 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -170,7 +156,6 @@ function DeleteIcon({ r }: { r: Report }) {
   const [typed, setTyped] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const router = useRouter();
   // 输入与本次随机码完全一致才放开删除按钮
   const confirmed = typed === code && code !== "";
@@ -180,30 +165,7 @@ function DeleteIcon({ r }: { r: Report }) {
     setCode(String(Math.floor(100000 + Math.random() * 900000)));
     setTyped("");
     setError("");
-    setCopied(false);
     setOpen(true);
-  }
-
-  // 一键复制验证码：免去对照手打
-  async function copyCode() {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = code;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* 忽略 */
-    }
   }
 
   async function remove() {
@@ -232,7 +194,7 @@ function DeleteIcon({ r }: { r: Report }) {
         onClick={showModal}
         aria-label={`删除 ${r.title}`}
         title="删除项目"
-        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(255,59,48,0.08)] hover:text-[#ff3b30] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(255,59,48,0.08)] hover:text-[#ff3b30] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -260,24 +222,12 @@ function DeleteIcon({ r }: { r: Report }) {
           请输入验证码{" "}
           <span className="font-semibold text-[#1d1d1f]">
             {code}
-            <button
-              type="button"
-              onClick={copyCode}
-              aria-label="复制验证码"
-              title={copied ? "已复制" : "复制验证码"}
-              className="relative top-[2px] ml-1 inline-flex h-4 w-4 items-center justify-center text-[#86868b] transition-colors hover:text-[#1d1d1f]"
-            >
-              {copied ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="h-3 w-3" aria-hidden="true">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3" aria-hidden="true">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
-              )}
-            </button>
+            <CopyIconButton
+              text={code}
+              label="复制验证码"
+              copiedLabel="验证码已复制"
+              className="relative top-[2px]"
+            />
           </span>{" "}
           以确认删除：
         </p>
@@ -319,33 +269,32 @@ function DeleteIcon({ r }: { r: Report }) {
 
 function ReportCard({
   r,
-  draggable,
-  dragging,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
+  activeSession,
+  canDrag,
+  dragActivatorRef,
+  suppressHover,
 }: {
   r: Report;
-  draggable: boolean;
-  dragging: boolean;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onDragEnd: (e: React.DragEvent) => void;
-}) {
+} & Pick<
+  SortableReportCardOptions,
+  | "activeSession"
+  | "canDrag"
+  | "dragActivatorRef"
+  | "suppressHover"
+>) {
+  const hoverEnabled = !activeSession && !suppressHover;
   return (
     <div
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
-      className={`group relative transition-transform duration-200 hover:-translate-y-0.5 ${
-        dragging ? "opacity-40" : ""
+      className={`${hoverEnabled ? "group/report-card" : ""} relative transition-transform duration-200 motion-reduce:transition-none ${
+        hoverEnabled ? "hover:-translate-y-0.5" : ""
       }`}
     >
-      <ReportCardLink report={r} href={`/report/${r.slug}`} draggable={draggable} />
+      <ReportCardLink
+        report={r}
+        href={`/report/${r.slug}`}
+        draggable={canDrag}
+        dragActivatorRef={dragActivatorRef}
+      />
       {/* 源码顺序 = Tab 顺序，刻意与视觉从左到右一致（删除 → 分享 → 编辑） */}
       <DeleteIcon r={r} />
       <ShareIcon r={r} />
@@ -354,7 +303,7 @@ function ReportCard({
         draggable={false}
         aria-label={`编辑 ${r.title}`}
         title="编辑项目"
-        className="absolute bottom-4 right-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute bottom-4 right-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -371,39 +320,6 @@ function ReportCard({
   );
 }
 
-function ReportDropPlaceholder({
-  date,
-  onDragOver,
-  onDrop,
-}: {
-  date: string;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className="flex h-[208px] items-center justify-center rounded-[18px] bg-[rgba(0,113,227,0.07)] text-[13px] font-medium text-[#0071e3]"
-    >
-      移到 {date}
-    </div>
-  );
-}
-
-function pointerDropPosition(e: React.DragEvent): ReportDropPosition {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const grid = e.currentTarget.parentElement;
-  const columns = grid
-    ? getComputedStyle(grid).gridTemplateColumns.split(" ").length
-    : 1;
-  if (columns <= 1) {
-    return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
-  }
-  return e.clientX < rect.left + rect.width / 2 ? "before" : "after";
-}
-
 // 数据区组件：日期倒序；同一天内支持手动排序，也可跨日期拖动并自动改日期。
 export function ReportList({
   reports,
@@ -413,247 +329,16 @@ export function ReportList({
   q: string;
 }): ReactNode {
   const identity = reports
-    .map((report) => `${report.slug}:${report.date}`)
+    .map((report, index) => `${index}:${report.slug}:${report.date}`)
     .join("\0");
-  return <ReportListState key={identity} reports={reports} q={q} />;
-}
-
-function ReportListState({
-  reports,
-  q,
-}: {
-  reports: Report[];
-  q: string;
-}): ReactNode {
-  const [items, setItems] = useState<Report[]>(reports);
-  const [dragSlug, setDragSlug] = useState<string | null>(null);
-  const [crossPreview, setCrossPreview] = useState<{
-    targetSlug: string;
-    date: string;
-    position: ReportDropPosition;
-  } | null>(null);
-  const itemsRef = useRef(items);
-  const dragStartRef = useRef<Report[] | null>(null);
-  const previewPlacementRef = useRef<string | null>(null);
-  const router = useRouter();
-
-  const canDrag = q.trim() === "";
-
-  function handleDragPreview(
-    targetSlug: string,
-    position: ReportDropPosition,
-  ) {
-    if (!dragSlug || dragSlug === targetSlug) return;
-    const placement = `${targetSlug}:${position}`;
-    if (previewPlacementRef.current === placement) return;
-    const current = itemsRef.current;
-    const moving = current.find((item) => item.slug === dragSlug);
-    const target = current.find((item) => item.slug === targetSlug);
-    if (!moving || !target) return;
-
-    previewPlacementRef.current = placement;
-    if (moving.date.slice(0, 10) === target.date.slice(0, 10)) {
-      const next = moveReportToTargetDate(
-        current,
-        dragSlug,
-        targetSlug,
-        position,
-      );
-      itemsRef.current = next;
-      setItems(next);
-      setCrossPreview(null);
-      return;
-    }
-
-    setCrossPreview({
-      targetSlug,
-      date: target.date.slice(0, 10),
-      position,
-    });
-  }
-
-  async function persistOrder(next: Report[], snapshot: Report[] | null) {
-    try {
-      const res = await fetch("/api/reports/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: next.map((item) => ({
-            slug: item.slug,
-            date: item.date.slice(0, 10),
-          })),
-        }),
-      });
-      if (!res.ok) throw new Error("reorder failed");
-      router.refresh();
-    } catch {
-      if (snapshot) {
-        itemsRef.current = snapshot;
-        setItems(snapshot);
-      }
-      toast.error("排序保存失败，请重试");
-    }
-  }
-
-  function handleDrop(target: string, position: ReportDropPosition) {
-    if (!dragSlug) return;
-    const snapshot = dragStartRef.current;
-    const current = itemsRef.current;
-    const moving = current.find((item) => item.slug === dragSlug);
-    const targetItem = current.find((item) => item.slug === target);
-    const needsMove =
-      moving &&
-      targetItem &&
-      (moving.date.slice(0, 10) !== targetItem.date.slice(0, 10) ||
-        previewPlacementRef.current !== `${target}:${position}`);
-    const next = needsMove
-      ? moveReportToTargetDate(current, dragSlug, target, position)
-      : current;
-    itemsRef.current = next;
-    setItems(next);
-    setDragSlug(null);
-    setCrossPreview(null);
-    dragStartRef.current = null;
-    previewPlacementRef.current = null;
-    if (next !== snapshot) void persistOrder(next, snapshot);
-  }
-
-  function handleDragEnd() {
-    const snapshot = dragStartRef.current;
-    if (snapshot) {
-      itemsRef.current = snapshot;
-      setItems(snapshot);
-    }
-    setDragSlug(null);
-    setCrossPreview(null);
-    dragStartRef.current = null;
-    previewPlacementRef.current = null;
-  }
-
-  const list = useMemo(
-    () => items.filter((r) => matches(r, q.trim().toLowerCase())),
-    [items, q],
-  );
-
-  const groups = useMemo(() => {
-    // 两层分组：先按月 → 月内再按天
-    const months = new Map<
-      string,
-      { key: string; days: { key: string; items: Report[] }[] }
-    >();
-    list.forEach((r) => {
-      const mk = r.date.slice(0, 7);
-      const dk = r.date.slice(0, 10);
-      if (!months.has(mk)) months.set(mk, { key: mk, days: [] });
-      const month = months.get(mk)!;
-      let day = month.days.find((d) => d.key === dk);
-      if (!day) {
-        day = { key: dk, items: [] };
-        month.days.push(day);
-      }
-      day.items.push(r);
-    });
-    return [...months.values()];
-  }, [list]);
-
   return (
-    <div className="mt-16">
-      {list.length === 0 && (
-        <EmptyState
-          icon="search"
-          title="没有找到匹配的报告"
-          hint="试试其他关键词或分类"
-        />
+    <SortableReportList
+      key={identity}
+      reports={reports}
+      q={q}
+      renderCard={(report, options) => (
+        <ReportCard key={report.slug} r={report} {...options} />
       )}
-
-      {groups.map((m) => (
-        <section key={m.key} className="mb-10">
-          {/* 月份分组标题：小字次级色（苹果日历模式——分组标题弱于内容标题） */}
-          <h3 className="mb-10 flex items-center gap-3 text-[15px] font-medium text-[#6e6e73]">
-            {monthLabel(m.key)}
-            <span className="text-[13px] font-medium text-[#a1a1a6]">
-              {m.days.reduce((n, d) => n + d.items.length, 0)} 份
-            </span>
-            <span className="h-px flex-1 bg-[rgba(0,0,0,0.08)]" />
-          </h3>
-
-          {m.days.map((g, gi) => (
-            <div key={g.key}>
-              {gi > 0 && (
-                <div className="my-5 flex items-center justify-center gap-3">
-                  <span className="h-px w-16 bg-[rgba(0,0,0,0.06)]" />
-                  <span className="h-1 w-1 rounded-full bg-[#c7c7cc]" />
-                  <span className="h-px w-16 bg-[rgba(0,0,0,0.06)]" />
-                </div>
-              )}
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {g.items.flatMap((r) => {
-                  const showBefore =
-                    crossPreview?.targetSlug === r.slug &&
-                    crossPreview.position === "before";
-                  const showAfter =
-                    crossPreview?.targetSlug === r.slug &&
-                    crossPreview.position === "after";
-                  const nodes: ReactNode[] = [];
-                  if (showBefore) {
-                    nodes.push(
-                      <ReportDropPlaceholder
-                        key={`drop-before-${r.slug}`}
-                        date={crossPreview.date}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          handleDrop(r.slug, crossPreview.position);
-                        }}
-                      />,
-                    );
-                  }
-                  nodes.push(
-                    <ReportCard
-                      key={r.slug}
-                      r={r}
-                      draggable={canDrag}
-                      dragging={dragSlug === r.slug}
-                      onDragStart={(e) => {
-                        dragStartRef.current = itemsRef.current;
-                        previewPlacementRef.current = null;
-                        setCrossPreview(null);
-                        setDragSlug(r.slug);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/plain", r.slug);
-                      }}
-                      onDragOver={(e) => {
-                        if (!dragSlug) return;
-                        e.preventDefault();
-                        handleDragPreview(r.slug, pointerDropPosition(e));
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleDrop(r.slug, pointerDropPosition(e));
-                      }}
-                      onDragEnd={handleDragEnd}
-                    />,
-                  );
-                  if (showAfter) {
-                    nodes.push(
-                      <ReportDropPlaceholder
-                        key={`drop-after-${r.slug}`}
-                        date={crossPreview.date}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          handleDrop(r.slug, crossPreview.position);
-                        }}
-                      />,
-                    );
-                  }
-                  return nodes;
-                })}
-              </div>
-            </div>
-          ))}
-        </section>
-      ))}
-    </div>
+    />
   );
 }
