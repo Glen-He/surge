@@ -14,6 +14,8 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@dnd-kit/dom": "0.5.0",
+    "@dnd-kit/react": "0.5.0",
     "better-auth": "^1.7.2",
     "busboy": "^1.6.0",
     "next": "16.3.3",

@@ -30,15 +30,37 @@ export async function getReportsByUser(userId: string): Promise<DbReport[]> {
 }
 
 export type ReportOrderItem = { slug: string; date: string };
+export type ReorderReportsResult = "updated" | "stale" | "mismatch";
 
-// 持久化完整展示顺序；跨日期拖动时同时更新日期。
+// 持久化完整展示顺序；baseItems 用于拒绝其他标签页产生的过期写入。
 export async function reorderReports(
   userId: string,
   items: ReportOrderItem[],
-): Promise<boolean> {
+  baseItems: ReportOrderItem[],
+): Promise<ReorderReportsResult> {
   return withStorageLocks(userId, async (client) => {
     await client.query("BEGIN");
     try {
+      const current = await client.query<ReportOrderItem>(
+        `SELECT slug, date::text
+         FROM reports
+         WHERE user_id = $1
+         ORDER BY date DESC, sort_order ASC NULLS LAST, created_at DESC
+         FOR UPDATE`,
+        [userId],
+      );
+      const stale =
+        current.rows.length !== baseItems.length ||
+        current.rows.some(
+          (item, index) =>
+            item.slug !== baseItems[index]?.slug ||
+            item.date.slice(0, 10) !== baseItems[index]?.date,
+        );
+      if (stale) {
+        await client.query("ROLLBACK");
+        return "stale";
+      }
+
       const result = await client.query(
         `UPDATE reports AS r
          SET sort_order = ordered.ordinality - 1,
@@ -54,10 +76,10 @@ export async function reorderReports(
       );
       if (result.rowCount !== items.length) {
         await client.query("ROLLBACK");
-        return false;
+        return "mismatch";
       }
       await client.query("COMMIT");
-      return true;
+      return "updated";
     } catch (error) {
       await client.query("ROLLBACK").catch(() => {});
       throw error;

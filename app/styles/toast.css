@@ -1,12 +1,68 @@
-/* ============ Toast（Apple 风格磨砂玻璃） ============ */
+/* ============ 顶部居中通知 ============ */
+.top-notice-host {
+  pointer-events: none;
+  position: fixed;
+  left: 50%;
+  top: 24px;
+  z-index: 120;
+  opacity: 0;
+  transform: translate3d(-50%, -12px, 0);
+  transition:
+    opacity 300ms ease-out,
+    transform 300ms ease-out;
+}
+
+.top-notice-host[data-mounted="true"] {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+}
+
+.top-notice-card,
+[data-sonner-toaster] [data-sonner-toast] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  min-width: 0;
+  max-width: min(420px, calc(100vw - 48px));
+  min-height: 56px;
+  padding: 0 20px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(240, 240, 245, 0.95);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.top-notice-card[data-interactive="true"] {
+  pointer-events: auto;
+}
+
+.top-notice-card-otp {
+  min-width: 260px;
+  max-width: min(310px, calc(100vw - 48px));
+  padding-inline: 18px;
+}
+
 [data-sonner-toaster] {
-  --normal-bg: rgba(255, 255, 255, 0.78);
-  --normal-border: rgba(0, 0, 0, 0.06);
-  --normal-text: #1d1d1f;
-  --accent: #0071e3;
-  --success: #34c759;
-  --danger: #ff3b30;
-  --warning: #ff9500;
+  --width: fit-content;
+  gap: 10px;
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -17,107 +73,56 @@
     sans-serif;
 }
 
-[data-sonner-toaster] {
-  gap: 10px;
-}
-
 [data-sonner-toaster] [data-sonner-toast] {
-  position: relative;
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  background: rgba(255, 255, 255, 0.82);
-  border: 0.5px solid rgba(0, 0, 0, 0.06);
-  border-radius: 20px;
+  width: fit-content !important;
+  min-width: 0 !important;
+  min-height: 56px !important;
+  padding: 0 20px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: rgba(240, 240, 245, 0.95) !important;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 0.5px 1px rgba(0, 0, 0, 0.04),
-    0 8px 28px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.05);
-  padding: 12px 16px 12px 14px;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: #1d1d1f;
-  min-width: 300px;
-  max-width: min(420px, calc(100vw - 32px));
-  overflow: hidden;
-}
-
-[data-sonner-toaster] [data-sonner-toast]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-  opacity: 0.9;
-}
-
-[data-sonner-toaster] [data-sonner-toast][data-type="success"]::before {
-  background: var(--success);
-}
-
-[data-sonner-toaster] [data-sonner-toast][data-type="error"]::before {
-  background: var(--danger);
-}
-
-[data-sonner-toaster] [data-sonner-toast][data-type="warning"]::before {
-  background: var(--warning);
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
 [data-sonner-toaster] [data-sonner-toast] [data-title] {
+  color: #1d1d1f;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.01em;
-  color: #1d1d1f;
+  white-space: nowrap;
 }
 
 [data-sonner-toaster] [data-sonner-toast] [data-description] {
-  font-size: 12.5px;
-  font-weight: 450;
-  line-height: 1.45;
   margin-top: 2px;
   color: #6e6e73;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 [data-sonner-toaster] [data-sonner-toast] [data-icon] {
-  margin-top: 2px;
-  color: var(--accent);
+  width: 20px;
+  height: 20px;
+  margin: 0;
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
-  color: var(--success);
+  color: #34c759;
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
-  color: var(--danger);
+  color: #ff3b30;
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
-  color: var(--warning);
+  color: #ff9500;
 }
 
-[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.05);
-  color: #86868b;
-  opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-[data-sonner-toaster] [data-sonner-toast]:hover [data-close-button] {
-  opacity: 1;
-}
-
-[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #1d1d1f;
+@media (prefers-reduced-motion: reduce) {
+  .top-notice-host {
+    transition: none;
+  }
 }

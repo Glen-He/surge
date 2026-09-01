@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CopyIconButton } from "@/components/copy-feedback-button";
+import { TopNotice } from "@/components/top-notice";
 import {
   subscribeGuestOtp,
   type GuestOtpState,
@@ -15,8 +17,6 @@ import {
 export function GuestOtpModal() {
   const [state, setState] = useState<GuestOtpState | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -26,7 +26,6 @@ export function GuestOtpModal() {
         unmountTimer.current = null;
       }
       if (s) {
-        setCopied(false);
         setState(s);
         requestAnimationFrame(() => setMounted(true));
       } else {
@@ -45,54 +44,13 @@ export function GuestOtpModal() {
 
   const code = state.code.padStart(6, "0");
 
-  async function onCopy() {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = code;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      setCopied(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* 忽略 */
-    }
-  }
-
   return (
-    <div
-      aria-live="polite"
-      className={[
-        "pointer-events-none fixed left-1/2 top-6 z-[120] -translate-x-1/2",
-        "transition-all duration-300 ease-out",
-        mounted ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0",
-      ].join(" ")}
+    <TopNotice
+      mounted={mounted}
+      interactive
+      className="top-notice-card-otp"
     >
-      <div
-        className="pointer-events-auto relative"
-        style={{
-          width: "fit-content",
-          minWidth: 260,
-          maxWidth: "min(310px, calc(100vw - 48px))",
-          height: 56,
-          backdropFilter: "saturate(180%) blur(22px)",
-          WebkitBackdropFilter: "saturate(180%) blur(22px)",
-          background: "rgba(240, 240, 245, 0.95)",
-          borderRadius: 28, // 胶囊：高度56 → 半径28，两端完全半圆
-          boxShadow:
-            "0 10px 30px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.05)",
-          padding: "0 18px",
-        }}
-      >
-        <div className="flex h-full items-center" style={{ gap: 10 }}>
+      <div className="flex h-full items-center" style={{ gap: 10 }}>
           {/* 左：20px 蓝色线框锁 */}
           <svg
             viewBox="0 0 24 24"
@@ -130,44 +88,12 @@ export function GuestOtpModal() {
           >
             {code}
           </span>
-          <button
-            type="button"
-            onClick={onCopy}
-            aria-label={copied ? "已复制" : "复制验证码"}
-            title={copied ? "已复制" : "复制验证码"}
-            className="flex shrink-0 items-center justify-center rounded-full transition-colors hover:bg-black/5 active:bg-black/10"
-            style={{
-              width: 22,
-              height: 22,
-              color: copied ? "#34c759" : "#86868b",
-              marginLeft: 2,
-            }}
-          >
-            {copied ? (
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.4}
-                className="h-3.5 w-3.5"
-              >
-                <path d="m5 13 4 4L19 7" />
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                className="h-3.5 w-3.5"
-              >
-                <rect x="9" y="9" width="11" height="11" rx="2" />
-                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-              </svg>
-            )}
-          </button>
-        </div>
+          <CopyIconButton
+            text={code}
+            label="复制验证码"
+            copiedLabel="验证码已复制"
+          />
       </div>
-    </div>
+    </TopNotice>
   );
 }

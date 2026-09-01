@@ -7,16 +7,21 @@ export function ReportCardLink({
   report,
   href,
   draggable = false,
+  dragActivatorRef,
 }: {
   report: ReportCardView;
   href: string;
   draggable?: boolean;
+  dragActivatorRef?: (element: HTMLElement | null) => void;
 }) {
   return (
     <Link
+      ref={dragActivatorRef}
       href={href}
       draggable={false}
-      className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-shadow group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
+      role={draggable ? "link" : undefined}
+      aria-roledescription={draggable ? "可排序项目" : undefined}
+      className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-[box-shadow] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover/report-card:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
         draggable ? "cursor-grab active:cursor-grabbing" : ""
       }`}
     >
@@ -42,7 +47,7 @@ export function ReportCardLink({
           {report.desc}
         </p>
       </div>
-      <div className="mt-2 translate-y-1 text-xs font-semibold text-[#0071e3] opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100 max-sm:translate-y-0 max-sm:opacity-100">
+      <div className="mt-2 translate-y-1 text-xs font-semibold text-[#0071e3] opacity-0 transition-all group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100">
         查看报告
       </div>
     </Link>

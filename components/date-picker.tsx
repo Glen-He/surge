@@ -25,15 +25,30 @@ export function DatePicker({
   value,
   onChange,
   error,
+  min,
+  placeholder = "选择日期",
+  variant = "project",
+  placement = "bottom",
+  className = "",
+  ariaLabel,
+  clearLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   error?: boolean;
+  min?: string;
+  placeholder?: string;
+  variant?: "project" | "modal";
+  placement?: "bottom" | "top";
+  className?: string;
+  ariaLabel?: string;
+  clearLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [picker, setPicker] = useState<"days" | "years">("days");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const initial = parseYMD(value) ?? new Date();
+  const minDate = min ? parseYMD(min) : null;
   const [view, setView] = useState({
     y: initial.getFullYear(),
     m: initial.getMonth(),
@@ -91,16 +106,25 @@ export function DatePicker({
   const selectedYear = initial.getFullYear();
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className={`relative ${className}`} ref={rootRef}>
       <button
         type="button"
         onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`project-input date-trigger ${error ? "project-input-error" : ""}`}
+        aria-label={ariaLabel}
+        className={`project-input date-trigger ${
+          variant === "modal" ? "date-trigger-modal" : ""
+        } ${error ? "project-input-error" : ""}`}
       >
         {/* 值格式 yyyy-mm-dd，与主页卡片日期显示一致 */}
-        <span>{value || "选择日期"}</span>
+        <span
+          className={`min-w-0 flex-1 truncate ${value ? "" : "text-[#86868b]"} ${
+            clearLabel && value ? "mr-5" : ""
+          }`}
+        >
+          {value || placeholder}
+        </span>
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -113,8 +137,36 @@ export function DatePicker({
         </svg>
       </button>
 
+      {clearLabel && value && (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          title={clearLabel}
+          onClick={() => {
+            onChange("");
+            setOpen(false);
+          }}
+          className="absolute right-9 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#ededf2] hover:text-[#1d1d1f]"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+            className="h-3 w-3"
+          >
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      )}
+
       {open && (
-        <div className="date-pop" role="dialog" aria-label="选择日期">
+        <div
+          className={`date-pop ${placement === "top" ? "date-pop-top" : ""}`}
+          role="dialog"
+          aria-label="选择日期"
+        >
           <div className="date-pop-head">
             <button
               type="button"
@@ -176,17 +228,19 @@ export function DatePicker({
                 {cells.map((d, i) => {
                   if (d === null) return <span key={i} />;
                   const ymd = toYMD(new Date(view.y, view.m, d));
+                  const disabled = !!minDate && new Date(`${ymd}T00:00:00`) < minDate;
                   return (
                     <button
                       key={i}
                       type="button"
+                      disabled={disabled}
                       onClick={() => {
                         onChange(ymd);
                         setOpen(false);
                       }}
-                      className={`date-day ${ymd === value ? "date-day-sel" : ""} ${
-                        ymd === today ? "date-day-today" : ""
-                      }`}
+                      className={`date-day ${disabled ? "date-day-disabled" : ""} ${
+                        ymd === value ? "date-day-sel" : ""
+                      } ${ymd === today ? "date-day-today" : ""}`}
                     >
                       {d}
                     </button>
@@ -200,11 +254,14 @@ export function DatePicker({
                 <button
                   key={y}
                   type="button"
+                  disabled={!!minDate && y < minDate.getFullYear()}
                   onClick={() => {
                     setView((v) => ({ ...v, y }));
                     setPicker("days");
                   }}
-                  className={`date-year ${y === selectedYear ? "date-year-sel" : ""}`}
+                  className={`date-year ${
+                    minDate && y < minDate.getFullYear() ? "date-year-disabled" : ""
+                  } ${y === selectedYear ? "date-year-sel" : ""}`}
                 >
                   {y}
                 </button>

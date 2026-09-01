@@ -15,7 +15,7 @@ export default async function AdminPage() {
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
-              管理员后台
+              管理后台
             </h1>
             <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
               管理平台注册策略与其他全局能力

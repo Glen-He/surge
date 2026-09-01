@@ -37,7 +37,20 @@ export default async function AccountPage() {
           <div className="flex shrink-0 items-center gap-2.5">
             {hasAdminRole(session.user) && (
               <Link href="/admin" className="btn-light">
-                管理员后台
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-[15px] w-[15px]"
+                  aria-hidden="true"
+                >
+                  <path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5" />
+                  <circle cx="16" cy="6" r="2" />
+                  <circle cx="8" cy="12" r="2" />
+                  <circle cx="13" cy="18" r="2" />
+                </svg>
+                管理后台
               </Link>
             )}
             <Link href="/home" className="btn-light">

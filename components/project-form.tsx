@@ -270,12 +270,14 @@ export function ProjectForm({
                 </span>
                 <DatePicker
                   value={date}
+                  ariaLabel="日期"
                   onChange={(v) => {
                     setDate(v);
                     if (errors.date) setErrors((p) => ({ ...p, date: undefined }));
                   }}
                   error={!!errors.date}
                 />
+                <p className="project-error">{errors.date ?? ""}</p>
               </div>
             </section>
 
@@ -398,7 +400,7 @@ export function ProjectForm({
                   }}
                   className="project-input"
                 />
-                {/* 错误槽常驻：卡片 min-height 280 内有足够余量，零位移 */}
+                {/* 错误槽常驻：与日期、关键词和上传文件的错误槽保持同一位置 */}
                 <p className="project-error">{errors.description ?? ""}</p>
               </div>
             </section>
@@ -520,7 +522,7 @@ export function ProjectForm({
                 </div>
               )}
 
-              {/* 错误槽位常驻（上传框下方、左对齐）：报错出现时布局零位移 */}
+              {/* 错误槽位常驻：与其余三张卡片的底部错误槽保持同一位置 */}
               <div className="upload-error-slot" role="alert">
                 {errors.file}
               </div>

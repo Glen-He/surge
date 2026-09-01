@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TopNotice } from "@/components/top-notice";
 import {
   GUEST_EXPIRY_EVENT,
   GUEST_EXPIRY_KEY,
@@ -11,10 +12,8 @@ import {
 } from "@/lib/guest-session-client";
 
 /**
- * 游客提示卡三件套 —— 与「游客验证码」提示同款视觉：
- * 磨砂玻璃卡片（rgba(240,240,245,0.95) + saturate(180%) blur(22px)），
+ * 游客提示卡三件套 —— 与「游客验证码」及全站 Toast 共用 TopNotice 视觉：
  * 高 56px、顶部居中、无左侧竖条、无关闭按钮、自动消失（10s）。
- * 仅圆角从胶囊的 28 改为圆角矩形 16（用户认可的形态）。
  *
  * - GuestToasts（挂在根布局）：登录成功欢迎卡 + 会话到期提示卡
  * - GuestSessionWatcher：把服务端权威到期时间同步给根级守望器
@@ -38,55 +37,30 @@ function Card({ variant }: { variant: Variant }) {
     return () => cancelAnimationFrame(raf);
   }, []);
   return (
-    <div
-      aria-live="polite"
-      className={[
-        "pointer-events-none fixed left-1/2 top-6 z-[120] -translate-x-1/2",
-        "transition-all duration-300 ease-out",
-        mounted ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0",
-      ].join(" ")}
-    >
-      <div
+    <TopNotice mounted={mounted}>
+      {variant.icon}
+      <span
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          height: 56,
-          padding: "0 20px",
-          borderRadius: 16,
-          background: "rgba(240, 240, 245, 0.95)",
-          backdropFilter: "saturate(180%) blur(22px)",
-          WebkitBackdropFilter: "saturate(180%) blur(22px)",
-          boxShadow:
-            "0 10px 30px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.05)",
-          width: "fit-content",
-          maxWidth: "calc(100vw - 48px)",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "#1d1d1f",
+          letterSpacing: "-0.01em",
+          whiteSpace: "nowrap",
         }}
       >
-        {variant.icon}
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#1d1d1f",
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {variant.title}
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: variant.subColor,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {variant.sub}
-        </span>
-      </div>
-    </div>
+        {variant.title}
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: variant.subColor,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {variant.sub}
+      </span>
+    </TopNotice>
   );
 }
 

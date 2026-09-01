@@ -26,7 +26,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         {children}
-        <Toaster position="top-center" richColors closeButton toastOptions={{ duration: 5000 }} />
+        <Toaster
+          position="top-center"
+          richColors
+          toastOptions={{ duration: 5000 }}
+        />
         <GuestOtpModal />
         <GuestToasts />
       </body>

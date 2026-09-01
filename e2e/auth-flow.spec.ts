@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptSharePasscode, decryptShareToken } from "@/lib/share-token-store";
-import { reportArtifactDir } from "@/lib/report-storage";
+import { reportArtifactDir, userReportsDir } from "@/lib/report-storage";
 import { isGuestEmail } from "@/lib/guest-sandbox";
 
 const fixture = {
@@ -15,6 +15,18 @@ const fixture = {
   reportSlug: `share_ui_${randomUUID().slice(0, 8)}`,
   storageKey: `a_${randomUUID().replaceAll("-", "")}`,
   reportTitle: "分享弹窗布局测试",
+  dragReports: [
+    { title: "排序测试 · 今日一", date: "2026-09-01", sortOrder: 0 },
+    { title: "排序测试 · 今日二", date: "2026-09-01", sortOrder: 1 },
+    { title: "排序测试 · 今日三", date: "2026-09-01", sortOrder: 2 },
+    { title: "排序测试 · 昨日一", date: "2026-08-30", sortOrder: 0 },
+    { title: "排序测试 · 昨日二", date: "2026-08-30", sortOrder: 1 },
+  ].map((report) => ({
+    ...report,
+    id: randomUUID(),
+    slug: `drag_${randomUUID().slice(0, 8)}`,
+    storageKey: `a_${randomUUID().replaceAll("-", "")}`,
+  })),
 };
 
 test.beforeAll(async () => {
@@ -41,8 +53,8 @@ test.beforeAll(async () => {
   await db.query(
     `INSERT INTO reports
        (id, user_id, slug, revision_id, title, date, tag, description, keywords,
-        size_bytes, storage_key)
-     VALUES ($1, $2, $3, $4, $5, '2026-08-31', '', '', '', $6, $7)`,
+        sort_order, size_bytes, storage_key)
+     VALUES ($1, $2, $3, $4, $5, '2026-08-31', '', '', '', 0, $6, $7)`,
     [
       fixture.reportId,
       user.id,
@@ -59,11 +71,33 @@ test.beforeAll(async () => {
     `${dir}/report.html`,
     reportHtml,
   );
+  for (const report of fixture.dragReports) {
+    await db.query(
+      `INSERT INTO reports
+         (id, user_id, slug, revision_id, title, date, tag, description, keywords,
+          sort_order, size_bytes, storage_key)
+       VALUES ($1, $2, $3, $4, $5, $6, '', '', '', $7, $8, $9)`,
+      [
+        report.id,
+        user.id,
+        report.slug,
+        randomUUID(),
+        report.title,
+        report.date,
+        report.sortOrder,
+        Buffer.byteLength(reportHtml),
+        report.storageKey,
+      ],
+    );
+    const reportDir = reportArtifactDir(user.id, report.storageKey);
+    await fs.mkdir(reportDir, { recursive: true });
+    await fs.writeFile(`${reportDir}/report.html`, reportHtml);
+  }
 });
 
 test.afterAll(async () => {
   if (fixture.userId) {
-    await fs.rm(reportArtifactDir(fixture.userId, fixture.storageKey), {
+    await fs.rm(userReportsDir(fixture.userId), {
       recursive: true,
       force: true,
     });
@@ -334,6 +368,14 @@ test("游客登录与退出仍完整创建并销毁临时账号", async ({ brows
   await page.goto("/");
   await page.getByRole("button", { name: "游客登录" }).click();
   await expect(page).toHaveURL(/\/home$/);
+  const guestNotice = page.locator(".top-notice-card");
+  await expect(guestNotice).toContainText("游客登录成功");
+  await expect(guestNotice).toHaveCSS("min-height", "56px");
+  await expect(guestNotice).toHaveCSS("border-radius", "16px");
+  await expect(guestNotice).toHaveCSS(
+    "background-color",
+    "rgba(240, 240, 245, 0.95)",
+  );
 
   const session = await page.request.get("/api/auth/get-session");
   expect(session.status()).toBe(200);
@@ -358,6 +400,346 @@ test("游客登录与退出仍完整创建并销毁临时账号", async ({ brows
   });
   expect(after).toBeNull();
   await context.close();
+});
+
+test("首页卡片可流畅跨间隙和跨日期排序", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  await page.goto("/");
+  await expect(page.getByTestId("auth-form")).toHaveAttribute(
+    "data-hydrated",
+    "true",
+  );
+  await page.getByLabel("邮箱").fill(fixture.email);
+  await page.getByLabel("密码", { exact: true }).fill(fixture.password);
+  await page
+    .locator("form")
+    .getByRole("button", { name: "登录", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/home$/);
+
+  async function dayOrder(date: string) {
+    return page.locator(`[data-report-card-date="${date}"]`).evaluateAll(
+      (elements) => elements.map((element) => element.getAttribute("data-report-dnd-slug")),
+    );
+  }
+
+  async function dragToPoint(
+    sourceSlug: string,
+    point: { x: number; y: number },
+    expectedOrder: string[],
+    approach?: {
+      point: { x: number; y: number };
+      verify: () => Promise<void>;
+    },
+    verifyHoverSuppression = false,
+  ) {
+    const source = page.locator(`[data-report-dnd-slug="${sourceSlug}"]`);
+    const cardSurface = source.locator(":scope > div > a").first();
+    const restingShadow = await cardSurface.evaluate(
+      (element) => getComputedStyle(element).boxShadow,
+    );
+    const sourceBox = await source.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    await page.mouse.move(
+      sourceBox!.x + sourceBox!.width / 2,
+      sourceBox!.y + sourceBox!.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      sourceBox!.x + sourceBox!.width / 2 + 10,
+      sourceBox!.y + sourceBox!.height / 2,
+      { steps: 2 },
+    );
+    await expect(
+      page.locator(`[data-report-dnd-slug="${sourceSlug}"][data-dnd-dragging]`),
+    ).toBeVisible();
+    await expect(cardSurface).toHaveCSS("box-shadow", restingShadow);
+    if (approach) {
+      await page.mouse.move(approach.point.x, approach.point.y, { steps: 10 });
+      await approach.verify();
+    }
+    await page.mouse.move(point.x, point.y, { steps: 14 });
+    await page.waitForTimeout(300);
+    const response = page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === "POST" &&
+        new URL(candidate.url()).pathname === "/api/reports/reorder",
+    );
+    await page.evaluate((slug) => {
+      const trace: Array<{
+        x: number;
+        y: number;
+        phase: "dragging" | "settled";
+      }> = [];
+      (window as typeof window & { __reportDropTrace?: typeof trace })
+        .__reportDropTrace = trace;
+      let stableFrames = 0;
+      let previous: { x: number; y: number } | null = null;
+      const startedAt = performance.now();
+      const sample = () => {
+        const selector = `[data-report-dnd-slug="${CSS.escape(slug)}"]`;
+        const dragging = document.querySelector<HTMLElement>(
+          `${selector}[data-dnd-dragging]`,
+        );
+        const settled = [...document.querySelectorAll<HTMLElement>(selector)]
+          .find((element) => !element.hasAttribute("data-dnd-placeholder"));
+        const element = dragging ?? settled;
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          const current = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          };
+          trace.push({
+            ...current,
+            phase: dragging ? "dragging" : "settled",
+          });
+          stableFrames = previous &&
+              Math.hypot(current.x - previous.x, current.y - previous.y) <= 0.25
+            ? stableFrames + 1
+            : 0;
+          previous = current;
+        }
+        if (
+          performance.now() - startedAt < 1_200 &&
+          (dragging || stableFrames < 8)
+        ) {
+          requestAnimationFrame(sample);
+        }
+      };
+      requestAnimationFrame(sample);
+    }, sourceSlug);
+    await page.mouse.up();
+    expect((await response).status()).toBe(200);
+    await expect(
+      page.locator(`[data-report-dnd-slug="${sourceSlug}"][data-dnd-dragging]`),
+    ).toHaveCount(0);
+    await page.waitForTimeout(100);
+    const trace = await page.evaluate(() =>
+      (window as typeof window & {
+        __reportDropTrace?: Array<{
+          x: number;
+          y: number;
+          phase: "dragging" | "settled";
+        }>;
+      }).__reportDropTrace ?? []
+    );
+    expect(trace.length).toBeGreaterThan(4);
+    const start = trace[0];
+    const end = trace.at(-1)!;
+    const displacement = Math.hypot(end.x - start.x, end.y - start.y);
+    let pathLength = 0;
+    let maxReverseStep = 0;
+    if (displacement > 1) {
+      const direction = {
+        x: (end.x - start.x) / displacement,
+        y: (end.y - start.y) / displacement,
+      };
+      for (let index = 1; index < trace.length; index += 1) {
+        const step = {
+          x: trace[index].x - trace[index - 1].x,
+          y: trace[index].y - trace[index - 1].y,
+        };
+        pathLength += Math.hypot(step.x, step.y);
+        maxReverseStep = Math.max(
+          maxReverseStep,
+          -(step.x * direction.x + step.y * direction.y),
+        );
+      }
+    }
+    const lastDraggingIndex = trace.findLastIndex(
+      (sample) => sample.phase === "dragging",
+    );
+    const firstSettledIndex = trace.findIndex(
+      (sample, index) =>
+        index > lastDraggingIndex && sample.phase === "settled",
+    );
+    const finalCorrection =
+      lastDraggingIndex >= 0 && firstSettledIndex >= 0
+        ? Math.hypot(
+            trace[firstSettledIndex].x - trace[lastDraggingIndex].x,
+            trace[firstSettledIndex].y - trace[lastDraggingIndex].y,
+          )
+        : 0;
+    expect(maxReverseStep).toBeLessThanOrEqual(2);
+    expect(finalCorrection).toBeLessThanOrEqual(2);
+    if (displacement > 1) {
+      expect(pathLength / displacement).toBeLessThanOrEqual(1.05);
+    }
+    if (verifyHoverSuppression) {
+      const cardGroup = source.locator(":scope > div").first();
+      const reportAction = source.getByText("查看报告", { exact: true });
+      const editAction = source.locator('a[aria-label^="编辑 "]');
+      await expect(source).toHaveAttribute(
+        "data-report-hover-suppressed",
+        "true",
+      );
+      await expect(cardGroup).not.toHaveClass(/\bgroup\b/);
+      await expect(reportAction).toHaveCSS("opacity", "0");
+      await expect(editAction).toHaveCSS("opacity", "0");
+      await page.mouse.move(point.x + 2, point.y);
+      await expect(source).toHaveAttribute(
+        "data-report-hover-suppressed",
+        "true",
+      );
+      await page.mouse.move(point.x + 4, point.y);
+      await expect(source).not.toHaveAttribute(
+        "data-report-hover-suppressed",
+        "true",
+      );
+      await expect(cardGroup).toHaveClass(/\bgroup\b/);
+      await expect(reportAction).toHaveCSS("opacity", "1");
+      await expect(editAction).toHaveCSS("opacity", "1");
+    }
+    expect(
+      await page.locator("[data-report-dnd-slug]").evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("data-report-dnd-slug")),
+      ),
+    ).toEqual(expectedOrder);
+  }
+
+  const today = "2026-09-01";
+  const yesterday = "2026-08-30";
+  const standalone = fixture.reportSlug;
+  const [todayOne, todayTwo, todayThree, yesterdayOne, yesterdayTwo] =
+    fixture.dragReports;
+  await expect(page.getByText(todayOne.title, { exact: true })).toBeVisible();
+  expect(await dayOrder(today)).toEqual([
+    todayOne.slug,
+    todayTwo.slug,
+    todayThree.slug,
+  ]);
+
+  // 进入目标不足一半时保留原位，越过约一半后才让目标卡片平滑让位。
+  const firstBox = await page
+    .locator(`[data-report-dnd-slug="${todayOne.slug}"]`)
+    .boundingBox();
+  const secondBox = await page
+    .locator(`[data-report-dnd-slug="${todayTwo.slug}"]`)
+    .boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  await dragToPoint(todayThree.slug, {
+    // 模拟用户把卡片拖到第一槽位左侧较远处再松手；归位轨迹只能向右逼近终点，不能越过后回吸。
+    x: firstBox!.x - 120,
+    y: firstBox!.y + firstBox!.height / 2,
+  }, [
+    todayThree.slug,
+    todayOne.slug,
+    todayTwo.slug,
+    standalone,
+    yesterdayOne.slug,
+    yesterdayTwo.slug,
+  ], {
+    point: {
+      x: secondBox!.x + secondBox!.width / 2 + 20,
+      y: firstBox!.y + firstBox!.height / 2,
+    },
+    verify: async () => {
+      expect(await dayOrder(today)).toEqual([
+        todayOne.slug,
+        todayTwo.slug,
+        todayThree.slug,
+      ]);
+    },
+  });
+  await expect.poll(() => dayOrder(today)).toEqual([
+    todayThree.slug,
+    todayOne.slug,
+    todayTwo.slug,
+  ]);
+
+  // 跨日期同样在拖动中心进入目标卡片后让位，并支持放到第一位。
+  const targetBox = await page
+    .locator(`[data-report-dnd-slug="${todayThree.slug}"]`)
+    .boundingBox();
+  expect(targetBox).not.toBeNull();
+  await dragToPoint(yesterdayTwo.slug, {
+    x: targetBox!.x + targetBox!.width / 2 - 20,
+    y: targetBox!.y + targetBox!.height / 2,
+  }, [
+    yesterdayTwo.slug,
+    todayThree.slug,
+    todayOne.slug,
+    todayTwo.slug,
+    standalone,
+    yesterdayOne.slug,
+  ], undefined, true);
+  await expect.poll(() => dayOrder(today)).toEqual([
+    yesterdayTwo.slug,
+    todayThree.slug,
+    todayOne.slug,
+    todayTwo.slug,
+  ]);
+  await expect(
+    page
+      .locator(`[data-report-dnd-slug="${yesterdayTwo.slug}"]`)
+      .getByText(today, { exact: true }),
+  ).toBeVisible();
+  expect(await dayOrder(yesterday)).toEqual([yesterdayOne.slug]);
+
+  // 把新日期的最后一张卡片移走时，日期组和月份会在放下后消失。
+  // 该场景必须仍以重排后的真实可见卡片为唯一终点，不能先飞向旧外层坐标再吸附。
+  for (const slug of [todayOne.slug, todayThree.slug, todayTwo.slug]) {
+    const olderOrder = (await dayOrder(yesterday)) as string[];
+    const targetIndex = olderOrder.indexOf(yesterdayOne.slug) + 1;
+    olderOrder.splice(targetIndex, 0, slug);
+    const olderTarget = await page
+      .locator(`[data-report-dnd-slug="${yesterdayOne.slug}"]`)
+      .boundingBox();
+    expect(olderTarget).not.toBeNull();
+    await dragToPoint(slug, {
+      x: olderTarget!.x + olderTarget!.width / 2,
+      y: olderTarget!.y + olderTarget!.height - 8,
+    }, [
+      ...((await dayOrder(today)).filter((item) => item !== slug) as string[]),
+      standalone,
+      ...olderOrder,
+    ]);
+  }
+  expect(await dayOrder(today)).toEqual([yesterdayTwo.slug]);
+  const finalOlderTarget = await page
+    .locator(`[data-report-dnd-slug="${yesterdayOne.slug}"]`)
+    .boundingBox();
+  expect(finalOlderTarget).not.toBeNull();
+  const finalOlderOrder = (await dayOrder(yesterday)) as string[];
+  finalOlderOrder.splice(
+    finalOlderOrder.indexOf(yesterdayOne.slug) + 1,
+    0,
+    yesterdayTwo.slug,
+  );
+  await dragToPoint(yesterdayTwo.slug, {
+    x: finalOlderTarget!.x + finalOlderTarget!.width / 2,
+    y: finalOlderTarget!.y + finalOlderTarget!.height - 8,
+  }, [
+    standalone,
+    ...finalOlderOrder,
+  ]);
+  await expect(page.locator(`[data-report-day="${today}"]`)).toHaveCount(0);
+  expect(await dayOrder(yesterday)).toHaveLength(5);
+
+  // 保存失败通知与游客提示使用完全相同的顶部通知外观。
+  await page.evaluate(() => {
+    sessionStorage.setItem("surge:report-reorder-error", "1");
+  });
+  await page.reload();
+  const saveErrorNotice = page.locator("[data-sonner-toast]");
+  await expect(saveErrorNotice).toContainText(
+    "排序保存失败，已重新同步项目顺序",
+  );
+  await expect(saveErrorNotice).toHaveCSS("min-height", "56px");
+  await expect(saveErrorNotice).toHaveCSS("border-radius", "16px");
+  await expect(saveErrorNotice).toHaveCSS(
+    "background-color",
+    "rgba(240, 240, 245, 0.95)",
+  );
+  await expect(saveErrorNotice.locator("[data-close-button]")).toHaveCount(0);
+
+  const signOut = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/end-session", { method: "POST" });
+    return response.status;
+  });
+  expect(signOut).toBe(200);
 });
 
 test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page, browser }) => {
@@ -434,7 +816,15 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(
     page.locator("code").filter({ hasText: apiTokenText ?? "" }).first(),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "复制令牌" })).toBeVisible();
+  const apiTokenCard = page.locator("section.account-card").filter({
+    has: page.getByRole("heading", { name: "API 令牌" }),
+  });
+  const copyTokenButton = apiTokenCard.locator('[data-copy-variant="icon"]');
+  await expect(copyTokenButton).toHaveAccessibleName("复制令牌");
+  await copyTokenButton.click();
+  await expect(copyTokenButton).toHaveAttribute("data-copy-state", "copied");
+  await expect(copyTokenButton).toHaveCSS("color", "rgb(52, 199, 89)");
+  await expect(copyTokenButton).toHaveAccessibleName("令牌已复制");
   await page.getByRole("button", { name: "生成邀请码" }).click();
   const inviteCode = page.locator("code").filter({ hasText: /^[0-9A-Z]{6}$/ }).first();
   await expect(inviteCode).toBeVisible();
@@ -472,6 +862,13 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
         (invitationCardBox!.x + invitationCardBox!.width - 30),
     ),
   ).toBeLessThanOrEqual(2);
+  const copyInviteButton = invitationCard.locator(
+    '[data-copy-variant="icon"]',
+  );
+  await copyInviteButton.click();
+  await expect(copyInviteButton).toHaveAttribute("data-copy-state", "copied");
+  await expect(copyInviteButton).toHaveCSS("color", "rgb(52, 199, 89)");
+  await expect(copyInviteButton).toHaveAccessibleName("邀请链接已复制");
   await page.getByRole("link", { name: "查看邀请详情" }).click();
   await expect(page).toHaveURL(/\/account\/invitations$/);
   await expect(page.getByRole("heading", { name: "邀请详情" })).toBeVisible();
@@ -686,7 +1083,8 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
 
   await page.goto("/shares");
   const managedBoard = page.locator("article").filter({ hasText: "带密码的测试面板" });
-  const copyBoardLink = managedBoard.getByRole("button", { name: "复制链接" });
+  const copyBoardLink = managedBoard.locator('[data-copy-variant="pill"]');
+  await expect(copyBoardLink).toHaveAccessibleName("复制链接");
   const openBoardLink = managedBoard.getByRole("link", { name: "打开面板" });
   const [copyBox, openBox] = await Promise.all([
     copyBoardLink.boundingBox(),
@@ -697,6 +1095,11 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   expect(openBox!.height).toBe(copyBox!.height);
   expect(openBox!.width).toBe(copyBox!.width);
   expect(openBox!.x - (copyBox!.x + copyBox!.width)).toBeGreaterThanOrEqual(12);
+  await copyBoardLink.click();
+  await expect(copyBoardLink).toHaveText("已复制");
+  await expect(copyBoardLink).toHaveCSS("background-color", "rgb(52, 199, 89)");
+  await expect(copyBoardLink).toHaveCSS("color", "rgb(255, 255, 255)");
+  expect(await copyBoardLink.boundingBox()).toEqual(copyBox);
 
   // 已登录的属主打开自己的受保护分享时直接进入，不计作外部访客。
   await page.goto(`/b/${boardToken}`);
