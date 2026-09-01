@@ -6,6 +6,8 @@ import {
   logSecurity,
   verifyStoredOtp,
 } from "@/lib/account";
+import { isOtpCode } from "@/lib/otp-code";
+import { NEW_EMAIL_OTP_CODE_FORMAT_ERROR } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +25,11 @@ export async function POST(req: Request) {
   if (!token) {
     return Response.json({ error: "请先验证当前邮箱" }, { status: 400 });
   }
-  if (!otp) {
-    return Response.json({ error: "请输入新邮箱验证码" }, { status: 400 });
+  if (!isOtpCode(otp)) {
+    return Response.json(
+      { error: NEW_EMAIL_OTP_CODE_FORMAT_ERROR },
+      { status: 400 },
+    );
   }
 
   const change = await getChangeToken(token, session.user.id, "email_change");

@@ -7,11 +7,20 @@ import { passwordPolicyError } from "@/lib/password-policy";
 import { logger } from "@/lib/logger";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import {
+  getRegistrationPolicy,
   registrationInternalProof,
-  registrationIsOpen,
 } from "@/lib/registration-policy";
+import {
+  inviteCodeHasValidFormat,
+  normalizeInviteCode,
+  redeemRegistrationInvite,
+  validateRegistrationInvite,
+} from "@/lib/registration-invites";
+import { registrationErrorCopy } from "@/lib/registration-errors";
 import { db } from "@/lib/db";
 import { internalAuthProof } from "@/lib/internal-auth-proof";
+import { isOtpCode } from "@/lib/otp-code";
+import { OTP_CODE_FORMAT_ERROR } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -58,17 +67,18 @@ function proxyHeaders(hs: Headers, cookie?: string): Headers {
  * - 服务端验证过的账号重走注册：OTP 即所有权证明，直接登录。
  */
 export async function POST(req: Request) {
-  if (!registrationIsOpen()) {
-    return NextResponse.json({ error: "当前未开放新账号注册" }, { status: 403 });
-  }
   const body = (await req.json().catch(() => null)) as {
     email?: unknown;
     otp?: unknown;
     password?: unknown;
+    inviteCode?: unknown;
   } | null;
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const otp = typeof body?.otp === "string" ? body.otp.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
+  const inviteCode = normalizeInviteCode(
+    typeof body?.inviteCode === "string" ? body.inviteCode : "",
+  );
 
   if (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "邮箱格式不正确" }, { status: 400 });
@@ -77,8 +87,17 @@ export async function POST(req: Request) {
   if (pwdError) {
     return NextResponse.json({ error: pwdError }, { status: 400 });
   }
-  if (!/^\d{6}$/.test(otp)) {
-    return NextResponse.json({ error: "请输入 6 位验证码" }, { status: 400 });
+  if (!isOtpCode(otp)) {
+    return NextResponse.json(
+      { error: OTP_CODE_FORMAT_ERROR },
+      { status: 400 },
+    );
+  }
+  if (inviteCode && !inviteCodeHasValidFormat(inviteCode)) {
+    return NextResponse.json(
+      { code: "INVITE_FORMAT", error: registrationErrorCopy("INVITE_FORMAT") },
+      { status: 400 },
+    );
   }
 
   const hs = await nextHeaders();
@@ -104,6 +123,29 @@ export async function POST(req: Request) {
       [email],
     );
     const userExisted = !!before.rows[0];
+    const policy = await getRegistrationPolicy(registrationClient);
+    if (!userExisted && !policy.enabled) {
+      return NextResponse.json(
+        { error: registrationErrorCopy("REGISTRATION_CLOSED") },
+        { status: 403 },
+      );
+    }
+    if (!userExisted && policy.inviteRequired && !inviteCode) {
+      return NextResponse.json(
+        { code: "INVITE_REQUIRED", error: registrationErrorCopy("INVITE_REQUIRED") },
+        { status: 400 },
+      );
+    }
+    if (
+      !userExisted &&
+      inviteCode &&
+      !(await validateRegistrationInvite(inviteCode, registrationClient))
+    ) {
+      return NextResponse.json(
+        { code: "INVITE_INVALID", error: registrationErrorCopy("INVITE_INVALID") },
+        { status: 400 },
+      );
+    }
 
     // 1) OTP 验证 + 建号/会话创建。
     const otpHeaders = proxyHeaders(hs);
@@ -132,7 +174,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const createdUserId = otpData?.user?.id;
+    let createdUserId = otpData?.user?.id;
+    if (!userExisted && !createdUserId) {
+      const created = await registrationClient.query<{ id: string }>(
+        `SELECT id FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+        [email],
+      );
+      createdUserId = created.rows[0]?.id;
+    }
     const setCookies =
       otpRes.headers.getSetCookie?.() ??
       (otpRes.headers.get("set-cookie")?.split(/,(?=\s*\w+=)/) ?? []);
@@ -181,7 +230,31 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3) 只有完全初始化的账号才会拿到会话 cookie。
+    // 3) 新账号使用邀请码时，最后一步才写入邀请归因。若邀请码在注册
+    // 过程中被撤销，回滚本次新账号，浏览器不会收到会话 Cookie。
+    if (!userExisted && inviteCode) {
+      if (!createdUserId) {
+        await compensate();
+        return NextResponse.json(
+          { error: "注册失败，请稍后重试" },
+          { status: 500 },
+        );
+      }
+      const redeemed = await redeemRegistrationInvite({
+        client: registrationClient,
+        code: inviteCode,
+        userId: createdUserId,
+      });
+      if (!redeemed) {
+        await compensate();
+        return NextResponse.json(
+          { code: "INVITE_INVALID", error: registrationErrorCopy("INVITE_INVALID") },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 4) 只有完全初始化且已完成邀请码核销的账号才会拿到会话 cookie。
     const resp = NextResponse.json({ ok: true });
     for (const sc of setCookies) resp.headers.append("set-cookie", sc);
     return resp;

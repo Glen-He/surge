@@ -15,7 +15,6 @@ export type ProjectFormValues = {
   tagColor: TagColor;
   keywords: string;
   description: string;
-  externalNetwork: boolean;
 };
 
 const ICON_INFO = (
@@ -128,7 +127,6 @@ export function ProjectForm({
   const [colorOpen, setColorOpen] = useState(false);
   const [keywords, setKeywords] = useState(initial?.keywords ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [externalNetwork, setExternalNetwork] = useState(initial?.externalNetwork ?? false);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -188,7 +186,6 @@ export function ProjectForm({
           tagColor,
           keywords: keywords.trim(),
           description: description.trim(),
-          externalNetwork,
         },
         file,
       );
@@ -527,10 +524,6 @@ export function ProjectForm({
               <div className="upload-error-slot" role="alert">
                 {errors.file}
               </div>
-              <label className="mt-2 flex items-start gap-2 text-[12px] leading-[1.5] text-[#6e6e73]">
-                <input type="checkbox" checked={externalNetwork} onChange={(event) => setExternalNetwork(event.target.checked)} className="mt-0.5" />
-                允许汇报访问外部 HTTPS API、CDN 与嵌入网页；关闭后仅加载汇报包内资源
-              </label>
             </section>
           </div>
 

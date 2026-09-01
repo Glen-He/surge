@@ -14,7 +14,6 @@ export default function NewReportPage() {
     fd.set("tagColor", values.tagColor);
     fd.set("description", values.description);
     fd.set("keywords", values.keywords);
-    fd.set("externalNetwork", String(values.externalNetwork));
     fd.set("file", file!);
 
     const res = await fetch("/api/reports", { method: "POST", body: fd });

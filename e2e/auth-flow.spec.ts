@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptSharePasscode, decryptShareToken } from "@/lib/share-token-store";
 import { reportArtifactDir } from "@/lib/report-storage";
+import { isGuestEmail } from "@/lib/guest-sandbox";
 
 const fixture = {
   userId: "",
@@ -18,17 +19,21 @@ const fixture = {
 
 test.beforeAll(async () => {
   const context = await auth.$context;
-  const user = await context.internalAdapter.createUser({
-    name: "E2E Login",
-    email: fixture.email,
-    emailVerified: true,
-  });
+  const user = await context.internalAdapter.createUser(
+    {
+      name: "E2E Login",
+      email: fixture.email,
+      emailVerified: true,
+    },
+    { method: "test" },
+  );
   fixture.userId = user.id;
+  await db.query(`UPDATE "user" SET role = 'admin' WHERE id = $1`, [user.id]);
   const passwordHash = await context.password.hash(fixture.password);
   await db.query(
     `INSERT INTO account
-       (id, "accountId", "providerId", "userId", password, "updatedAt")
-     VALUES ($1, $2, 'credential', $2, $3, NOW())`,
+       (id, issuer, "accountId", "providerId", "userId", password, "updatedAt")
+     VALUES ($1, 'local:credential', $2, 'credential', $2, $3, NOW())`,
     [randomUUID(), user.id, passwordHash],
   );
   const reportHtml =
@@ -62,11 +67,300 @@ test.afterAll(async () => {
       recursive: true,
       force: true,
     });
+    await db.query(`DELETE FROM registration_invites WHERE created_by = $1`, [
+      fixture.userId,
+    ]);
     await db.query(`DELETE FROM "user" WHERE id = $1`, [fixture.userId]);
   }
 });
 
-test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page }) => {
+test("登录与注册切换不会改变认证卡片尺寸", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "布局回归只需在 Chromium 执行一次",
+  );
+
+  const previous = await db.query<{
+    registration_enabled: boolean;
+    invite_required: boolean;
+    updated_by: string | null;
+  }>(
+    `SELECT registration_enabled, invite_required, updated_by
+     FROM registration_settings
+     WHERE id = TRUE`,
+  );
+  const policy = previous.rows[0];
+  if (!policy) throw new Error("registration settings singleton is missing");
+
+  // 注册策略只控制提交权限，不能隐藏注册入口。
+  await db.query(
+    `UPDATE registration_settings
+     SET registration_enabled = FALSE,
+         invite_required = FALSE,
+         updated_at = NOW()
+     WHERE id = TRUE`,
+  );
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "注册", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "注册", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "当前未开放注册", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "当前未开放注册", exact: true }),
+  ).toBeDisabled();
+
+  await db.query(
+    `UPDATE registration_settings
+     SET registration_enabled = TRUE,
+         invite_required = FALSE,
+         updated_at = NOW()
+     WHERE id = TRUE`,
+  );
+
+  try {
+    const measureLayout = async () => {
+      const selectors = [
+        ".auth-stage",
+        ".auth-title",
+        ".auth-subtitle",
+        ".auth-tabs",
+        "#auth-email",
+        "#auth-password",
+        ".auth-actions",
+        ".auth-submit",
+        ".auth-guest",
+      ];
+      return Object.fromEntries(
+        await Promise.all(
+          selectors.map(async (selector) => {
+            const box = await page.locator(selector).boundingBox();
+            expect(box).not.toBeNull();
+            return [
+              selector,
+              {
+                x: box!.x,
+                y: box!.y,
+                width: box!.width,
+                height: box!.height,
+              },
+            ];
+          }),
+        ),
+      );
+    };
+
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+      await expect(page.getByTestId("auth-form")).toHaveAttribute(
+        "data-hydrated",
+        "true",
+      );
+      await expect(
+        page.getByRole("button", { name: "注册", exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("body")).toBeFocused();
+
+      const loginLayout = await measureLayout();
+      const loginSubmit = await page.locator(".auth-submit").boundingBox();
+      const loginGuest = await page.locator(".auth-guest").boundingBox();
+      const forgotPassword = await page
+        .getByRole("link", { name: "忘记密码？" })
+        .boundingBox();
+      expect(loginLayout[".auth-tabs"]?.height).toBe(38);
+      expect(loginLayout["#auth-email"]?.height).toBe(44);
+      expect(loginLayout["#auth-password"]?.height).toBe(44);
+      expect(loginSubmit).not.toBeNull();
+      expect(loginGuest).not.toBeNull();
+      expect(loginSubmit?.height).toBe(40);
+      expect(loginGuest?.height).toBe(42);
+      expect(loginSubmit?.width).toBe(loginGuest?.width);
+      expect(loginSubmit!.x).toBeLessThan(loginGuest!.x);
+      expect(forgotPassword).not.toBeNull();
+      expect(
+        loginLayout["#auth-email"]!.y -
+          (loginLayout[".auth-tabs"]!.y + loginLayout[".auth-tabs"]!.height),
+      ).toBe(32);
+      expect(
+        forgotPassword!.y -
+          (loginLayout["#auth-password"]!.y +
+            loginLayout["#auth-password"]!.height),
+      ).toBe(24);
+      await page.getByRole("button", { name: "注册", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "创建账号" })).toBeVisible();
+      await page.waitForTimeout(350);
+      const registrationLayout = await measureLayout();
+      const registrationSubmit = await page.locator(".auth-submit").boundingBox();
+
+      expect(registrationLayout).toEqual(loginLayout);
+      expect(registrationSubmit).not.toBeNull();
+      expect(registrationSubmit).toEqual(loginSubmit);
+
+      const inviteInput = page.getByLabel("邀请码（选填）", { exact: true });
+      const inviteLabel = page.locator('label[for="auth-invite-code"]');
+      const inputBeforeFocus = await inviteInput.boundingBox();
+      const signupActions = await page.locator(".auth-actions").boundingBox();
+      const labelBeforeFocus = await inviteLabel.boundingBox();
+      expect(inputBeforeFocus).not.toBeNull();
+      expect(signupActions).not.toBeNull();
+      expect(inputBeforeFocus?.height).toBe(44);
+      expect(
+        signupActions!.y - (inputBeforeFocus!.y + inputBeforeFocus!.height),
+      ).toBe(34);
+      expect(labelBeforeFocus).not.toBeNull();
+      expect(labelBeforeFocus!.y).toBeGreaterThan(inputBeforeFocus!.y);
+
+      await inviteInput.click();
+      await page.waitForTimeout(220);
+      const labelAfterFocus = await inviteLabel.boundingBox();
+      expect(labelAfterFocus).not.toBeNull();
+      expect(labelAfterFocus!.y).toBeLessThan(inputBeforeFocus!.y);
+      await expect(inviteLabel).toHaveCSS("color", "rgb(0, 113, 227)");
+
+      await inviteInput.fill("ABC123");
+      await inviteInput.press("Tab");
+      await expect(inviteLabel).toHaveCSS("color", "rgb(134, 134, 139)");
+      const labelAfterBlur = await inviteLabel.boundingBox();
+      expect(labelAfterBlur).not.toBeNull();
+      expect(labelAfterBlur!.y).toBeLessThan(inputBeforeFocus!.y);
+    }
+
+  } finally {
+    await db.query(
+      `UPDATE registration_settings
+       SET registration_enabled = $1,
+           invite_required = $2,
+           updated_by = $3,
+           updated_at = NOW()
+       WHERE id = TRUE`,
+      [policy.registration_enabled, policy.invite_required, policy.updated_by],
+    );
+  }
+});
+
+test("注册验证码使用单输入框并阻止重复自动提交", async ({ page }) => {
+  const previous = await db.query<{
+    registration_enabled: boolean;
+    invite_required: boolean;
+    updated_by: string | null;
+  }>(
+    `SELECT registration_enabled, invite_required, updated_by
+     FROM registration_settings
+     WHERE id = TRUE`,
+  );
+  const policy = previous.rows[0];
+  if (!policy) throw new Error("registration settings singleton is missing");
+
+  await db.query(
+    `UPDATE registration_settings
+     SET registration_enabled = TRUE,
+         invite_required = FALSE,
+         updated_at = NOW()
+     WHERE id = TRUE`,
+  );
+
+  try {
+    let verificationRequests = 0;
+    await page.route("**/api/auth/register/send-otp", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.route("**/api/auth/register", async (route) => {
+      verificationRequests += 1;
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "测试验证码无效" }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "注册", exact: true }).click();
+    await page.getByLabel("邮箱", { exact: true }).fill("otp-ui@example.test");
+    await page.getByLabel("设置密码", { exact: true }).fill("Password1");
+    await page
+      .getByRole("button", { name: "获取验证码", exact: true })
+      .click();
+
+    const otpInput = page.getByLabel("验证码", { exact: true });
+    await expect(otpInput).toHaveCount(1);
+    await expect(otpInput).toHaveAttribute("maxlength", "6");
+    await expect(otpInput).toHaveAttribute("autocomplete", "one-time-code");
+
+    // 模拟 Safari 在一次 AutoFill 中连续派发两个相同 input 事件。
+    await otpInput.evaluate((element) => {
+      const input = element as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(input, "123456");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      setter?.call(input, "123456");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect.poll(() => verificationRequests).toBe(1);
+  } finally {
+    await db.query(
+      `UPDATE registration_settings
+       SET registration_enabled = $1,
+           invite_required = $2,
+           updated_by = $3,
+           updated_at = NOW()
+       WHERE id = TRUE`,
+      [policy.registration_enabled, policy.invite_required, policy.updated_by],
+    );
+  }
+});
+
+test("游客登录与退出仍完整创建并销毁临时账号", async ({ browser }, testInfo) => {
+  const context = await browser.newContext({
+    // 两个浏览器项目并行时使用独立客户端地址，避免共享同一个游客限流桶。
+    extraHTTPHeaders: {
+      "x-forwarded-for":
+        testInfo.project.name === "webkit" ? "198.51.100.42" : "198.51.100.41",
+    },
+  });
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.getByRole("button", { name: "游客登录" }).click();
+  await expect(page).toHaveURL(/\/home$/);
+
+  const session = await page.request.get("/api/auth/get-session");
+  expect(session.status()).toBe(200);
+  const sessionBody = (await session.json()) as { user?: { email?: string } };
+  expect(isGuestEmail(sessionBody.user?.email ?? "")).toBe(true);
+
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/home$/);
+  await page.goto("/account/invitations");
+  await expect(page).toHaveURL(/\/account$/);
+  const inviteAccess = await page.request.get("/api/account/invites");
+  expect(inviteAccess.status()).toBe(403);
+
+  const endSessionStatus = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/end-session", { method: "POST" });
+    return response.status;
+  });
+  expect(endSessionStatus).toBe(200);
+  const after = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/get-session");
+    return response.json();
+  });
+  expect(after).toBeNull();
+  await context.close();
+});
+
+test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page, browser }) => {
   const bypassAttempt = await page.request.post("/api/auth/sign-in/email-otp", {
     data: {
       email: `closed-registration-${randomUUID()}@example.test`,
@@ -108,6 +402,13 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
 
   await page.goto("/");
   await expect(page.getByTestId("auth-form")).toHaveAttribute("data-hydrated", "true");
+  let loginSubmissions = 0;
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (request.method() === "POST" && requestUrl.pathname === "/") {
+      loginSubmissions += 1;
+    }
+  });
   const loginEmail = page.getByLabel("邮箱");
   await expect(loginEmail).not.toBeFocused();
   await loginEmail.fill(fixture.email);
@@ -115,6 +416,104 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await page.locator("form").getByRole("button", { name: "登录", exact: true }).click();
 
   await expect(page).toHaveURL(/\/home$/);
+  expect(loginSubmissions).toBe(1);
+  await expect(page.getByRole("link", { name: "系统管理" })).toHaveCount(0);
+  await page.getByRole("link", { name: "用户中心" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole("link", { name: "管理员后台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "邀请注册" })).toBeVisible();
+  await page.getByRole("button", { name: "新建令牌" }).click();
+  const apiToken = page.locator("code").filter({ hasText: /^sgk_/ }).first();
+  await expect(apiToken).toBeVisible();
+  await expect(
+    page.getByText("更换或撤销后旧值立即失效", { exact: true }).first(),
+  ).toBeVisible();
+  const apiTokenText = await apiToken.textContent();
+  await page.reload();
+  await page.getByRole("button", { name: "显示令牌" }).click();
+  await expect(
+    page.locator("code").filter({ hasText: apiTokenText ?? "" }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "复制令牌" })).toBeVisible();
+  await page.getByRole("button", { name: "生成邀请码" }).click();
+  const inviteCode = page.locator("code").filter({ hasText: /^[0-9A-Z]{6}$/ }).first();
+  await expect(inviteCode).toBeVisible();
+  const inviteCodeText = await inviteCode.textContent();
+  await expect(page.getByRole("button", { name: "复制邀请链接" })).toBeVisible();
+  await expect(page.getByText("0 人已注册", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("更换或撤销后旧值立即失效", { exact: true }).last(),
+  ).toBeVisible();
+  const invitationCard = page.locator("section.account-card").filter({
+    has: page.getByRole("heading", { name: "邀请注册" }),
+  });
+  const invitationCardBox = await invitationCard.boundingBox();
+  const inviteCodeBox = await inviteCode.boundingBox();
+  const copyInviteBox = await page
+    .getByRole("button", { name: "复制邀请链接" })
+    .boundingBox();
+  const inviteCountBox = await page
+    .getByText("0 人已注册", { exact: true })
+    .boundingBox();
+  const detailsLinkBox = await page
+    .getByRole("link", { name: "查看邀请详情" })
+    .boundingBox();
+  expect(invitationCardBox).not.toBeNull();
+  expect(inviteCodeBox).not.toBeNull();
+  expect(copyInviteBox).not.toBeNull();
+  expect(inviteCountBox).not.toBeNull();
+  expect(detailsLinkBox).not.toBeNull();
+  expect(copyInviteBox!.x - (inviteCodeBox!.x + inviteCodeBox!.width)).toBeLessThanOrEqual(6);
+  expect(inviteCountBox!.x).toBeGreaterThan(copyInviteBox!.x + copyInviteBox!.width);
+  expect(
+    Math.abs(
+      detailsLinkBox!.x +
+        detailsLinkBox!.width -
+        (invitationCardBox!.x + invitationCardBox!.width - 30),
+    ),
+  ).toBeLessThanOrEqual(2);
+  await page.getByRole("link", { name: "查看邀请详情" }).click();
+  await expect(page).toHaveURL(/\/account\/invitations$/);
+  await expect(page.getByRole("heading", { name: "邀请详情" })).toBeVisible();
+  await expect(page.getByText("0 人", { exact: true })).toBeVisible();
+  await expect(page.getByText("正常使用", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "返回", exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.reload();
+  await expect(page.locator("code").filter({ hasText: inviteCodeText ?? "" }).first()).toBeVisible();
+  await page.getByRole("link", { name: "管理员后台" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  const registrationToggle = page.getByRole("switch", {
+    name: "允许用户注册",
+  });
+  await expect(registrationToggle).not.toBeFocused();
+  const registrationToggleBox = await registrationToggle.boundingBox();
+  expect(registrationToggleBox).toMatchObject({ width: 38, height: 22 });
+  if ((await registrationToggle.getAttribute("aria-checked")) !== "true") {
+    await registrationToggle.click();
+    await expect(registrationToggle).toHaveAttribute("aria-checked", "true");
+  }
+  await page.waitForTimeout(250);
+  const registrationTrack = registrationToggle.locator("span").first();
+  const registrationThumb = registrationTrack.locator("span");
+  const registrationTrackBox = await registrationTrack.boundingBox();
+  const registrationThumbBox = await registrationThumb.boundingBox();
+  expect(registrationTrackBox).not.toBeNull();
+  expect(registrationThumbBox).not.toBeNull();
+  expect(registrationThumbBox!.x).toBe(registrationTrackBox!.x + 18);
+  expect(registrationThumbBox!.x + registrationThumbBox!.width).toBe(
+    registrationTrackBox!.x + registrationTrackBox!.width - 2,
+  );
+  const inviteContext = await browser.newContext();
+  const invitePage = await inviteContext.newPage();
+  await invitePage.goto(
+    `${new URL(page.url()).origin}/#invite=${inviteCodeText}`,
+  );
+  const lockedInvite = invitePage.getByLabel("邀请码（邀请链接已填写）");
+  await expect(lockedInvite).toHaveValue(inviteCodeText ?? "");
+  await expect(lockedInvite).toHaveAttribute("readonly", "");
+  await inviteContext.close();
+  await page.goto("/home");
   await page.goto(`/report/${fixture.reportSlug}`);
   const embeddedReport = page.frameLocator(`iframe[title="${fixture.reportTitle}"]`);
   await embeddedReport.locator("body").evaluate(() => {
@@ -312,9 +711,9 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(page.getByPlaceholder("4 位提取码")).toBeHidden();
 
   // 未登录访问者从自带提取码的链接进入时自动解锁，fragment 随即清除。
-  const browser = page.context().browser();
-  expect(browser).not.toBeNull();
-  const visitorContext = await browser!.newContext();
+  const visitorBrowser = page.context().browser();
+  expect(visitorBrowser).not.toBeNull();
+  const visitorContext = await visitorBrowser!.newContext();
   const visitor = await visitorContext.newPage();
   const origin = new URL(page.url()).origin;
   await visitor.goto(`${origin}/b/${boardToken}#pwd=${boardPasscode}`);

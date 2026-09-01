@@ -447,29 +447,6 @@ const MAINTENANCE_STATE: Migration = {
 
 MIGRATIONS.push(MAINTENANCE_STATE);
 
-const REPORT_PRIVACY_MODE: Migration = {
-  version: 18,
-  name: "report-privacy-mode",
-  statements: [
-    `ALTER TABLE reports ADD COLUMN IF NOT EXISTS external_network_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
-  ],
-};
-
-MIGRATIONS.push(REPORT_PRIVACY_MODE);
-
-// ── v19：新报告外部网络安全默认值──
-// v18 以 TRUE 回填存量报告，避免升级后页面突然断网。
-// 本迁移只改之后新行的 DB 默认值，存量值保持不变。
-const REPORT_PRIVACY_DEFAULT: Migration = {
-  version: 19,
-  name: "report-privacy-default",
-  statements: [
-    `ALTER TABLE reports ALTER COLUMN external_network_enabled SET DEFAULT FALSE`,
-  ],
-};
-
-MIGRATIONS.push(REPORT_PRIVACY_DEFAULT);
-
 // ── v20：可再次复制的 4 位分享提取码──
 // 验证仍使用 scrypt 哈希；密文只供属主重新复制“链接 + 提取码”，
 // 且与分享 token 使用不同的派生密钥。v23 会清理无法恢复的 hash-only 记录。
@@ -578,6 +555,146 @@ const REMOVE_DEVELOPMENT_COMPATIBILITY: Migration = {
 };
 
 MIGRATIONS.push(REMOVE_DEVELOPMENT_COMPATIBILITY);
+
+// ── v24：删除报告外部网络能力──
+// 汇报只允许加载当前 capability 目录内的资源；普通用户触发的新标签页
+// 外链由 sandbox 独立放行，不依赖数据库开关。
+const REMOVE_REPORT_EXTERNAL_NETWORK: Migration = {
+  version: 24,
+  name: "remove-report-external-network",
+  statements: [
+    `ALTER TABLE reports DROP COLUMN IF EXISTS external_network_enabled`,
+  ],
+};
+
+MIGRATIONS.push(REMOVE_REPORT_EXTERNAL_NETWORK);
+
+// ── v25：运行时注册策略与一次性邀请码──
+// 注册开关必须由管理员即时管理，不能依赖重启进程才能生效的环境变量。
+// 邀请码用 HMAC lookup 校验，同时以独立派生密钥加密保存，供管理员再次
+// 复制。数据库只读泄漏不会直接暴露可用邀请码。
+const REGISTRATION_ADMIN: Migration = {
+  version: 25,
+  name: "registration-admin",
+  statements: [
+    `CREATE TABLE registration_settings (
+       id                   BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+       registration_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+       invite_required      BOOLEAN NOT NULL DEFAULT FALSE,
+       updated_by           TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+       updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+       CONSTRAINT registration_settings_invite_requires_registration
+         CHECK (registration_enabled OR NOT invite_required)
+     )`,
+    `INSERT INTO registration_settings
+       (id, registration_enabled, invite_required)
+     VALUES (TRUE, FALSE, FALSE)`,
+    `CREATE TABLE registration_invites (
+       id          TEXT PRIMARY KEY,
+       code_lookup TEXT NOT NULL UNIQUE,
+       code_enc    TEXT NOT NULL,
+       label       TEXT CHECK (label IS NULL OR char_length(label) <= 60),
+       max_uses    INTEGER NOT NULL DEFAULT 1 CHECK (max_uses > 0),
+       use_count   INTEGER NOT NULL DEFAULT 0 CHECK (use_count >= 0 AND use_count <= max_uses),
+       expires_at  TIMESTAMPTZ,
+       disabled_at TIMESTAMPTZ,
+       created_by  TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+       CONSTRAINT registration_invites_expiry_after_creation
+         CHECK (expires_at IS NULL OR expires_at > created_at)
+     )`,
+    `CREATE INDEX registration_invites_created_at
+       ON registration_invites (created_at DESC)`,
+    `CREATE INDEX registration_invites_active_expiry
+       ON registration_invites (expires_at)
+       WHERE disabled_at IS NULL`,
+    `CREATE TABLE registration_invite_redemptions (
+       id          TEXT PRIMARY KEY,
+       invite_id   TEXT NOT NULL REFERENCES registration_invites(id) ON DELETE RESTRICT,
+       user_id     TEXT NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,
+       redeemed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+    `CREATE INDEX registration_invite_redemptions_invite
+       ON registration_invite_redemptions (invite_id, redeemed_at DESC)`,
+  ],
+};
+
+MIGRATIONS.push(REGISTRATION_ADMIN);
+
+// ── v26：用户级单邀请码与可回显 API 令牌──
+// 每个正式用户只保留一条邀请码记录；更换时更新原记录，撤销后仍保留
+// use_count 供以后奖励归因。API 令牌继续用 lookup 完成认证，同时恢复
+// 独立 AES-GCM 密文供所有者随时查看；无法恢复的旧令牌在迁移时安全撤销。
+const SINGLE_INVITE_AND_VISIBLE_API_TOKEN: Migration = {
+  version: 26,
+  name: "single-invite-and-visible-api-token",
+  statements: [
+    `ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS token_enc TEXT`,
+    `UPDATE api_tokens
+       SET revoked_at = NOW()
+       WHERE revoked_at IS NULL
+         AND (token_enc IS NULL OR token_enc = '')`,
+    `UPDATE api_tokens SET token_enc = '' WHERE token_enc IS NULL`,
+    `ALTER TABLE api_tokens ALTER COLUMN token_enc SET NOT NULL`,
+    `ALTER TABLE api_tokens
+       DROP COLUMN IF EXISTS token_prefix,
+       DROP COLUMN IF EXISTS name`,
+    `WITH ranked AS (
+       SELECT id,
+              FIRST_VALUE(id) OVER (
+                PARTITION BY created_by
+                ORDER BY (disabled_at IS NULL) DESC, created_at DESC, id DESC
+              ) AS keeper_id,
+              ROW_NUMBER() OVER (
+                PARTITION BY created_by
+                ORDER BY (disabled_at IS NULL) DESC, created_at DESC, id DESC
+              ) AS rn
+       FROM registration_invites
+       WHERE created_by IS NOT NULL
+     )
+     UPDATE registration_invite_redemptions r
+        SET invite_id = ranked.keeper_id
+       FROM ranked
+      WHERE ranked.rn > 1 AND r.invite_id = ranked.id`,
+    `WITH ranked AS (
+       SELECT id,
+              ROW_NUMBER() OVER (
+                PARTITION BY created_by
+                ORDER BY (disabled_at IS NULL) DESC, created_at DESC, id DESC
+              ) AS rn
+       FROM registration_invites
+       WHERE created_by IS NOT NULL
+     )
+     DELETE FROM registration_invites i
+      USING ranked
+      WHERE ranked.rn > 1 AND i.id = ranked.id`,
+    `ALTER TABLE registration_invites
+       DROP CONSTRAINT IF EXISTS registration_invites_max_uses_check`,
+    `ALTER TABLE registration_invites
+       DROP CONSTRAINT IF EXISTS registration_invites_use_count_check`,
+    `ALTER TABLE registration_invites
+       DROP CONSTRAINT IF EXISTS registration_invites_expiry_after_creation`,
+    `UPDATE registration_invites i
+        SET use_count = (
+          SELECT COUNT(*)::integer
+          FROM registration_invite_redemptions r
+          WHERE r.invite_id = i.id
+        )`,
+    `DROP INDEX IF EXISTS registration_invites_active_expiry`,
+    `ALTER TABLE registration_invites
+       DROP COLUMN IF EXISTS label,
+       DROP COLUMN IF EXISTS max_uses,
+       DROP COLUMN IF EXISTS expires_at`,
+    `ALTER TABLE registration_invites
+       ADD CONSTRAINT registration_invites_use_count_nonnegative
+       CHECK (use_count >= 0)`,
+    `CREATE UNIQUE INDEX registration_invites_one_per_creator
+       ON registration_invites (created_by)
+       WHERE created_by IS NOT NULL`,
+  ],
+};
+
+MIGRATIONS.push(SINGLE_INVITE_AND_VISIBLE_API_TOKEN);
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;

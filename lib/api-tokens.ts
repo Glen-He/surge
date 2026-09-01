@@ -7,14 +7,15 @@ import {
 } from "./db-rate-limit";
 import { isGuestEmail } from "./guest-sandbox";
 import { logger } from "./logger";
+import { decryptApiToken, encryptApiToken } from "./api-token-store";
 
 // ── 个人 API 访问令牌（PAT）──
 // 用于程序化上传（/api/v1/*）：脚本/AI 无法走浏览器会话，
-// 以 Bearer 令牌认证。每用户仅一个令牌，明文只在创建/更换响应中展示一次。
+// 以 Bearer 令牌认证。每用户仅一个有效令牌，账户页可再次查看明文。
 // 安全设计：
 // - 明文 sgk_ + 43 位 base64url（32 字节 CSPRNG，≈256bit 熵），不可枚举
-// - 库里只存 SHA-256 指纹，无法恢复明文
-// - 令牌具有 256-bit 随机性，指纹等值定位不受低熵密码猜解威胁
+// - token_lookup 用 SHA-256 指纹完成索引认证，不需要解密全表
+// - token_enc 用独立密钥 AES-256-GCM 加密，仅供令牌所有者回显
 // - 更换（rotate）立即失效旧值；撤销即时生效；游客禁止使用
 
 /** 令牌认证失败限速：同 IP 20 次 / 10 分钟 */
@@ -32,11 +33,7 @@ export function generateApiToken(): string {
 
 export type ApiTokenInfo = {
   id: string;
-  name: string;
-  prefix: string;
-  token?: string;
-  createdAt: Date;
-  lastUsedAt: Date | null;
+  token: string | null;
 };
 
 export type ApiTokenErrorCode = "GUEST_UNSUPPORTED" | "TOKEN_ALREADY_EXISTS";
@@ -45,32 +42,34 @@ export type ApiTokenMutationResult =
   | { errorCode: ApiTokenErrorCode };
 
 /**
- * 读用户当前令牌的非敏感元数据。明文不可恢复。
+ * 读取用户当前令牌并解密明文。
  */
 export async function getApiToken(
   userId: string,
 ): Promise<ApiTokenInfo | null> {
   const { rows } = await db.query<{
     id: string;
-    name: string;
-    token_prefix: string;
-    created_at: Date;
-    last_used_at: Date | null;
+    token_enc: string;
   }>(
-    `SELECT id, name, token_prefix, created_at, last_used_at
+    `SELECT id, token_enc
      FROM api_tokens WHERE user_id = $1 AND revoked_at IS NULL
      ORDER BY created_at DESC LIMIT 1`,
     [userId],
   );
   const row = rows[0];
   if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    prefix: row.token_prefix,
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at,
-  };
+  try {
+    return {
+      id: row.id,
+      token: decryptApiToken(row.token_enc),
+    };
+  } catch (error) {
+    logger.error("api-token", "failed to decrypt API token", error as Error, {
+      userId,
+      tokenId: row.id,
+    });
+    return { id: row.id, token: null };
+  }
 }
 
 /**
@@ -80,24 +79,23 @@ export async function getApiToken(
 export async function createApiToken(
   userId: string,
   email: string,
-  name = "",
 ): Promise<ApiTokenMutationResult> {
   if (isGuestEmail(email)) {
     return { errorCode: "GUEST_UNSUPPORTED" };
   }
   const token = generateApiToken();
-  let ins: { id: string; created_at: Date }[];
+  let ins: { id: string }[];
   try {
-    ({ rows: ins } = await db.query<{ id: string; created_at: Date }>(
-      `INSERT INTO api_tokens (id, user_id, name, token_lookup, token_prefix)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, created_at`,
+    ({ rows: ins } = await db.query<{ id: string }>(
+      `INSERT INTO api_tokens
+         (id, user_id, token_lookup, token_enc)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [
         randomBytes(16).toString("hex"),
         userId,
-        name,
         tokenLookup(token),
-        token.slice(0, 11),
+        encryptApiToken(token),
       ],
     ));
   } catch (error) {
@@ -112,11 +110,7 @@ export async function createApiToken(
   return {
     token: {
       id: ins[0].id,
-      name,
       token,
-      prefix: token.slice(0, 11),
-      createdAt: ins[0].created_at,
-      lastUsedAt: null,
     },
   };
 }
@@ -133,27 +127,20 @@ export async function rotateApiToken(
     return { errorCode: "GUEST_UNSUPPORTED" };
   }
   const token = generateApiToken();
-  const { rows } = await db.query<{
-    id: string;
-    name: string;
-    created_at: Date;
-  }>(
+  const { rows } = await db.query<{ id: string }>(
     `UPDATE api_tokens
-     SET token_lookup = $1, token_prefix = $2, created_at = NOW(), last_used_at = NULL
+     SET token_lookup = $1, token_enc = $2,
+         created_at = NOW(), last_used_at = NULL
      WHERE user_id = $3 AND revoked_at IS NULL
-     RETURNING id, name, created_at`,
-    [tokenLookup(token), token.slice(0, 11), userId],
+     RETURNING id`,
+    [tokenLookup(token), encryptApiToken(token), userId],
   );
   if (rows[0]) {
     logger.info("api-token", "api token rotated", { userId });
     return {
       token: {
         id: rows[0].id,
-        name: rows[0].name,
         token,
-        prefix: token.slice(0, 11),
-        createdAt: rows[0].created_at,
-        lastUsedAt: null,
       },
     };
   }
@@ -162,16 +149,13 @@ export async function rotateApiToken(
 }
 
 /** 撤销令牌（校验属主） */
-export async function revokeApiToken(
-  userId: string,
-  tokenId: string,
-): Promise<boolean> {
+export async function revokeCurrentApiToken(userId: string): Promise<boolean> {
   const { rowCount } = await db.query(
     `UPDATE api_tokens SET revoked_at = NOW()
-     WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
-    [tokenId, userId],
+     WHERE user_id = $1 AND revoked_at IS NULL`,
+    [userId],
   );
-  if (rowCount) logger.info("api-token", "api token revoked", { userId, tokenId });
+  if (rowCount) logger.info("api-token", "api token revoked", { userId });
   return rowCount === 1;
 }
 

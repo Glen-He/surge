@@ -1,6 +1,10 @@
 import { passwordPolicyError } from "@/lib/password-policy";
+import { isOtpCode } from "@/lib/otp-code";
+import { OTP_CODE_FORMAT_ERROR } from "@/lib/auth-errors";
 
-export type AuthResult = { ok: true } | { ok: false; error: string };
+export type AuthResult =
+  | { ok: true }
+  | { ok: false; error: string; field?: "inviteCode" };
 export type GuestResult =
   | { ok: true; ttlMinutes: number; expiresAt: string }
   | { ok: false; error: string };
@@ -24,9 +28,8 @@ async function fetchWithTimeout(
 }
 
 /**
- * 注册/游客仍由客户端认证接口完成，成功后做一次整页导航。
- * 密码登录不经过这里，已迁移到 Server Action，由服务端原子写 Cookie
- * 并 redirect，避免客户端 Cookie 提交时序问题。
+ * 认证接口或 Server Action 确认成功并写入 Cookie 后，统一做一次整页导航。
+ * 目标页通过新的文档请求读取会话，不依赖客户端路由缓存。
  */
 export async function navigateAfterAuth(path: string): Promise<void> {
   window.location.assign(path);
@@ -40,6 +43,7 @@ export async function navigateAfterAuth(path: string): Promise<void> {
 export async function sendSignUpOtp(
   email: string,
   password: string,
+  inviteCode: string,
 ): Promise<AuthResult> {
   // 密码规则必须拦在发码之前：验证通过即建号登录，
   // 规则不满足会导致「UI 提示失败、服务端 session 已建立」的状态分裂
@@ -51,10 +55,10 @@ export async function sendSignUpOtp(
     const response = await fetchWithTimeout("/api/auth/register/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, inviteCode }),
     });
     const data = (await response.json().catch(() => null)) as
-      | { error?: string }
+      | { error?: string; code?: string }
       | null;
     if (response.ok) return { ok: true };
     return {
@@ -62,6 +66,7 @@ export async function sendSignUpOtp(
       error: typeof data?.error === "string"
         ? data.error
         : "验证码发送失败，请稍后重试",
+      field: data?.code?.startsWith("INVITE_") ? "inviteCode" : undefined,
     };
   } catch {
     return { ok: false, error: "网络异常，请稍后重试" };
@@ -77,7 +82,11 @@ export async function registerWithOtp(
   email: string,
   otp: string,
   password: string,
+  inviteCode: string,
 ): Promise<AuthResult> {
+  if (!isOtpCode(otp)) {
+    return { ok: false, error: OTP_CODE_FORMAT_ERROR };
+  }
   const pwdError = passwordPolicyError(password);
   if (pwdError) {
     return { ok: false, error: pwdError };
@@ -86,16 +95,17 @@ export async function registerWithOtp(
     const res = await fetchWithTimeout("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp, password }),
+      body: JSON.stringify({ email, otp, password, inviteCode }),
     });
     const data = (await res.json().catch(() => null)) as
-      | { ok?: boolean; error?: string }
+      | { ok?: boolean; error?: string; code?: string }
       | null;
     if (!res.ok || !data?.ok) {
       const raw = typeof data?.error === "string" ? data.error : "";
       return {
         ok: false,
         error: raw || "注册失败，请稍后重试",
+        field: data?.code?.startsWith("INVITE_") ? "inviteCode" : undefined,
       };
     }
     return { ok: true };

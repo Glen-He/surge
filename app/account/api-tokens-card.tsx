@@ -11,10 +11,7 @@ import { CardHead } from "@/components/card-head";
 
 type TokenInfo = {
   id: string;
-  prefix: string;
-  token?: string;
-  createdAt: string;
-  lastUsedAt: string | null;
+  token: string | null;
 };
 
 const ICON_KEY = (
@@ -92,7 +89,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
         setToken(d.token ?? null);
         if (d.error) setError(d.error);
       })
-      .catch(() => {})
+      .catch(() => setError("令牌加载失败，请刷新后重试"))
       .finally(() => setLoaded(true));
   }, [isGuest]);
 
@@ -108,7 +105,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
         return;
       }
       setToken(data.token);
-      setRevealed(true); // 新令牌直接可见
+      setRevealed(true);
     } catch {
       setError("网络异常，请重试");
     } finally {
@@ -125,9 +122,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
     setToken(null);
     setRevealed(false);
     try {
-      const res = await fetch(`/api/account/tokens?id=${encodeURIComponent(prev.id)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch("/api/account/tokens", { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         setToken(prev); // 回滚
@@ -141,7 +136,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
     }
   }
 
-  const masked = (t: TokenInfo) => `${t.prefix}${"•".repeat(24)}`;
+  const masked = "sgk_" + "•".repeat(32);
 
   return (
     <section className="account-card">
@@ -171,19 +166,9 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
           <p className="text-[15px] leading-[1.5] text-[#86868b]">加载中…</p>
         ) : token ? (
           <div>
-            <p className="text-[12.5px] leading-[1.4] text-[#86868b]">
-              {token.lastUsedAt ? "最近使用" : "创建于"}{" "}
-              {new Date(
-                (token.lastUsedAt ?? token.createdAt) as string,
-              ).toLocaleDateString("zh-CN", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </p>
-            <div className="mt-1.5 flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <code className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[1.5] text-[#1d1d1f]">
-                {revealed && token.token ? token.token : masked(token)}
+                {token.token ? (revealed ? token.token : masked) : "令牌不可读取"}
               </code>
               {token.token && (
                 <>
@@ -199,11 +184,11 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                 </>
               )}
             </div>
-            {!token.token && (
-              <p className="mt-1 text-[12px] leading-[1.4] text-[#86868b]">
-                明文只在创建时显示一次；遗失后请更换令牌
-              </p>
-            )}
+            <p className="mt-1.5 text-[12px] leading-[1.4] text-[#86868b]">
+              {token.token
+                ? "更换或撤销后旧值立即失效"
+                : "更换后会生成新的可查看令牌"}
+            </p>
           </div>
         ) : (
           <p className="text-[15px] leading-[1.5] text-[#6e6e73]">

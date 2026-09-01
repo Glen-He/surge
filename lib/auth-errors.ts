@@ -1,5 +1,11 @@
 // better-auth 错误码 → 中文文案（框架默认返回英文 message，这里统一翻译）。
 // 客户端流程层（lib/auth-flow.ts）与注册端点（app/api/auth/register）共用。
+import { OTP_CODE_LENGTH } from "@/lib/otp-code";
+
+export const OTP_CODE_FORMAT_ERROR = `请输入 ${OTP_CODE_LENGTH} 位验证码`;
+export const NEW_EMAIL_OTP_CODE_FORMAT_ERROR =
+  `请输入 ${OTP_CODE_LENGTH} 位新邮箱验证码`;
+
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD: "邮箱或密码错误",
   USER_NOT_FOUND: "该邮箱尚未注册",

@@ -2,7 +2,6 @@
 
 import { APIError } from "better-auth/api";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
   checkPasswordLoginAllowed,
@@ -15,13 +14,12 @@ import { clientIp } from "@/lib/client-ip";
 import { logger } from "@/lib/logger";
 import { PASSWORD_MAX } from "@/lib/password-policy";
 
-export type PasswordLoginState = {
-  error: string;
-  submissionId: number;
-};
+export type PasswordLoginState =
+  | { ok: false; error: string; submissionId: number }
+  | { ok: true; error: ""; submissionId: number };
 
 function failed(error: string, submissionId: number): PasswordLoginState {
-  return { error, submissionId };
+  return { ok: false, error, submissionId };
 }
 
 function readableAuthError(error: unknown): string {
@@ -33,9 +31,10 @@ function readableAuthError(error: unknown): string {
 /**
  * 密码登录的唯一 UI 入口。
  *
- * 凭据校验、HttpOnly 会话 Cookie 写入与页面跳转全部在同一次 Server
- * Action 响应中完成。FormData 始终视为不可信输入，错误只返回 UI 需要的
- * 中文文案，不返回认证库响应、用户记录或会话令牌。
+ * 凭据校验与 HttpOnly 会话 Cookie 写入在同一次 Server Action 响应中完成。
+ * 成功后返回显式状态，由客户端在收到 Cookie 后执行整页导航。FormData
+ * 始终视为不可信输入，错误只返回 UI 需要的中文文案，不返回认证库响应、
+ * 用户记录或会话令牌。
  */
 export async function passwordLoginAction(
   _previousState: PasswordLoginState,
@@ -93,7 +92,7 @@ export async function passwordLoginAction(
     durationMs: Date.now() - startedAt,
   });
 
-  // redirect 是控制流异常，必须置于 catch 外；Cookie 已由 nextCookies 插件
-  // 写入当前 Server Action 响应，目标页首个请求即可读到会话。
-  redirect("/home");
+  // Cookie 由 nextCookies 插件写入当前 Server Action 响应。返回成功状态后，
+  // 客户端再执行整页导航，避免只依赖 RSC redirect 信号而出现已登录却未跳转。
+  return { ok: true, error: "", submissionId };
 }

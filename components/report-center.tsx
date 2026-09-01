@@ -8,6 +8,7 @@ import { Modal } from "@/components/modal";
 import { ShareModal } from "@/components/share-modal";
 import { EmptyState } from "@/components/empty-state";
 import { ReportCardLink } from "@/components/report-card-link";
+import { OtpCodeInput } from "@/components/otp-code-input";
 import type { ReportCardView as Report } from "@/lib/report-cards";
 import {
   moveReportToTargetDate,
@@ -280,16 +281,15 @@ function DeleteIcon({ r }: { r: Report }) {
           </span>{" "}
           以确认删除：
         </p>
-        <input
-          type="text"
+        <OtpCodeInput
           value={typed}
-          onChange={(e) => {
-            setTyped(e.target.value.replace(/\D/g, "").slice(0, 6));
+          onValueChange={(value) => {
+            setTyped(value);
             setError("");
           }}
           placeholder={code}
-          inputMode="numeric"
           autoComplete="off"
+          aria-label="删除项目验证码"
           className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] tracking-[0.2em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}

@@ -8,70 +8,39 @@ import { useSearchParams } from "next/navigation";
 // 视觉与 account-shell 体系一致（1080px 轨道、白卡 22px 圆角）；
 // 主题色用苹果官网按钮蓝 #0071e3（全站主操作按钮/聚焦色统一同款）
 
-const PROMPT = `请帮我把工作内容整理成一份数据汇报页面，要求如下：
+const PROMPT = `请根据我提供的工作材料，制作一份可上传到汇报平台的 HTML 数据汇报。先理解材料、汇报目的和读者，再选择合适的信息结构与视觉表达；材料不足时先向我确认，不得编造材料之外的数据。
 
-一、产物
-把结果生成在同一个文件夹里，主文件命名为 report.html（UTF-8 编码、中文页面）——这是唯一有命名要求的文件。
-数据量较大时，可以把纯数据拆到同文件夹的 data.js（用 var DATA = {...} 的形式），页面通过 <script src="data.js"></script> 引用。
-样式、图片、字体等辅助文件也放同一文件夹，一律用相对路径引用。
+一、设计边界
+除下方明确写明的平台外壳、运行环境和交付要求外，页面内部设计不设统一模板。卡片内部的内容组织、列数、层级、内嵌元素的 padding 与间距、字号、配色、编号方式、图表类型、图例位置和交互方式，都由你根据材料自由决定。不要为了套用固定版式而牺牲内容表达。
 
-二、页面约定（展示平台的固定要求）
-1. 页面背景 #f5f5f7，内容区固定宽度 1280px、水平居中，内容放在白色圆角卡片里；卡片宽度必须占满整个 1280px，最外层页面容器（.page/.wrap 等）不要加左右 padding——卡片左右边缘就是 1280 内容线，需要与平台菜单栏左右边缘对齐；卡片内部用自己的 padding 留白；
-2. 不要写页面大标题、页头、返回按钮、公司 Logo——平台会在页面上方统一展示标题和导航；
-3. 所有 JavaScript 用 IIFE 包裹，不要声明全局变量，不要操作页面标题；
-4. 引用本地资源一律用相对路径（./images/a.png），不要用以 / 开头的路径。
-5. 间距与排版（固定规范，不要改动）：
-   · 每张大卡片四周边距（padding）上下左右均为 50px，所有内容都落在页边距以内的内容区；
-   · 首张卡片距页面顶部 26px（页面容器 padding-top）、相邻卡片间距 26px（卡片 margin-bottom）、最后一张卡片距页面底部 72px（padding-bottom）；参考实现：.page{width:1280px;margin:0 auto;padding:26px 0 72px} + .card{padding:50px;margin-bottom:26px;border-radius:18px}；
-   · 卡片标题 23px 加粗，标题下默认带一行 13.5px 弱化色副标题；标题→副标题间距 16px，副标题→正文 26px；
-   · 正文 15.5px、行高 1.78；大卡片内 2 列内嵌卡片的间距（横向列间距与上下行间距）统一 20px，内嵌卡片内部上下左右边距 20px；
-   · 标题/副标题要精确贴合留白线时，用 CSS Leading Trim：text-box-trim:trim-both; text-box-edge:text alphabetic; text-box:trim-both text alphabetic（兼容写法并存）。
+二、产物
+1. 把结果生成在同一个文件夹里，主文件必须命名为 report.html，使用 UTF-8 编码并以中文呈现。
+2. 只有一个 report.html 时可直接交付；如果还有数据、样式、脚本、图片、字体、PDF 或其他资源，也放在同一文件夹或其子目录中，并使用相对路径引用。
+3. 多文件产物上传时需要压缩为 zip，report.html 必须位于 zip 根目录，不能只把外层文件夹整体放进压缩包。
 
-三、运行环境与外部资源
-1. 页面可以正常使用 HTML/CSS/JavaScript、Canvas、SVG、WebGL、相对路径资源、fetch("./data.json")、包内音视频、PDF、下载、用户触发的外链/新标签页和 Blob Worker。
-2. 页面运行在隔离沙箱中；不要依赖 Cookie、localStorage、IndexedDB、Service Worker、主站 API、顶层页面跳转、剪贴板读取、摄像头、麦克风、定位或其他设备权限。交互状态保存在页面内存/DOM 中。
-3. 默认只加载同一汇报包内的资源。如果确实使用外部 HTTPS API、CDN 脚本/样式、图片、字体、音视频或 iframe，上传时需勾选「允许汇报访问外部网络」，不需要另外的声明文件。fetch/XHR、ES Module 和字体等跨域资源仍需要对方服务器允许 CORS。
-4. 出于稳定性、加载速度和私密考虑，能随报告打包的脚本、数据、图片、字体和媒体仍优先放进报告文件夹。HTTP 外链和真正的表单提交不可用；表单只用于页内交互，用 JavaScript 阻止默认提交。
+三、平台页面外壳
+1. 页面背景使用 #f5f5f7。
+2. 主要内容区宽度为 1280px，水平居中；最外层页面容器不要设置左右 padding，使内容外沿与平台顶部菜单的 1280px 内容线对齐。
+3. 汇报内容由白色圆角大卡片承载。第一张大卡片距页面顶部 26px，相邻大卡片之间间距 26px，最后一张大卡片距页面底部 72px；每张大卡片的 padding 均为 50px。
+4. 不要重复制作页面级大标题、页头、返回按钮、分享按钮或 Logo，平台会在汇报上方统一提供标题和导航。
+5. 包内资源使用相对路径，例如 ./images/a.png，不要使用以 / 开头的站点根路径。
 
-四、图表（二选一）
-· 简单图形：用内联 SVG 或 HTML + CSS 直接画在页面里；
-· 数据图表（折线、柱状、饼图等）：用 ECharts。在 <head> 里按顺序写这两行，并把 echarts.min.js 放进同一文件夹：
-  <script src="./_platform/echarts.min.js"></script>
-  <script>window.echarts || document.write('<script src="echarts.min.js"><\\/script>')</script>
-  图表容器写明宽高，初始化代码用 IIFE 包裹并设置 animation: false。
-· 悬停/点击交互按图型统一：柱状/条形图（含柱线混合）用 tooltip trigger:'axis' + axisPointer type:'shadow'（类目阴影带，tooltip 列出该类目全部系列数值）；折线/时间序列用 trigger:'axis' + type:'line'（仅竖线）；热图/散点/饼/雷达用 trigger:'item'；一律不用 type:'cross'。
-· 图例统一：放图表右上角，图标用圆角正方形（icon:'roundRect'，itemWidth 与 itemHeight 相同，如 10×10），只作颜色识别——禁长方形图标、折线图禁线形图标；legend.right 取与 grid.right 相同数值，与绘图区右缘对齐，不贴容器边缘（right:0 禁用）；饼/雷达等无网格图不强制位置但图标同为圆角正方形。
-· 坐标轴：axisTick 隐藏，axisLine 隐藏或极浅（#d2d2d7），splitLine 浅灰（#eef0f3 一类）；轴名写清物理量与单位（如「时间 (ns)」）；grid 带 containLabel:true。
-· 柱形：柱端圆角 3–6px（竖柱 [4,4,0,0]、横条 [0,3,3,0]）；barMaxWidth 20–28；柱顶数值标签 11px 浅灰 + tabular-nums。
-· 热图色阶三档：单调指标用单色蓝渐变（深蓝=好）；以 0 为中心的有利/不利指标用蓝-白-暖发散（蓝=有利，对称截断）；离散状态矩阵用固定离散色。visualMap 一律 hoverLink:false、show:false。
-· 参考线 markLine：dashed 1px 灰 + silent:true，标签 10px 灰不遮挡数据。
-· 工程惯例：option 根部 textStyle.fontFamily 与页面字体一致；所有实例收进数组统一 resize 监听。
+四、运行环境
+1. 页面可以使用 HTML、CSS、JavaScript、Canvas、SVG、WebGL、相对路径资源、fetch("./data.json")、包内音视频、PDF、下载、由用户触发的外链或新标签页，以及 Blob Worker。
+2. 页面运行在隔离沙箱中，不要依赖 Cookie、localStorage、IndexedDB、Service Worker、主站 API、顶层页面跳转、剪贴板读取、摄像头、麦克风、定位或其他设备权限。需要保存的页内交互状态放在页面内存或 DOM 中。
+3. 页面只能加载同一汇报包内的资源，不能调用外部 API、CDN，不能加载外链图片、字体、音视频或 iframe。需要使用的依赖和媒体文件必须随汇报一起打包。
+4. 用户点击的 HTTPS 链接可以通过 target="_blank" 在新标签页打开。HTTP 链接和真正的表单提交不可用；表单只用于页内交互时，需要用 JavaScript 阻止默认提交。
 
-五、图片与性能
-1. 照片、界面截图等优先转为 WebP（建议质量 90–95），并按实际展示尺寸缩放；内容区只有 1280px 宽，不要直接塞入远超展示尺寸的 4K/8K 原图。
-2. 首屏主图可设 fetchpriority="high"；首屏以外的图片使用 loading="lazy" decoding="async"，并写明 width/height 或 aspect-ratio，避免解码时反复重排。
-3. 图片切换/轮播默认只加载当前图；首屏完成后只预加载前后相邻图片，切换前等待 img.decode()，不要一次性预加载所有大图。
-4. 大图保持独立文件并用相对路径引用，不要把大图转为 base64/data URI 塞进 HTML 或 data.js。
+五、图表与媒体
+1. 图表实现方式自由选择，可以使用 HTML/CSS、SVG、Canvas、WebGL、ECharts 或其他随汇报打包的前端库。
+2. 照片、截图等位图建议转换为 WebP，质量建议设置为 90–95，并按页面实际展示尺寸缩放；不要直接使用远超展示尺寸的 4K/8K 原图，也不要把大图转换为 base64 塞进 HTML 或 data.js。
+3. 视频优先使用浏览器兼容性最好的 MP4（H.264 视频编码 + AAC 音频编码）；如需额外提供 WebM，可作为补充格式而不是唯一格式。根据实际展示尺寸控制分辨率和码率，建议设置 poster，并使用 preload="metadata"，避免页面打开时预加载完整视频。
+4. 图片、视频、PDF 等媒体文件保持为独立文件并使用相对路径引用，按需延迟加载，避免首次打开页面时同时加载全部大资源。
 
-六、设计
-整体风格现代、专业、克制，信息层级清晰；样式写在页面内的 <style> 里，小型图标可用内联 SVG，位图放文件夹里相对引用。卡片内部的信息组织、配色由你决定，充分发挥——只约束"外壳"：
-· 内嵌小卡默认参考：1px 极浅边框（如 #eceff3）+ 圆角 16px + 无背景色（浅色底亦可，不要大面积彩色底/粗描边）。
-· 成组卡片尺寸一致（硬规则）：左右两张并排必须等宽等高（矮卡拉伸适配高卡）；2×2 四张必须完全同尺寸；卡片用 flex column，主体 flex:1 吸收高度差。
-· 强调收尾内容底部对齐（硬规则）：结论行/关键指标/标签用 margin-top:auto 推到卡片底部、贴住 20px 内边距线，同组底边齐平。
-· 分割线默认不用（用间距分隔），语义需要（表格/时间线）可用 1px 浅灰，禁彩色粗分割线。
-· 字体档位（同页同类元素统一）：卡片标题 13–15px / 650–700 近黑；正文条目 12–13.5px / 行高 1.6–1.8；说明标签 10.5–12px muted；数值 tabular-nums；序列/代码用等宽字体栈。留白宁松勿挤。
-· 视觉令牌（硬规则）：:root 统一 --ink #1d1d1f / --muted #6e6e73 / --line #e8e8ed / --card #ffffff / --bg #f5f5f7 + 每页一个自定机制色 --accent；颜色引用走变量不散写；正文 15.5px/1.78 苹果字体栈。
-· 语义色克制（硬规则）：红只表警示/异常，绿只表通过，琥珀只表待复核；彩色不当装饰，机制色只上识别锚点（编号、小圆点、图例色块），其余黑白灰。
-· 状态徽章参考：浅底深字软色对 + 999px 圆角 + 10.5–11px 字（如通过 #e9f6f3/#28655f）；不做描边式徽章。
-· 表格参考：.table-wrap 1px 边框 + 12px 圆角，表头 #f9f9fb 浅底 600 字重，行 hover #f7f7fa，末行去底边，数字列 tabular-nums，table-layout:fixed。
-· 证据卡参考模式：每张卡左上角机制色大编号（01–04，30px/700，--c 传色）+ 近黑标题基线对齐；条目层禁止再编号（不要双层 01/01），列表项用 6px 机制色小圆点；2×2 网格加 grid-auto-rows:1fr 保证四卡同尺寸（grid 默认只同行等高，跨行会一高一矮）。
-
-七、内容
-汇报内容以你已掌握的我的工作材料为准；材料不够先向我要，不要自行编造数据。
-
-八、交付
-生成完成后提醒我：上传时压缩包里不要包含 echarts.min.js（平台已内置）；本地的 report.html 可以直接双击预览。
-平台上传上限：压缩包或单 HTML 不超过 50MB、解压后全部文件总大小不超过 100MB、文件总数不超过 50 个、目录深度不超过 5 层；所有项目合计存储上限 2GB。`;
+六、交付检查
+1. 确认 report.html 可以打开，页面内容完整，包内资源路径正确，交互可用，关键数据与原始材料一致。
+2. 单 HTML 文件可以直接上传；多文件汇报上传 zip，并确认 report.html 位于根目录。
+3. 上传限制：压缩包或单 HTML 不超过 50MB，解压后全部文件总大小不超过 100MB，文件总数不超过 50 个，目录深度不超过 5 层；每个账号的全部项目合计存储上限为 2GB。`;
 
 const ICON_BACK = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[15px] w-[15px]">
@@ -135,7 +104,7 @@ function NoteRow({
 }
 
 /**
- * Prompt 复制按钮：固定宽度（56px）居中，「复制 / 已复制」两态切换时
+ * Prompt 复制按钮：固定宽度（52px）居中，「复制 / 已复制」两态切换时
  * 按钮尺寸零变化（仅文字与配色切换）
  */
 function CopyButton() {
@@ -166,7 +135,7 @@ function CopyButton() {
     <button
       type="button"
       onClick={copy}
-      className={`inline-flex h-[32px] w-[56px] items-center justify-center rounded-full text-[12px] font-semibold text-white transition-colors duration-200 ${
+      className={`inline-flex h-[28px] w-[52px] items-center justify-center rounded-full text-[12px] font-semibold text-white transition-colors duration-200 ${
         copied ? "bg-[#34c759]" : "bg-[#0071e3] hover:bg-[#0077ed]"
       }`}
     >
@@ -296,7 +265,7 @@ function GuideContent() {
             </pre>
           </div>
           <p className="mt-[22px] text-[13px] text-[#6e6e73]">
-            「页面约定」是平台的格式要求，建议保留原样；其余部分按你的需要随意增删修改。
+            模板只保留平台外壳、运行边界和交付要求；卡片内部的排版与视觉表达由 AI 根据内容自由设计。
           </p>
           <NoteRow icon="info">
             重要数据务必亲自核对：AI 只能基于它拿到的材料写内容，材料之外的数据会被编造。
@@ -314,8 +283,7 @@ function GuideContent() {
             <br />
             <strong className="font-[650] text-[#1d1d1f]">带辅助文件</strong>
             ——选中文件夹里的全部文件压缩成一个 zip
-            （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录；
-            echarts.min.js 不用压进去，平台已有内置版本）。
+            （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录）。
           </p>
           <div className="overflow-x-auto rounded-lg bg-[#f7f7f7] px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.025)]">
             <div className="min-w-[760px] font-mono text-[12.5px] leading-[2] whitespace-nowrap text-[#1d1d1f]">
@@ -345,7 +313,7 @@ function GuideContent() {
             上限：上传文件 50MB（HTML 或 zip）、解压后 100MB、50 个文件、目录 5 层。
           </NoteRow>
           <NoteRow icon="lock">
-            默认只允许汇报包内资源；需要外部 HTTPS 资源时，在新建/编辑项目中明确开启外部网络。为了稳定、加载快和便于离线预览，仍建议优先把资源放进汇报文件夹。
+            汇报只允许加载包内资源。脚本、图片、字体、媒体和其他依赖都要放进汇报文件夹，并使用相对路径引用。
           </NoteRow>
         </section>
 
@@ -353,7 +321,7 @@ function GuideContent() {
         <section className="mb-7 rounded-[22px] bg-white px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={4}>上传之后</SectionTitle>
           {/* grid-auto-rows:1fr 四卡等高，自动适配内容最多的那张 */}
-          <div className="grid grid-auto-rows-[1fr] grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2">
             <UsageNode
               t="查看"
               d="首页点击项目卡片即可进入汇报页，页面顶部提供标题、分享和返回入口，向下浏览正文时会随页面一起收起。"
@@ -383,12 +351,12 @@ function GuideContent() {
             <FaqTile
               no={1}
               q="图表怎么画？"
-              a="简单图形让 AI 用内联 SVG 或 HTML + CSS 画；折线、柱状、饼图等数据图表用 ECharts，模板里已写好两行 script 的引入方式。"
+              a="可以使用 HTML/CSS、SVG、Canvas、WebGL 或任意合适的图表库。使用第三方库时，需要把依赖文件放进汇报包并用相对路径引用，不能依赖外部 CDN。"
             />
             <FaqTile
               no={2}
               q="图片能放吗？"
-              a="能。文件夹里的图片用相对路径引用；外部 HTTPS 图片需在新建/编辑项目时开启外部网络。照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。"
+              a="能。把图片放进汇报文件夹并使用相对路径引用；平台不加载外链图片。照片和截图优先转成 WebP，并缩放到接近实际展示尺寸。大图不要做成 data URI；首屏外图片使用懒加载，图片切换只预取前后相邻项。"
             />
             <FaqTile
               no={3}
@@ -418,7 +386,7 @@ function GuideContent() {
             <FaqTile
               no={8}
               q="图片裂了，本地预览正常但上传后有几张加载不出来？"
-              a="检查路径写法：用 ./images/a.png 这种相对路径，不要以 / 开头（会被解析到内容域根目录而非你报告文件夹下）；外链图片还需确认项目已开启外部网络、链接使用 HTTPS，且对方没有防盗链或失效。"
+              a="检查图片是否已经放进汇报包，并使用 ./images/a.png 这种相对路径；不要使用以 / 开头的路径或外链图片。还要确认文件名大小写完全一致，且 zip 没有多包一层外部文件夹。"
             />
           </div>
         </section>

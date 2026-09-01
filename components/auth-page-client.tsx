@@ -13,6 +13,9 @@ import {
   signInAsGuest,
 } from "@/lib/auth-flow";
 import { PASSWORD_RULE_TEXT } from "@/lib/password-policy";
+import { inviteCodeFromFragment } from "@/lib/invite-link";
+import { OtpCodeInput } from "@/components/otp-code-input";
+import { isOtpCode } from "@/lib/otp-code";
 import {
   GUEST_WELCOME_KEY,
   rememberGuestExpiry,
@@ -20,9 +23,9 @@ import {
 
 type Mode = "signin" | "signup";
 
-const OTP_LENGTH = 6;
 const COOLDOWN_SECONDS = 60;
 const INITIAL_LOGIN_STATE: PasswordLoginState = {
+  ok: false,
   error: "",
   submissionId: 0,
 };
@@ -41,14 +44,30 @@ const ICON_LOCK = (
   </svg>
 );
 
+const ICON_INVITE = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
+    <path d="M5 8h14v11H5z" />
+    <path d="M4 8h16M12 8v11M7.5 8C5 6 6.5 3.5 8.5 4.2 10 4.7 11 6.2 12 8M16.5 8C19 6 17.5 3.5 15.5 4.2 14 4.7 13 6.2 12 8" />
+  </svg>
+);
+
 /**
  * 登录/注册页。本组件只负责表单 UI 与输入校验，
  * 密码登录由 Server Action 原子完成；注册与游客流程仍由 auth-flow 封装。
  */
-export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean }) {
+export function AuthPageClient({
+  registrationOpen,
+  inviteRequired,
+}: {
+  registrationOpen: boolean;
+  inviteRequired: boolean;
+}) {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteLocked, setInviteLocked] = useState(false);
+  const [inviteError, setInviteError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -56,9 +75,7 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     useState(0);
 
   // 注册验证码
-  const [otpDigits, setOtpDigits] = useState<string[]>(
-    Array(OTP_LENGTH).fill(""),
-  );
+  const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -68,11 +85,14 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     passwordLoginAction,
     INITIAL_LOGIN_STATE,
   );
-  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const otpRef = useRef<HTMLInputElement | null>(null);
+  const otpSendPendingRef = useRef(false);
+  const otpVerificationPendingRef = useRef(false);
+  const loginNavigationStartedRef = useRef(false);
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const isSignUp = mode === "signup";
-  const authBusy = loading || guestLoading || loginPending;
+  const authBusy = loading || guestLoading || loginPending || loginState.ok;
   const otpPhase = isSignUp && otpSent;
   const visibleError =
     error ||
@@ -84,6 +104,29 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     formRef.current?.setAttribute("data-hydrated", "true");
   }, []);
 
+  // Server Action 响应先写入 HttpOnly Cookie，再把成功状态交给客户端。
+  // 这里统一做一次整页导航，避免 RSC redirect 信号偶发未触发页面切换。
+  useEffect(() => {
+    if (!loginState.ok || loginNavigationStartedRef.current) return;
+    loginNavigationStartedRef.current = true;
+    setAuthSlow(false);
+    void navigateAfterAuth("/home");
+  }, [loginState.ok]);
+
+  // 邀请链接把邀请码放在 fragment 中。客户端读取后切到注册面板并锁定
+  // 输入框；fragment 保留在地址栏，刷新后仍能恢复，同时不会进入服务器
+  // 日志或 Referer。
+  useEffect(() => {
+    const invited = inviteCodeFromFragment(window.location.hash);
+    if (!invited) return;
+    const timer = window.setTimeout(() => {
+      setInviteCode(invited);
+      setInviteLocked(true);
+      setMode("signup");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // 验证码发送后的 60s 倒计时
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -91,9 +134,9 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // 发送验证码后聚焦第一格
+  // 发送验证码后聚焦输入框
   useEffect(() => {
-    if (otpSent) otpRefs.current[0]?.focus();
+    if (otpSent) otpRef.current?.focus();
   }, [otpSent]);
 
   // 请求超过 4 秒时明确告知仍在处理，不让用户反复点击。
@@ -112,6 +155,11 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
 
   // 注册：发送验证码（sign-in 类型对未注册邮箱也会发）
   async function sendOtp() {
+    if (otpSendPendingRef.current || cooldown > 0) return;
+    if (!registrationOpen) {
+      setError("当前暂未开放新账号注册");
+      return;
+    }
     if (!email || !password) {
       setError("请填写邮箱和密码");
       return;
@@ -121,29 +169,40 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
       setEmailError(err);
       return;
     }
-    if (cooldown > 0) return;
-
+    otpSendPendingRef.current = true;
     setAuthSlow(false);
     setLoading(true);
     try {
-      const r = await sendSignUpOtp(email, password);
+      if (inviteRequired && !inviteCode) {
+        setInviteError("请输入邀请码");
+        return;
+      }
+      if (inviteCode && !/^[0-9A-Z]{6}$/.test(inviteCode)) {
+        setInviteError("请输入 6 位邀请码");
+        return;
+      }
+      const r = await sendSignUpOtp(email, password, inviteCode);
       if (!r.ok) {
-        setError(r.error);
+        if (r.field === "inviteCode") setInviteError(r.error);
+        else setError(r.error);
         return;
       }
       setOtpSent(true);
       setCooldown(COOLDOWN_SECONDS);
     } finally {
+      otpSendPendingRef.current = false;
       setLoading(false);
     }
   }
 
   // 注册：验证码通过 → 服务端原子完成建号 + 登录 + 初始密码
   async function verifyOtp(otp: string) {
+    if (!isOtpCode(otp) || otpVerificationPendingRef.current) return;
+    otpVerificationPendingRef.current = true;
     setAuthSlow(false);
     setLoading(true);
     try {
-      const r = await registerWithOtp(email, otp, password);
+      const r = await registerWithOtp(email, otp, password, inviteCode);
       if (!r.ok) {
         setError(r.error);
         return;
@@ -151,6 +210,7 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
       // 整页跳转（非客户端路由），Safari cookie 时序由 auth-flow 兜底
       await navigateAfterAuth("/home");
     } finally {
+      otpVerificationPendingRef.current = false;
       setLoading(false);
     }
   }
@@ -181,66 +241,23 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
   }
 
   function switchMode(next: Mode) {
-    if (next === "signup" && !registrationOpen) return;
     setMode(next);
     setError("");
     setDismissedLoginSubmissionId(loginState.submissionId);
     setEmailError("");
-    setOtpDigits(Array(OTP_LENGTH).fill(""));
+    setInviteError("");
+    setOtpCode("");
     setOtpSent(false);
   }
 
   // 验证码阶段点“修改”：回到填写阶段，保留已填内容
   function backToFields() {
     setOtpSent(false);
-    setOtpDigits(Array(OTP_LENGTH).fill(""));
+    setOtpCode("");
     setError("");
   }
 
-  function handleOtpChange(index: number, raw: string) {
-    const digit = raw.replace(/\D/g, "").slice(-1);
-    setOtpDigits((prev) => {
-      const next = [...prev];
-      next[index] = digit;
-      return next;
-    });
-    setError("");
-
-    if (digit && index < OTP_LENGTH - 1) {
-      otpRefs.current[index + 1]?.focus();
-    }
-    if (digit && index === OTP_LENGTH - 1) {
-      const otp = otpDigits.map((d, i) => (i === index ? digit : d)).join("");
-      void verifyOtp(otp);
-    }
-  }
-
-  function handleOtpKeyDown(
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) {
-    if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  }
-
-  function handleOtpPaste(e: React.ClipboardEvent<HTMLInputElement>) {
-    const text = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, OTP_LENGTH);
-    if (!text) return;
-    e.preventDefault();
-    setOtpDigits(
-      text.split("").concat(Array(OTP_LENGTH - text.length).fill("")),
-    );
-    otpRefs.current[Math.min(text.length, OTP_LENGTH - 1)]?.focus();
-    if (text.length === OTP_LENGTH) {
-      void verifyOtp(text);
-    }
-  }
-
-  const otpComplete = otpDigits.every((d) => d !== "");
+  const otpComplete = isOtpCode(otpCode);
 
   return (
     <main className="auth-page text-[#1d1d1f] antialiased">
@@ -279,7 +296,6 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                   className="auth-tab-indicator"
                   style={{
                     transform: isSignUp ? "translateX(100%)" : "translateX(0)",
-                    width: registrationOpen ? undefined : "100%",
                   }}
                 />
                 <button
@@ -290,16 +306,14 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                 >
                   登录
                 </button>
-                {registrationOpen && (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("signup")}
-                    disabled={authBusy}
-                    className={`auth-tab ${isSignUp ? "auth-tab-active" : ""}`}
-                  >
-                    注册
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => switchMode("signup")}
+                  disabled={authBusy}
+                  className={`auth-tab ${isSignUp ? "auth-tab-active" : ""}`}
+                >
+                  注册
+                </button>
               </div>
 
               <form
@@ -325,6 +339,8 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                 {/* 注册验证码阶段：摘要 + 验证码格（平滑展开） */}
                 <div
                   className={`auth-collapse ${otpPhase ? "auth-collapse-open" : ""}`}
+                  aria-hidden={!otpPhase}
+                  inert={!otpPhase}
                 >
                   <div>
                     <div className="auth-field auth-field-top">
@@ -343,25 +359,19 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                     </div>
                     <div className="auth-field">
                       <label className="auth-label">验证码</label>
-                      <div className="auth-otp-shell">
-                        {otpDigits.map((d, i) => (
-                          <input
-                            key={i}
-                            ref={(el) => {
-                              otpRefs.current[i] = el;
-                            }}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={1}
-                            value={d}
-                            onChange={(e) => handleOtpChange(i, e.target.value)}
-                            onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                            onPaste={handleOtpPaste}
-                            aria-label={`验证码第 ${i + 1} 位`}
-                            className="auth-otp"
-                          />
-                        ))}
-                      </div>
+                      <OtpCodeInput
+                        ref={otpRef}
+                        value={otpCode}
+                        onValueChange={(value) => {
+                          setOtpCode(value);
+                          setError("");
+                        }}
+                        onComplete={(value) => void verifyOtp(value)}
+                        aria-label="验证码"
+                        placeholder="输入 6 位验证码"
+                        disabled={loading}
+                        className="auth-otp"
+                      />
                       <div className="mt-2 flex items-center justify-between text-[12px]">
                         <button
                           type="button"
@@ -387,13 +397,12 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                 {/* 填写阶段：邮箱 + 密码（验证码阶段平滑收起） */}
                 <div
                   className={`auth-collapse ${otpPhase ? "" : "auth-collapse-open"}`}
+                  aria-hidden={otpPhase}
+                  inert={otpPhase}
                 >
                   <div>
                     {/* 邮箱 */}
                     <div className="auth-field auth-field-top">
-                      <label className="auth-label" htmlFor="auth-email">
-                        邮箱
-                      </label>
                       <div className="auth-input-wrap">
                         <span className="auth-input-icon">{ICON_MAIL}</span>
                         <input
@@ -417,15 +426,15 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                           disabled={authBusy}
                           className={`auth-input ${emailError ? "auth-input-error" : ""}`}
                         />
+                        <label className="auth-floating-label" htmlFor="auth-email">
+                          邮箱
+                        </label>
                       </div>
                       <p className="auth-error-slot">{emailError}</p>
                     </div>
 
                     {/* 密码（登录和注册都需要，注册用于保存） */}
                     <div className="auth-field">
-                      <label className="auth-label" htmlFor="auth-password">
-                        {isSignUp ? "设置密码" : "密码"}
-                      </label>
                       <div className="auth-input-wrap">
                         <span className="auth-input-icon">{ICON_LOCK}</span>
                         <input
@@ -447,6 +456,12 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                           disabled={authBusy}
                           className="auth-input auth-input-pw"
                         />
+                        <label
+                          className="auth-floating-label"
+                          htmlFor="auth-password"
+                        >
+                          {isSignUp ? "设置密码" : "密码"}
+                        </label>
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
@@ -470,59 +485,106 @@ export function AuthPageClient({ registrationOpen }: { registrationOpen: boolean
                       </div>
                       <p className="auth-error-slot">{visibleError}</p>
                     </div>
+
+                    {/* 第三行始终等高：登录显示辅助入口，注册显示邀请码。 */}
+                    <div className="auth-mode-slot">
+                      {isSignUp ? (
+                        <div className="auth-field">
+                          <div className="auth-input-wrap">
+                            <span className="auth-input-icon">{ICON_INVITE}</span>
+                            <input
+                              id="auth-invite-code"
+                              name="inviteCode"
+                              type="text"
+                              inputMode="text"
+                              maxLength={6}
+                              placeholder="6 位数字或字母"
+                              value={inviteCode}
+                              onChange={(event) => {
+                                if (inviteLocked) return;
+                                setInviteCode(
+                                  event.target.value
+                                    .toUpperCase()
+                                    .replace(/[^0-9A-Z]/g, "")
+                                    .slice(0, 6),
+                                );
+                                setInviteError("");
+                                setError("");
+                              }}
+                              autoComplete="off"
+                              autoCapitalize="characters"
+                              spellCheck={false}
+                              readOnly={inviteLocked}
+                              aria-readonly={inviteLocked}
+                              disabled={authBusy || !isSignUp}
+                              className={`auth-input auth-input-code ${inviteError ? "auth-input-error" : ""}`}
+                            />
+                            <label
+                              className="auth-floating-label"
+                              htmlFor="auth-invite-code"
+                            >
+                              {inviteLocked
+                                ? "邀请码（邀请链接已填写）"
+                                : inviteRequired
+                                  ? "邀请码"
+                                  : "邀请码（选填）"}
+                            </label>
+                          </div>
+                          <p className="auth-error-slot">{inviteError}</p>
+                        </div>
+                      ) : (
+                        <div className="auth-field auth-login-field">
+                          <div className="auth-login-support">
+                            <Link href="/forgot" className="auth-link">
+                              忘记密码？
+                            </Link>
+                          </div>
+                          <p className="auth-error-slot" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* 元信息行：登录=右对齐忘记密码；注册=居中提示。同高，位置固定 */}
-                <div
-                  className={`auth-meta-row ${isSignUp ? "auth-meta-center" : ""}`}
-                >
-                  {!isSignUp ? (
-                    <Link href="/forgot" className="auth-link">
-                      忘记密码？
-                    </Link>
-                  ) : (
-                    !otpSent && (
-                      <span className="text-[12px] text-[#6e6e73]">
-                        验证码通过后将自动创建账号
-                      </span>
-                    )
-                  )}
+                <div className="auth-actions">
+                  <button
+                    type="submit"
+                    disabled={
+                      authBusy ||
+                      (isSignUp && !registrationOpen) ||
+                      (otpPhase && !otpComplete)
+                    }
+                    className="auth-submit"
+                  >
+                    {loading || loginPending
+                      ? authSlow
+                        ? "网络较慢，仍在处理…"
+                        : "请稍候…"
+                      : isSignUp && !registrationOpen
+                        ? "当前未开放注册"
+                        : isSignUp
+                        ? otpSent
+                          ? otpComplete
+                            ? "注册中…"
+                            : "请输入验证码"
+                          : "获取验证码"
+                        : "登录"}
+                  </button>
+
+                  {/* 游客登录：一键进入，自带 5 张示例卡片，60 分钟沙箱 */}
+                  <button
+                    type="button"
+                    onClick={() => void handleGuestLogin()}
+                    disabled={authBusy}
+                    className="auth-guest"
+                  >
+                    {guestLoading
+                      ? authSlow
+                        ? "网络较慢，仍在准备…"
+                        : "正在准备游客环境…"
+                      : "游客登录"}
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={
-                    authBusy || (otpPhase && !otpComplete)
-                  }
-                  className="auth-submit"
-                >
-                  {loading || loginPending
-                    ? authSlow
-                      ? "网络较慢，仍在处理…"
-                      : "请稍候…"
-                    : isSignUp
-                      ? otpSent
-                        ? otpComplete
-                          ? "注册中…"
-                          : "请输入验证码"
-                        : "获取验证码"
-                      : "登录"}
-                </button>
-
-                {/* 游客登录：一键进入，自带 5 张示例卡片，60 分钟沙箱 */}
-                <button
-                  type="button"
-                  onClick={() => void handleGuestLogin()}
-                  disabled={authBusy}
-                  className="auth-guest"
-                >
-                  {guestLoading
-                    ? authSlow
-                      ? "网络较慢，仍在准备…"
-                      : "正在准备游客环境…"
-                    : "游客登录"}
-                </button>
               </form>
             </div>
           </section>

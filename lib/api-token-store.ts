@@ -1,0 +1,46 @@
+import {
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto";
+
+function encryptionRoot(): string {
+  const root = process.env.API_TOKEN_ENCRYPTION_KEY?.trim() ?? "";
+  if (root.length < 32) {
+    throw new Error("API_TOKEN_ENCRYPTION_KEY is missing or too short");
+  }
+  return root;
+}
+
+function encryptionKey(): Buffer {
+  return Buffer.from(
+    hkdfSync("sha256", encryptionRoot(), "surge-api-token-store", "v1", 32),
+  );
+}
+
+/** 使用独立派生密钥加密 API 令牌，供令牌所有者再次查看。 */
+export function encryptApiToken(token: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  return `v1.${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${ciphertext.toString("base64url")}`;
+}
+
+/** 解密 API 令牌；格式错误、密文损坏或密钥不匹配时拒绝返回明文。 */
+export function decryptApiToken(value: string): string {
+  const [version, iv, tag, ciphertext] = value.split(".");
+  if (version !== "v1" || !iv || !tag || !ciphertext) {
+    throw new Error("invalid encrypted API token");
+  }
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    encryptionKey(),
+    Buffer.from(iv, "base64url"),
+  );
+  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertext, "base64url")),
+    decipher.final(),
+  ]).toString("utf8");
+}

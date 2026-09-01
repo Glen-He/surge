@@ -22,11 +22,14 @@ const fixture = {
 
 test.beforeAll(async () => {
   const context = await auth.$context;
-  const user = await context.internalAdapter.createUser({
-    name: "E2E PDF",
-    email: `e2e-${randomUUID()}@example.test`,
-    emailVerified: true,
-  });
+  const user = await context.internalAdapter.createUser(
+    {
+      name: "E2E PDF",
+      email: `e2e-${randomUUID()}@example.test`,
+      emailVerified: true,
+    },
+    { method: "test" },
+  );
   fixture.userId = user.id;
   const dir = reportArtifactDir(user.id, fixture.storageKey);
   await fs.mkdir(dir, { recursive: true });

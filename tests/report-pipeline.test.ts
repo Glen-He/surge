@@ -16,7 +16,7 @@ import {
 import { createHmac } from "crypto";
 
 describe("reportDocCsp", () => {
-  it("包含沙箱并默认只允许 capability 资源、数据、媒体与 Worker", () => {
+  it("包含沙箱且只允许 capability 资源、数据、媒体与 Worker", () => {
     const csp = reportDocCsp(
       "https://reports.example/r/CAP123",
       "https://surge.example",
@@ -25,35 +25,25 @@ describe("reportDocCsp", () => {
       "sandbox allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals",
     );
     expect(csp).toContain(
-      "connect-src https://reports.example/r/CAP123/ https:",
+      "connect-src https://reports.example/r/CAP123/",
     );
     expect(csp).toContain(
-      "media-src https://reports.example/r/CAP123/ data: blob: https:",
+      "media-src https://reports.example/r/CAP123/ data: blob:",
     );
     expect(csp).toContain("base-uri 'none'");
     expect(csp).toContain(
-      "worker-src https://reports.example/r/CAP123/ blob: https:",
+      "worker-src https://reports.example/r/CAP123/ blob:",
     );
     expect(csp).toContain(
-      "script-src 'unsafe-inline' 'unsafe-eval' https://reports.example/r/CAP123/ https:",
+      "script-src 'unsafe-inline' 'unsafe-eval' https://reports.example/r/CAP123/",
     );
     // 不允许整站 origin（收紧到 /r/<cap>/ 命名空间）
     expect(csp).not.toContain("img-src https://reports.example ");
-    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob: https:");
-    expect(csp).toContain("frame-src https://reports.example/r/CAP123/ https:");
+    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob:");
+    expect(csp).toContain("frame-src https://reports.example/r/CAP123/");
     expect(csp).toContain("frame-ancestors https://surge.example");
     expect(csp).toContain("form-action 'none'");
-  });
-
-  it("隐私模式不允许任何外部 HTTPS 资源", () => {
-    const csp = reportDocCsp(
-      "https://reports.example/r/CAP123",
-      "https://surge.example",
-      false,
-    );
     expect(csp).not.toMatch(/(?:^|[ ;])https:(?:[ ;]|$)/);
-    expect(csp).toContain("connect-src https://reports.example/r/CAP123/");
-    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob:");
   });
 });
 

@@ -32,7 +32,6 @@ export default async function EditReportPage({
         tagColor: requireTagColor(report.tag_color),
         keywords: report.keywords,
         description: report.description,
-        externalNetwork: report.external_network_enabled,
       }}
     />
   );

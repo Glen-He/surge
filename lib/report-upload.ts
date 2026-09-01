@@ -44,7 +44,6 @@ export type ReportMeta = {
   tagColor: string;
   description: string;
   keywords: string;
-  externalNetwork: boolean;
 };
 
 export type UploadFile = { name: string; type: string; path: string; size: number };
@@ -99,8 +98,6 @@ export function metaFromForm(form: FormData): ReportMeta {
     tagColor: isTagColor(tagColorRaw) ? tagColorRaw : DEFAULT_TAG_COLOR,
     description: String(form.get("description") ?? "").trim(),
     keywords: String(form.get("keywords") ?? "").trim(),
-    // 新建与 API 上传的报告默认关闭外网访问；既有报告迁移时以 true 保持原行为。
-    externalNetwork: String(form.get("externalNetwork") ?? "false") === "true",
   };
 }
 
@@ -262,12 +259,12 @@ export async function createReport(
         );
         const sortOrder = Number(maxRow.rows[0]?.m ?? -1) + 1;
         await client.query(
-          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, external_network_enabled, sort_order, size_bytes, storage_key)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes, storage_key)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             randomUUID(), userId, slug, newRevisionId(), meta.title, meta.date,
             meta.tag, meta.tagColor, meta.description, meta.keywords,
-            meta.externalNetwork, sortOrder, staged.projectBytes, storageKey,
+            sortOrder, staged.projectBytes, storageKey,
           ],
         );
       } catch {
@@ -384,9 +381,9 @@ export async function replaceReportFile(
               `UPDATE reports
                SET revision_id = $1, title = $2, date = $3, tag = $4,
                    tag_color = $5, description = $6, keywords = $7,
-                   external_network_enabled = $8, sort_order = $9, size_bytes = $10,
-                   template_key = NULL, storage_key = $11
-               WHERE user_id = $12 AND slug = $13`,
+                   sort_order = $8, size_bytes = $9,
+                   template_key = NULL, storage_key = $10
+               WHERE user_id = $11 AND slug = $12`,
               [
                 newRevisionId(),
                 meta.title,
@@ -395,7 +392,7 @@ export async function replaceReportFile(
                 meta.tagColor,
                 meta.description,
                 meta.keywords,
-                meta.externalNetwork, nextSortOrder, staged.projectBytes, storageKey, userId, slug,
+                nextSortOrder, staged.projectBytes, storageKey, userId, slug,
               ],
             )
           : await client.query(
@@ -527,10 +524,9 @@ export async function updateReportMeta(
         await client.query(
           `UPDATE reports
            SET title = $1, date = $2, tag = $3, tag_color = $4,
-               description = $5, keywords = $6, external_network_enabled = $7,
-               sort_order = $8
-           WHERE user_id = $9 AND slug = $10`,
-          [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, meta.externalNetwork, sortOrder, userId, slug],
+               description = $5, keywords = $6, sort_order = $7
+           WHERE user_id = $8 AND slug = $9`,
+          [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, sortOrder, userId, slug],
         );
         await client.query("COMMIT");
         return { ok: true, slug };

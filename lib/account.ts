@@ -8,6 +8,8 @@ import { db } from "./db";
 import nodemailer from "nodemailer";
 import { logger } from "./logger";
 import { isGuestEmail } from "./guest-sandbox";
+import { isOtpCode, OTP_CODE_LENGTH } from "./otp-code";
+import { OTP_CODE_FORMAT_ERROR } from "./auth-errors";
 
 // 邮件发送器（与 auth.ts 同一套 SMTP 配置）
 const transporter = nodemailer.createTransport({
@@ -167,7 +169,10 @@ export async function generateAndStoreOtp(opts: {
   email: string;
   purpose: string;
 }): Promise<string> {
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const code = String(randomInt(0, 10 ** OTP_CODE_LENGTH)).padStart(
+    OTP_CODE_LENGTH,
+    "0",
+  );
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
   const email = opts.email.toLowerCase().trim();
   const client = await db.connect();
@@ -205,6 +210,14 @@ export async function verifyStoredOtp(opts: {
   purpose: string;
   code: string;
 }): Promise<OtpVerifyResult> {
+  // 格式错误不进入核销事务，也不消耗用户的验证码尝试次数。
+  if (!isOtpCode(opts.code)) {
+    return {
+      ok: false,
+      error: OTP_CODE_FORMAT_ERROR,
+      remaining: OTP_MAX_ATTEMPTS,
+    };
+  }
   const email = opts.email.toLowerCase().trim();
   const client = await db.connect();
   try {

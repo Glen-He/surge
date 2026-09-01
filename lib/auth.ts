@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { anonymous, emailOTP } from "better-auth/plugins";
+import { admin, anonymous, emailOTP } from "better-auth/plugins";
 import { Pool } from "pg";
 import nodemailer from "nodemailer";
 import {
@@ -20,11 +20,12 @@ import { clientIp } from "./client-ip";
 import { consumeSharedRateLimit } from "./db-rate-limit";
 import { verifyPasswordLoginInternalProof } from "./auth-attempts";
 import {
-  registrationIsOpen,
+  getRegistrationPolicy,
   verifyRegistrationInternalProof,
 } from "./registration-policy";
 import { db } from "./db";
 import { verifyInternalAuthProof } from "./internal-auth-proof";
+import { OTP_CODE_LENGTH } from "./otp-code";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -117,6 +118,7 @@ export const auth = betterAuth({
       generateName: async () => "游客用户",
     }),
     emailOTP({
+      otpLength: OTP_CODE_LENGTH,
       // 用验证码邮件替代默认的验证链接邮件，避免双发
       overrideDefaultEmailVerification: true,
       sendVerificationOTP: async ({ email, otp, type }) => {
@@ -139,6 +141,12 @@ export const auth = betterAuth({
       changeEmail: {
         enabled: false,
       },
+    }),
+    // 官方 admin 插件提供持久化 role 与受保护的管理端点。项目自己的
+    // 管理页面和 API 仍在 DAL 层逐次校验 admin role，默认拒绝访问。
+    admin({
+      defaultRole: "user",
+      adminRoles: ["admin"],
     }),
     // 必须放在最后：Server Action 直接调用 auth.api 时，将认证库返回的
     // Set-Cookie 写入 Next.js 的响应 cookie store。这样登录、写 cookie、
@@ -214,49 +222,31 @@ export const auth = betterAuth({
       if (ctx.path === "/sign-up/email") {
         throw new APIError("FORBIDDEN", { message: "请使用验证码注册" });
       }
-      // 关闭公开注册必须在 UI 与自建路由之下强制执行。Better Auth 原生
-      // email/OTP 端点是公开的，否则邮箱不存在时仍可能直接建出用户。
-      if (!registrationIsOpen()) {
-        const isOtpSignIn =
-          ctx.path === "/sign-in/email-otp" ||
-          (ctx.path === "/email-otp/send-verification-otp" &&
-            (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
-        if (isOtpSignIn) {
-          const email =
-            typeof ctx.body?.email === "string"
-              ? ctx.body.email.trim().toLowerCase()
-              : "";
-          if (email && !isGuestEmail(email)) {
-            const existing = await db.query(
-              `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
-              [email],
-            );
-            if (!existing.rows[0]) {
+      // Better Auth 原生 email/OTP 端点可能创建账号，因此新邮箱必须同时
+      // 满足实时注册开关和服务端 HMAC proof。邀请码在自建路由内校验，
+      // proof 只证明请求确实经过了该受控入口。
+      const isOtpSignIn =
+        ctx.path === "/sign-in/email-otp" ||
+        (ctx.path === "/email-otp/send-verification-otp" &&
+          (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
+      if (isOtpSignIn) {
+        const email =
+          typeof ctx.body?.email === "string"
+            ? ctx.body.email.trim().toLowerCase()
+            : "";
+        if (email && !isGuestEmail(email)) {
+          const existing = await db.query(
+            `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+            [email],
+          );
+          if (!existing.rows[0]) {
+            const policy = await getRegistrationPolicy();
+            if (!policy.enabled) {
               throw new APIError("FORBIDDEN", {
                 message: "当前未开放新账号注册",
               });
             }
-          }
-        }
-      } else {
-        // 注册开放时，新用户 OTP 端点仍要求服务端专属 HMAC proof，
-        // 防止绕过事务化自建路由、直接创建无密码的半成品账号。
-        const isOtpSignIn =
-          ctx.path === "/sign-in/email-otp" ||
-          (ctx.path === "/email-otp/send-verification-otp" &&
-            (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
-        if (isOtpSignIn) {
-          const email =
-            typeof ctx.body?.email === "string"
-              ? ctx.body.email.trim().toLowerCase()
-              : "";
-          if (email && !isGuestEmail(email)) {
-            const existing = await db.query(
-              `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
-              [email],
-            );
             if (
-              !existing.rows[0] &&
               !verifyRegistrationInternalProof(
                 email,
                 ctx.headers?.get("x-surge-registration-proof"),

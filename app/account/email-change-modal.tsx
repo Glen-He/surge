@@ -5,6 +5,8 @@ import { Modal } from "@/components/modal";
 import { StepIndicator } from "@/components/step-indicator";
 import { showGuestOtpFromResponse } from "@/lib/guest-otp-store";
 import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
+import { OtpCodeInput } from "@/components/otp-code-input";
+import { isOtpCode } from "@/lib/otp-code";
 
 // 状态机：UI 完全由 step 决定
 type Step = "verify-current" | "enter-new" | "success";
@@ -87,6 +89,8 @@ function EmailChangeDialog({
   const closeTimer = useRef<number | null>(null);
   const oldOtpRef = useRef<HTMLInputElement | null>(null);
   const newOtpRef = useRef<HTMLInputElement | null>(null);
+  const oldOtpVerificationPendingRef = useRef(false);
+  const newOtpVerificationPendingRef = useRef(false);
 
   useEffect(
     () => () => {
@@ -121,7 +125,8 @@ function EmailChangeDialog({
 
   // ── 输满 6 位自动验证当前邮箱 → 服务器签发 email_change_token ──
   async function verifyOldOtp(otp: string) {
-    if (otp.length !== 6 || loading) return;
+    if (!isOtpCode(otp) || oldOtpVerificationPendingRef.current) return;
+    oldOtpVerificationPendingRef.current = true;
     setLoading(true);
     setMsg(null);
     try {
@@ -139,6 +144,7 @@ function EmailChangeDialog({
       setEmailChangeToken(data.emailChangeToken);
       setStep("enter-new");
     } finally {
+      oldOtpVerificationPendingRef.current = false;
       setLoading(false);
     }
   }
@@ -183,7 +189,8 @@ function EmailChangeDialog({
 
   // ── 输满 6 位自动验证新邮箱并立即完成修改 ──
   async function completeEmailChange(otp: string) {
-    if (otp.length !== 6 || loading) return;
+    if (!isOtpCode(otp) || newOtpVerificationPendingRef.current) return;
+    newOtpVerificationPendingRef.current = true;
     setLoading(true);
     setMsg(null);
     try {
@@ -205,6 +212,7 @@ function EmailChangeDialog({
         window.location.reload();
       }, 1600);
     } finally {
+      newOtpVerificationPendingRef.current = false;
       setLoading(false);
     }
   }
@@ -243,19 +251,17 @@ function EmailChangeDialog({
 
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
           <div className="mt-4 flex items-center gap-2.5">
-            <input
+            <OtpCodeInput
               ref={oldOtpRef}
               value={oldOtp}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setOldOtp(v);
+              onValueChange={(value) => {
+                setOldOtp(value);
                 setMsg(null);
-                if (v.length === 6) void verifyOldOtp(v);
               }}
+              onComplete={(value) => void verifyOldOtp(value)}
               placeholder="输入验证码"
-              inputMode="numeric"
-              autoComplete="one-time-code"
               disabled={loading}
+              aria-label="当前邮箱验证码"
               className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
@@ -313,19 +319,17 @@ function EmailChangeDialog({
 
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动完成 */}
           <div className="mt-4 flex items-center gap-2.5">
-            <input
+            <OtpCodeInput
               ref={newOtpRef}
               value={newOtp}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setNewOtp(v);
+              onValueChange={(value) => {
+                setNewOtp(value);
                 setMsg(null);
-                if (v.length === 6) void completeEmailChange(v);
               }}
+              onComplete={(value) => void completeEmailChange(value)}
               placeholder="输入验证码"
-              inputMode="numeric"
-              autoComplete="one-time-code"
               disabled={loading}
+              aria-label="新邮箱验证码"
               className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button
