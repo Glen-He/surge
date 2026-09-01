@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AuthPageClient } from "@/components/auth-page-client";
 import { auth } from "@/lib/auth";
 import { expireGuestIfNeeded } from "@/lib/guest-sandbox";
-import { registrationIsOpen } from "@/lib/registration-policy";
+import { getRegistrationPolicy } from "@/lib/registration-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -19,5 +19,11 @@ export default async function AuthPage() {
   if (session) {
     redirect("/home");
   }
-  return <AuthPageClient registrationOpen={registrationIsOpen()} />;
+  const registrationPolicy = await getRegistrationPolicy();
+  return (
+    <AuthPageClient
+      registrationOpen={registrationPolicy.enabled}
+      inviteRequired={registrationPolicy.inviteRequired}
+    />
+  );
 }

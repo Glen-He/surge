@@ -13,20 +13,30 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     if (!process.env.REPORTS_DATA_DIR) {
       throw new Error("DB integration tests require an isolated REPORTS_DATA_DIR");
     }
-    const [{ auth }, { db }, { ensureSchemaVersioned }] = await Promise.all([
+    const [
+      { auth },
+      { db },
+      { ensureSchemaVersioned },
+      { ensureBetterAuthSchemaCompatible },
+    ] = await Promise.all([
       import("@/lib/auth"),
       import("@/lib/db"),
       import("@/lib/migrations"),
+      import("@/lib/better-auth-migration"),
     ]);
     database = db;
     context = await auth.$context;
+    await ensureBetterAuthSchemaCompatible();
     await context.runMigrations();
     await ensureSchemaVersioned();
-    const user = await context.internalAdapter.createUser({
-      name: "Integration Test",
-      email: `integration-${crypto.randomUUID()}@example.test`,
-      emailVerified: true,
-    });
+    const user = await context.internalAdapter.createUser(
+      {
+        name: "Integration Test",
+        email: `integration-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
     userId = user.id;
   }, 30_000);
 
@@ -59,6 +69,12 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('api_tokens', 'token_enc'),
            ('reports', 'size_bytes')
            ,('reports', 'storage_key'),
+           ('account', 'issuer'),
+           ('user', 'role'),
+           ('user', 'banned'),
+           ('user', 'banReason'),
+           ('user', 'banExpires'),
+           ('session', 'impersonatedBy'),
            ('reports', 'tag_color'),
            ('reports', 'external_network_enabled'),
            ('report_shares', 'token_hash'),
@@ -74,6 +90,14 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
            ('share_boards', 'password_enc'),
            ('share_boards', 'access_epoch'),
            ('share_boards', 'expires_at')
+           ,('registration_settings', 'registration_enabled')
+           ,('registration_settings', 'invite_required')
+           ,('registration_invites', 'code_lookup')
+           ,('registration_invites', 'code_enc')
+           ,('registration_invites', 'label')
+           ,('registration_invites', 'max_uses')
+           ,('registration_invites', 'expires_at')
+           ,('registration_invite_redemptions', 'user_id')
          )`,
     );
     const columns = new Map(
@@ -83,12 +107,18 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.get("otp_codes.code_hash")).toBe("NO");
     expect(columns.has("otp_codes.code")).toBe(false);
     expect(columns.has("api_tokens.token_lookup")).toBe(true);
-    expect(columns.has("api_tokens.token_prefix")).toBe(true);
-    expect(columns.has("api_tokens.token_enc")).toBe(false);
+    expect(columns.has("api_tokens.token_prefix")).toBe(false);
+    expect(columns.get("api_tokens.token_enc")).toBe("NO");
     expect(columns.get("reports.size_bytes")).toBe("NO");
     expect(columns.has("reports.storage_key")).toBe(true);
+    expect(columns.get("account.issuer")).toBe("NO");
+    expect(columns.has("user.role")).toBe(true);
+    expect(columns.has("user.banned")).toBe(true);
+    expect(columns.has("user.banReason")).toBe(true);
+    expect(columns.has("user.banExpires")).toBe(true);
+    expect(columns.has("session.impersonatedBy")).toBe(true);
     expect(columns.get("reports.tag_color")).toBe("NO");
-    expect(columns.get("reports.external_network_enabled")).toBe("NO");
+    expect(columns.has("reports.external_network_enabled")).toBe(false);
     expect(columns.get("report_shares.token_hash")).toBe("NO");
     expect(columns.get("report_shares.token_enc")).toBe("NO");
     expect(columns.has("report_shares.token")).toBe(false);
@@ -102,6 +132,21 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     expect(columns.has("share_boards.password_enc")).toBe(true);
     expect(columns.get("share_boards.access_epoch")).toBe("NO");
     expect(columns.has("share_boards.expires_at")).toBe(true);
+    expect(columns.get("registration_settings.registration_enabled")).toBe("NO");
+    expect(columns.get("registration_settings.invite_required")).toBe("NO");
+    expect(columns.get("registration_invites.code_lookup")).toBe("NO");
+    expect(columns.get("registration_invites.code_enc")).toBe("NO");
+    expect(columns.has("registration_invites.label")).toBe(false);
+    expect(columns.has("registration_invites.max_uses")).toBe(false);
+    expect(columns.has("registration_invites.expires_at")).toBe(false);
+    expect(columns.get("registration_invite_redemptions.user_id")).toBe("NO");
+    const inviteIndexes = await database.query<{ indexname: string }>(
+      `SELECT indexname
+       FROM pg_indexes
+       WHERE schemaname = 'public'
+         AND indexname = 'registration_invites_one_per_creator'`,
+    );
+    expect(inviteIndexes.rows).toHaveLength(1);
     const reportConstraints = await database.query<{
       conname: string;
       convalidated: boolean;
@@ -143,15 +188,126 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
       report_shares_password_pair: true,
       share_boards_password_pair: true,
     });
-    const migrationIntegrity = await database.query<{ total: string; protected: string }>(
+    const migrationIntegrity = await database.query<{
+      total: string;
+      protected: string;
+      external_network_removed: boolean;
+      registration_admin_added: boolean;
+      single_invite_added: boolean;
+    }>(
       `SELECT count(*)::text AS total,
-              count(*) FILTER (WHERE checksum ~ '^[0-9a-f]{64}$')::text AS protected
+              count(*) FILTER (WHERE checksum ~ '^[0-9a-f]{64}$')::text AS protected,
+              bool_or(version = 24) AS external_network_removed,
+              bool_or(version = 25) AS registration_admin_added,
+              bool_or(version = 26) AS single_invite_added
        FROM schema_migrations`,
     );
-    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(23);
+    expect(Number(migrationIntegrity.rows[0]?.total)).toBeGreaterThanOrEqual(22);
     expect(migrationIntegrity.rows[0]?.protected).toBe(
       migrationIntegrity.rows[0]?.total,
     );
+    expect(migrationIntegrity.rows[0]?.external_network_removed).toBe(true);
+    expect(migrationIntegrity.rows[0]?.registration_admin_added).toBe(true);
+    expect(migrationIntegrity.rows[0]?.single_invite_added).toBe(true);
+  });
+
+  it("同一邀请码可被多个用户使用且每个用户只记录一次", async () => {
+    const secondUser = await context.internalAdapter.createUser(
+      {
+        name: "Invite Concurrency Test",
+        email: `invite-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
+    const {
+      createRegistrationInvite,
+      redeemRegistrationInvite,
+    } = await import("@/lib/registration-invites");
+    const created = await createRegistrationInvite(userId);
+    if ("errorCode" in created) {
+      throw new Error("test user unexpectedly already has an invite");
+    }
+    const inviteCode = created.invite.code;
+    if (!inviteCode) {
+      throw new Error("test invite could not be decrypted");
+    }
+    const firstClient = await database.connect();
+    const secondClient = await database.connect();
+    try {
+      const results = await Promise.all([
+        redeemRegistrationInvite({
+          client: firstClient,
+          code: inviteCode,
+          userId,
+        }),
+        redeemRegistrationInvite({
+          client: secondClient,
+          code: inviteCode.toLowerCase(),
+          userId: secondUser.id,
+        }),
+      ]);
+      expect(results.filter(Boolean)).toHaveLength(2);
+      const state = await database.query<{ use_count: number; redemptions: string }>(
+        `SELECT i.use_count,
+                COUNT(r.id)::text AS redemptions
+         FROM registration_invites i
+         LEFT JOIN registration_invite_redemptions r ON r.invite_id = i.id
+         WHERE i.id = $1
+         GROUP BY i.id`,
+        [created.invite.id],
+      );
+      expect(state.rows[0]).toEqual({ use_count: 2, redemptions: "2" });
+    } finally {
+      firstClient.release();
+      secondClient.release();
+      await database.query(
+        `DELETE FROM registration_invite_redemptions WHERE invite_id = $1`,
+        [created.invite.id],
+      );
+      await database.query(`DELETE FROM registration_invites WHERE id = $1`, [
+        created.invite.id,
+      ]);
+      await database.query(`DELETE FROM "user" WHERE id = $1`, [secondUser.id]);
+    }
+  });
+
+  it("邀请码读取与撤销操作按创建者严格隔离", async () => {
+    const otherUser = await context.internalAdapter.createUser(
+      {
+        name: "Invite Ownership Test",
+        email: `invite-owner-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
+    const {
+      createRegistrationInvite,
+      getRegistrationInvite,
+      revokeRegistrationInvite,
+    } = await import("@/lib/registration-invites");
+    const created = await createRegistrationInvite(userId);
+    if ("errorCode" in created) {
+      throw new Error("test user unexpectedly already has an invite");
+    }
+
+    try {
+      await expect(getRegistrationInvite(otherUser.id)).resolves.toBeNull();
+      await expect(
+        revokeRegistrationInvite(otherUser.id),
+      ).resolves.toBe(false);
+      await expect(getRegistrationInvite(userId)).resolves.toEqual(
+        expect.objectContaining({ id: created.invite.id }),
+      );
+      await expect(
+        revokeRegistrationInvite(userId),
+      ).resolves.toBe(true);
+    } finally {
+      await database.query(`DELETE FROM registration_invites WHERE id = $1`, [
+        created.invite.id,
+      ]);
+      await database.query(`DELETE FROM "user" WHERE id = $1`, [otherUser.id]);
+    }
   });
 
   it("修改密码与撤销其他设备会话作为同一事务完成", async () => {
@@ -161,8 +317,8 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     const otherSessionId = crypto.randomUUID();
     await database.query(
       `INSERT INTO account
-         (id, "accountId", "providerId", "userId", password, "updatedAt")
-       VALUES ($1, $2, 'credential', $2, 'old-hash', NOW())`,
+         (id, issuer, "accountId", "providerId", "userId", password, "updatedAt")
+       VALUES ($1, 'local:credential', $2, 'credential', $2, 'old-hash', NOW())`,
       [accountId, userId],
     );
     await database.query(
@@ -209,6 +365,106 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     ).resolves.toBe(false);
   });
 
+  it("登录设备只返回当前用户的活跃会话且不能误删当前或他人会话", async () => {
+    const owner = await context.internalAdapter.createUser(
+      {
+        name: "Session Owner Test",
+        email: `session-owner-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
+    const outsider = await context.internalAdapter.createUser(
+      {
+        name: "Session Outsider Test",
+        email: `session-outsider-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
+    const currentSessionId = crypto.randomUUID();
+    const otherSessionId = crypto.randomUUID();
+    const expiredSessionId = crypto.randomUUID();
+    const outsiderSessionId = crypto.randomUUID();
+    const {
+      listActiveAccountSessions,
+      revokeOtherAccountSessions,
+      revokeOwnedAccountSession,
+    } = await import("@/lib/account-sessions");
+
+    try {
+      await database.query(
+        `INSERT INTO "session"
+           (id, "expiresAt", token, "createdAt", "updatedAt", "ipAddress", "userAgent", "userId")
+         VALUES ($1, NOW() + INTERVAL '1 day', $2, NOW(), NOW(), '127.0.0.1', 'test-current', $7),
+                ($3, NOW() + INTERVAL '1 day', $4, NOW(), NOW(), '127.0.0.2', 'test-other', $7),
+                ($5, NOW() - INTERVAL '1 day', $6, NOW(), NOW(), NULL, NULL, $7),
+                ($8, NOW() + INTERVAL '1 day', $9, NOW(), NOW(), '127.0.0.3', 'test-outsider', $10)`,
+        [
+          currentSessionId,
+          crypto.randomUUID(),
+          otherSessionId,
+          crypto.randomUUID(),
+          expiredSessionId,
+          crypto.randomUUID(),
+          owner.id,
+          outsiderSessionId,
+          crypto.randomUUID(),
+          outsider.id,
+        ],
+      );
+
+      const sessions = await listActiveAccountSessions(
+        owner.id,
+        currentSessionId,
+      );
+      expect(sessions.map((session) => session.id)).toEqual([
+        currentSessionId,
+        otherSessionId,
+      ]);
+      expect(sessions[0]?.current).toBe(true);
+      expect(sessions[1]?.current).toBe(false);
+      expect(sessions[0]).not.toHaveProperty("token");
+
+      await expect(
+        revokeOwnedAccountSession({
+          userId: owner.id,
+          currentSessionId,
+          targetSessionId: currentSessionId,
+        }),
+      ).resolves.toBe("current");
+      await expect(
+        revokeOwnedAccountSession({
+          userId: owner.id,
+          currentSessionId,
+          targetSessionId: outsiderSessionId,
+        }),
+      ).resolves.toBe("not-found");
+      await expect(
+        revokeOwnedAccountSession({
+          userId: owner.id,
+          currentSessionId,
+          targetSessionId: otherSessionId,
+        }),
+      ).resolves.toBe("revoked");
+      await expect(
+        revokeOtherAccountSessions(owner.id, currentSessionId),
+      ).resolves.toBe(1);
+
+      const remaining = await database.query<{ id: string }>(
+        `SELECT id FROM "session" WHERE id = ANY($1::text[]) ORDER BY id`,
+        [[currentSessionId, otherSessionId, expiredSessionId, outsiderSessionId]],
+      );
+      expect(remaining.rows.map((row) => row.id).sort()).toEqual(
+        [currentSessionId, outsiderSessionId].sort(),
+      );
+    } finally {
+      await database.query(`DELETE FROM "user" WHERE id = ANY($1::text[])`, [
+        [owner.id, outsider.id],
+      ]);
+    }
+  });
+
   it("并发核销同一 OTP 时只有一次成功", async () => {
     const { generateAndStoreOtp, verifyStoredOtp } = await import("@/lib/account");
     const email = `otp-${crypto.randomUUID()}@example.test`;
@@ -219,6 +475,20 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
       verifyStoredOtp({ email, purpose, code }),
     ]);
     expect(results.filter((result) => result.ok)).toHaveLength(1);
+  });
+
+  it("格式错误的 OTP 不消耗尝试次数", async () => {
+    const { generateAndStoreOtp, verifyStoredOtp } = await import("@/lib/account");
+    const email = `otp-format-${crypto.randomUUID()}@example.test`;
+    const purpose = "integration-format";
+    const code = await generateAndStoreOtp({ email, purpose });
+
+    await expect(
+      verifyStoredOtp({ email, purpose, code: "12345" }),
+    ).resolves.toMatchObject({ ok: false, remaining: 3 });
+    await expect(
+      verifyStoredOtp({ email, purpose, code }),
+    ).resolves.toMatchObject({ ok: true });
   });
 
   it("并发核销同一账号变更 token 时只有一次成功", async () => {
@@ -239,8 +509,8 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     const email = `api-${crypto.randomUUID()}@example.test`;
     await database.query(`UPDATE "user" SET email = $1 WHERE id = $2`, [email, userId]);
     const results = await Promise.all([
-      createApiToken(userId, email, "first"),
-      createApiToken(userId, email, "second"),
+      createApiToken(userId, email),
+      createApiToken(userId, email),
     ]);
     const successes = results.filter((result) => "token" in result);
     expect(successes).toHaveLength(1);
@@ -289,11 +559,14 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     const { moveUserDirToTrash, purgeTrash, userReportsDir } = await import(
       "@/lib/report-storage"
     );
-    const recoveryUser = await context.internalAdapter.createUser({
-      name: "Recovery Test",
-      email: `recovery-${crypto.randomUUID()}@example.test`,
-      emailVerified: true,
-    });
+    const recoveryUser = await context.internalAdapter.createUser(
+      {
+        name: "Recovery Test",
+        email: `recovery-${crypto.randomUUID()}@example.test`,
+        emailVerified: true,
+      },
+      { method: "test" },
+    );
     const dir = userReportsDir(recoveryUser.id);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(`${dir}/report.html`, "ok");

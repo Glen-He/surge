@@ -6,6 +6,8 @@ describe("生产内容域环境约束", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("DATABASE_URL", "postgresql://user:pass@db/surge");
     vi.stubEnv("BETTER_AUTH_SECRET", "a".repeat(32));
+    vi.stubEnv("API_TOKEN_ENCRYPTION_KEY", "t".repeat(32));
+    vi.stubEnv("INVITE_CODE_SECRET", "i".repeat(32));
     vi.stubEnv("SHARE_SECRET", "b".repeat(32));
     vi.stubEnv("SHARE_TOKEN_ENCRYPTION_KEY", "f".repeat(32));
     vi.stubEnv("MAINTENANCE_SECRET", "c".repeat(32));
@@ -39,6 +41,14 @@ describe("生产内容域环境约束", () => {
     vi.stubEnv("SHARE_TOKEN_ENCRYPTION_KEY", "");
     expect(() => validateProductionEnvironment()).toThrow(
       "SHARE_TOKEN_ENCRYPTION_KEY",
+    );
+  });
+
+  it("要求独立的 API 令牌加密根密钥", () => {
+    vi.stubEnv("REPORTS_ORIGIN", "https://reports.glenhe.com");
+    vi.stubEnv("API_TOKEN_ENCRYPTION_KEY", "");
+    expect(() => validateProductionEnvironment()).toThrow(
+      "API_TOKEN_ENCRYPTION_KEY",
     );
   });
 });

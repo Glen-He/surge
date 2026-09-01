@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { metaFromForm, validateReportMeta, type ReportMeta } from "@/lib/report-upload";
+import { validateReportMeta, type ReportMeta } from "@/lib/report-upload";
 
 const base: ReportMeta = {
   title: "周报",
@@ -8,7 +8,6 @@ const base: ReportMeta = {
   tagColor: "#DBEAFE",
   description: "",
   keywords: "",
-  externalNetwork: true,
 };
 
 describe("validateReportMeta date", () => {
@@ -28,14 +27,5 @@ describe("validateReportMeta date", () => {
       code: "META_DATE_INVALID",
       params: undefined,
     });
-  });
-});
-
-describe("报告外部网络默认值", () => {
-  it("未明确开启时默认关闭", () => {
-    const form = new FormData();
-    expect(metaFromForm(form).externalNetwork).toBe(false);
-    form.set("externalNetwork", "true");
-    expect(metaFromForm(form).externalNetwork).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CardHead } from "@/components/card-head";
 import { EmailChangeModal } from "./email-change-modal";
@@ -9,6 +10,7 @@ import { SignOutModal } from "./sign-out-modal";
 import { clearGuestClientState } from "@/lib/guest-session-client";
 import { DeleteAccountModal } from "./delete-account-modal";
 import { ApiTokensCard } from "./api-tokens-card";
+import { InvitationCard } from "./invitation-card";
 
 /** 游客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
 function GuestCountdown({ expiresAt }: { expiresAt: string }) {
@@ -106,10 +108,12 @@ export function AccountForm({
   email,
   deletionRequestedAt,
   guestExpiresAt,
+  activeSessionCount,
 }: {
   email: string;
   deletionRequestedAt: string | null;
   guestExpiresAt: string | null;
+  activeSessionCount: number;
 }) {
   const router = useRouter();
   const [openEmail, setOpenEmail] = useState(false);
@@ -268,35 +272,57 @@ export function AccountForm({
           </div>
         </section>
 
-        {/* ── 登录会话 ── */}
+        {/* ── 登录设备 ── */}
         <section className="account-card">
           <CardHead
             icon={ICON_DEVICE}
-            title="登录会话"
-            desc="管理当前账号的登录状态"
+            title="登录设备"
+            desc="查看并管理当前账号的活跃会话"
           />
           <div className="card-main shifted">
             <p className="text-[17px] font-semibold leading-[1.4] text-[#1d1d1f]">
-              当前设备
+              {guestExpiresAt ? "当前设备" : `${activeSessionCount} 个登录会话`}
             </p>
-            <span className="badge-success mt-2">活跃</span>
+            <span className="badge-success mt-2">
+              {guestExpiresAt ? "活跃" : "当前设备在线"}
+            </span>
           </div>
           <div className="card-action-wrap">
-            <div className="card-action">
-              <button
-                type="button"
-                onClick={() => setOpenSignOut(true)}
-                className="btn-action"
-              >
-                退出登录
-                {ICON_CHEVRON}
-              </button>
+            <div className="card-action gap-6">
+              {guestExpiresAt ? (
+                <button
+                  type="button"
+                  onClick={() => setOpenSignOut(true)}
+                  className="btn-action"
+                >
+                  退出登录
+                  {ICON_CHEVRON}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setOpenSignOut(true)}
+                    className="btn-action-danger"
+                  >
+                    退出登录
+                    {ICON_CHEVRON}
+                  </button>
+                  <Link href="/account/sessions" className="btn-action">
+                    管理设备
+                    {ICON_CHEVRON}
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </section>
 
         {/* ── API 令牌（程序化上传）── */}
         <ApiTokensCard isGuest={Boolean(guestExpiresAt)} />
+
+        {/* ── 邀请注册（每个正式用户一个邀请码）── */}
+        <InvitationCard isGuest={Boolean(guestExpiresAt)} />
       </div>
 
       {/* 弹窗：所有敏感操作在当前页面完成 */}

@@ -12,6 +12,8 @@ import {
   logSecurity,
   verifyStoredOtp,
 } from "@/lib/account";
+import { isOtpCode } from "@/lib/otp-code";
+import { OTP_CODE_FORMAT_ERROR } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +62,11 @@ export async function POST(req: Request) {
     });
   } else {
     const otp = String(body?.otp ?? "");
-    if (!otp) {
-      return Response.json({ error: "请输入验证码" }, { status: 400 });
+    if (!isOtpCode(otp)) {
+      return Response.json(
+        { error: OTP_CODE_FORMAT_ERROR },
+        { status: 400 },
+      );
     }
     const res = await verifyStoredOtp({
       email: session.user.email,

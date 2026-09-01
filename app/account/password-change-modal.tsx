@@ -10,6 +10,8 @@ import {
   passwordPolicyError,
 } from "@/lib/password-policy";
 import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
+import { OtpCodeInput } from "@/components/otp-code-input";
+import { isOtpCode } from "@/lib/otp-code";
 
 // 状态机：选择方式 → 验证（密码 / 邮箱验证码）→ 设置新密码 → 完成
 type Mode = "select" | "password" | "otp" | "new-password" | "success";
@@ -172,6 +174,7 @@ function PasswordChangeDialog({
   const [passwordChangeToken, setPasswordChangeToken] = useState("");
   const closeTimer = useRef<number | null>(null);
   const otpRef = useRef<HTMLInputElement | null>(null);
+  const otpVerificationPendingRef = useRef(false);
 
   useEffect(
     () => () => {
@@ -239,7 +242,8 @@ function PasswordChangeDialog({
 
   // ── 方式二：邮箱验证码（输满 6 位自动验证）──
   async function verifyByOtp(otpValue: string) {
-    if (otpValue.length !== 6 || loading) return;
+    if (!isOtpCode(otpValue) || otpVerificationPendingRef.current) return;
+    otpVerificationPendingRef.current = true;
     setLoading(true);
     setMsg(null);
     try {
@@ -256,6 +260,7 @@ function PasswordChangeDialog({
       }
       onVerified(data.passwordChangeToken);
     } finally {
+      otpVerificationPendingRef.current = false;
       setLoading(false);
     }
   }
@@ -416,19 +421,17 @@ function PasswordChangeDialog({
 
           {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
           <div className="mt-4 flex items-center gap-2.5">
-            <input
+            <OtpCodeInput
               ref={otpRef}
               value={otp}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setOtp(v);
+              onValueChange={(value) => {
+                setOtp(value);
                 setMsg(null);
-                if (v.length === 6) void verifyByOtp(v);
               }}
+              onComplete={(value) => void verifyByOtp(value)}
               placeholder="输入验证码"
-              inputMode="numeric"
-              autoComplete="one-time-code"
               disabled={loading}
+              aria-label="验证码"
               className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
             />
             <button

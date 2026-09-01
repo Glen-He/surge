@@ -6,7 +6,7 @@ import {
   type ApiTokenErrorCode,
   createApiToken,
   getApiToken,
-  revokeApiToken,
+  revokeCurrentApiToken,
   rotateApiToken,
 } from "@/lib/api-tokens";
 
@@ -32,10 +32,10 @@ function apiTokenErrorResponse(code: ApiTokenErrorCode): Response {
 }
 
 // API 令牌管理（会话认证）：单令牌密钥面板
-// GET    → 当前令牌元数据（明文只在创建/更换时返回一次）
+// GET    → 当前令牌（会话属主可随时查看）
 // POST   → 创建（无令牌时）
 // PATCH  → 更换（旧值立即失效，返回新明文）
-// DELETE → 撤销（?id=）
+// DELETE → 撤销当前令牌
 
 async function sessionUser() {
   return (await getApiSession()) ?? null;
@@ -65,15 +65,16 @@ export async function GET() {
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
 
   const result = await getApiToken(session.user.id);
-  if (!result) return Response.json({ token: null });
-  return Response.json({
-    token: {
-      id: result.id,
-      prefix: result.prefix,
-      createdAt: result.createdAt,
-      lastUsedAt: result.lastUsedAt,
+  return Response.json(
+    {
+      token: result,
+      error:
+        result && !result.token
+          ? "令牌无法显示，请更换或撤销后重新生成"
+          : undefined,
     },
-  });
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(req: Request) {
@@ -92,15 +93,10 @@ export async function POST(req: Request) {
     userId: session.user.id,
     ip,
   });
-  return Response.json({
-    token: {
-      id: result.token.id,
-      token: result.token.token,
-      prefix: result.token.prefix,
-      createdAt: result.token.createdAt,
-      lastUsedAt: null,
-    },
-  });
+  return Response.json(
+    { token: result.token },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function PATCH(req: Request) {
@@ -115,15 +111,10 @@ export async function PATCH(req: Request) {
   if ("errorCode" in result) {
     return apiTokenErrorResponse(result.errorCode);
   }
-  return Response.json({
-    token: {
-      id: result.token.id,
-      token: result.token.token,
-      prefix: result.token.prefix,
-      createdAt: result.token.createdAt,
-      lastUsedAt: null,
-    },
-  });
+  return Response.json(
+    { token: result.token },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function DELETE(req: Request) {
@@ -134,17 +125,7 @@ export async function DELETE(req: Request) {
   const limited = await guard(session.user.id, ip, "撤销");
   if (limited) return limited;
 
-  const id = new URL(req.url).searchParams.get("id") ?? "";
-  if (!id) {
-    // 未传 id：撤销当前令牌
-    const cur = await getApiToken(session.user.id);
-    if (!cur) {
-      return Response.json({ error: "没有可撤销的令牌" }, { status: 404 });
-    }
-    await revokeApiToken(session.user.id, cur.id);
-    return Response.json({ ok: true });
-  }
-  const ok = await revokeApiToken(session.user.id, id);
-  if (!ok) return Response.json({ error: "令牌不存在" }, { status: 404 });
+  const ok = await revokeCurrentApiToken(session.user.id);
+  if (!ok) return Response.json({ error: "没有可撤销的令牌" }, { status: 404 });
   return Response.json({ ok: true });
 }

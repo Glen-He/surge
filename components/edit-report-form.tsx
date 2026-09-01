@@ -21,7 +21,6 @@ export function EditReportForm({
     fd.set("tagColor", values.tagColor);
     fd.set("description", values.description);
     fd.set("keywords", values.keywords);
-    fd.set("externalNetwork", String(values.externalNetwork));
     if (file) fd.set("file", file);
 
     const res = await fetch(`/api/reports/${slug}`, {

@@ -10,6 +10,8 @@ function required(name: string, minLength = 1): string {
 export function validateProductionEnvironment(): void {
   required("REPORTS_DATA_DIR");
   required("BETTER_AUTH_SECRET", 32);
+  required("API_TOKEN_ENCRYPTION_KEY", 32);
+  required("INVITE_CODE_SECRET", 32);
   required("SHARE_SECRET", 32);
   required("SHARE_TOKEN_ENCRYPTION_KEY", 32);
   for (const name of ["OTP_SECRET", "LOG_REDACTION_SECRET"] as const) {
@@ -17,10 +19,6 @@ export function validateProductionEnvironment(): void {
     if (value && value.length < 32) {
       throw new Error(`${name} is too short`);
     }
-  }
-  const registrationMode = process.env.REGISTRATION_MODE?.trim().toLowerCase();
-  if (registrationMode && registrationMode !== "open" && registrationMode !== "closed") {
-    throw new Error("REGISTRATION_MODE must be open or closed");
   }
   const poolSize = Number(process.env.DB_POOL_MAX ?? 10);
   if (!Number.isSafeInteger(poolSize) || poolSize <= 0) {

@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import { showGuestOtpFromResponse } from "@/lib/guest-otp-store";
 import { applyOtpRetry, useOtpCooldown } from "@/components/use-otp-cooldown";
+import { OtpCodeInput } from "@/components/otp-code-input";
+import { isOtpCode } from "@/lib/otp-code";
 
 // 删除账号确认弹窗：单行 验证码输入 + 获取验证码；邮箱验证 + 15 天冷却期
 export function DeleteAccountModal({
@@ -59,7 +61,7 @@ function DeleteAccountDialog({
   }
 
   async function confirm() {
-    if (loading || otp.length !== 6) return;
+    if (loading || !isOtpCode(otp)) return;
     setLoading(true);
     setError("");
     try {
@@ -87,17 +89,16 @@ function DeleteAccountDialog({
 
       {/* 单行：验证码输入（浅 44）+ 获取验证码（深 42，光学小 1px） */}
       <div className="mt-4 flex items-center gap-2.5">
-        <input
+        <OtpCodeInput
           ref={otpRef}
           value={otp}
-          onChange={(e) => {
-            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+          onValueChange={(value) => {
+            setOtp(value);
             setError("");
           }}
           placeholder="输入验证码"
-          inputMode="numeric"
-          autoComplete="one-time-code"
           disabled={loading}
+          aria-label="删除账号验证码"
           className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
         />
         <button
@@ -127,7 +128,7 @@ function DeleteAccountDialog({
         <button
           type="button"
           onClick={() => void confirm()}
-          disabled={loading || otp.length !== 6}
+          disabled={loading || !isOtpCode(otp)}
           className="btn-danger"
         >
           {loading ? "提交中…" : "申请删除"}

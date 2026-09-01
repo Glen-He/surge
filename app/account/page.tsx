@@ -1,24 +1,25 @@
 import Link from "next/link";
 import { AccountForm } from "./account-form";
 import { GuestSessionWatcher } from "@/components/guest-toasts";
+import { hasAdminRole } from "@/lib/admin";
 import { getGuestExpiry, isGuestEmail } from "@/lib/guest-sandbox";
 import { requireSession } from "@/lib/session";
-import {
-  getDeletionRequestedAt,
-} from "@/lib/account-deletion";
+import { getDeletionRequestedAt } from "@/lib/account-deletion";
+import { listActiveAccountSessions } from "@/lib/account-sessions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
-
-  const deletionRequestedAt = await getDeletionRequestedAt(session.user.id);
-
-  // 游客：读沙箱到期时间（倒计时展示 + 守望器到期前提醒/到点退出）
-  const guestExpiry = isGuestEmail(session.user.email)
-    ? await getGuestExpiry(session.user.id)
-    : null;
+  const guest = isGuestEmail(session.user.email);
+  const [deletionRequestedAt, guestExpiry, activeSessions] = await Promise.all([
+    getDeletionRequestedAt(session.user.id),
+    guest ? getGuestExpiry(session.user.id) : Promise.resolve(null),
+    guest
+      ? Promise.resolve([])
+      : listActiveAccountSessions(session.user.id, session.session.id),
+  ]);
 
   return (
     <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
@@ -33,18 +34,25 @@ export default async function AccountPage() {
               管理你的登录信息、密码与账号安全设置
             </p>
           </div>
-          <Link href="/home" className="btn-light shrink-0">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="h-[15px] w-[15px]"
-            >
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-            返回
-          </Link>
+          <div className="flex shrink-0 items-center gap-2.5">
+            {hasAdminRole(session.user) && (
+              <Link href="/admin" className="btn-light">
+                管理员后台
+              </Link>
+            )}
+            <Link href="/home" className="btn-light">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-[15px] w-[15px]"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              返回
+            </Link>
+          </div>
         </div>
 
         <AccountForm
@@ -53,6 +61,7 @@ export default async function AccountPage() {
             deletionRequestedAt ? deletionRequestedAt.toISOString() : null
           }
           guestExpiresAt={guestExpiry ? guestExpiry.toISOString() : null}
+          activeSessionCount={activeSessions.length}
         />
       </div>
       {guestExpiry && (

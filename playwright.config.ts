@@ -21,6 +21,10 @@ process.env.REPORTS_DATA_DIR =
 process.env.SHARE_SECRET = "e2e-share-secret-at-least-32-characters";
 process.env.SHARE_TOKEN_ENCRYPTION_KEY =
   "e2e-share-token-encryption-key-at-least-32-characters";
+process.env.API_TOKEN_ENCRYPTION_KEY =
+  "e2e-api-token-encryption-key-at-least-32-characters";
+process.env.INVITE_CODE_SECRET =
+  "e2e-invite-code-secret-at-least-32-characters";
 process.env.MAINTENANCE_SECRET = "e2e-maintenance-secret-at-least-32-characters";
 process.env.SMTP_HOST = "localhost";
 process.env.SMTP_PORT = "465";

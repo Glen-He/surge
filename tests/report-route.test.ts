@@ -115,12 +115,13 @@ describe("报告资源路由缓存", () => {
     await response.body?.cancel();
   });
 
-  it("直接放行外部 HTTPS 网页能力，媒体使用正确 MIME", async () => {
+  it("入口阻止外部网络且包内媒体使用正确 MIME", async () => {
     const cap = issueCapability("report-id", "rev-1", 0);
     const entry = await request(cap, ["report.html"]);
     const csp = entry.headers.get("content-security-policy")!;
-    expect(csp).toMatch(/connect-src https:\/\/surge\.example\/r\/[^;]+ https:/);
-    expect(csp).toMatch(/frame-src https:\/\/surge\.example\/r\/[^;]+ https:/);
+    expect(csp).toMatch(/connect-src https:\/\/surge\.example\/r\/[^;]+\//);
+    expect(csp).toMatch(/frame-src https:\/\/surge\.example\/r\/[^;]+\//);
+    expect(csp).not.toMatch(/(?:^|[ ;])https:(?:[ ;]|$)/);
     expect(csp).toContain("form-action 'none'");
 
     const media = await request(cap, ["clip.mp4"]);

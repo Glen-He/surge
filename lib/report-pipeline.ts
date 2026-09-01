@@ -12,7 +12,7 @@ import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 //   （无 cookie/storage/同源权能），与外层 iframe sandbox 形成双层隔离；
 //   仅额外允许下载和由用户触发的新标签页，以支持报告附件与 DOI/PMID 外链
 // - 本 capability 目录内的资源、数据请求、媒体与 Worker 默认可用；
-// - 报告可直接使用外部 HTTPS 资源/API，HTTP 与其他协议禁止；
+// - 外部网络资源与 API 始终禁止，避免上传页面向第三方泄露访问与内容数据；
 // - 表单提交、插件对象与 base URL 改写始终禁止。
 //   注意一：sandbox 使文档成为 opaque origin，CSP 的 'self' 永不匹配，
 //   必须显式 origin。注意二：host source 支持路径前缀（以 / 结尾），
@@ -22,21 +22,19 @@ import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 export function reportDocCsp(
   capBase: string,
   frameAncestor: string,
-  externalNetworkEnabled = true,
 ): string {
-  const external = externalNetworkEnabled ? " https:" : "";
   return [
     `sandbox ${REPORT_SANDBOX_TOKENS}`,
     "default-src 'none'",
-    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/${external}`,
-    `style-src 'unsafe-inline' ${capBase}/${external}`,
-    `img-src ${capBase}/ data: blob:${external}`,
-    `font-src ${capBase}/ data:${external}`,
-    `media-src ${capBase}/ data: blob:${external}`,
+    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/`,
+    `style-src 'unsafe-inline' ${capBase}/`,
+    `img-src ${capBase}/ data: blob:`,
+    `font-src ${capBase}/ data:`,
+    `media-src ${capBase}/ data: blob:`,
     // 嵌入式 PDF 预览等场景：允许报告内嵌 <iframe> 指向 capability 目录
-    `frame-src ${capBase}/${external}`,
-    `connect-src ${capBase}/${external}`,
-    `worker-src ${capBase}/ blob:${external}`,
+    `frame-src ${capBase}/`,
+    `connect-src ${capBase}/`,
+    `worker-src ${capBase}/ blob:`,
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

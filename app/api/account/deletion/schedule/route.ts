@@ -3,6 +3,8 @@ import { scheduleDeletion } from "@/lib/account-deletion";
 import { destroyGuestUser, isGuestEmail } from "@/lib/guest-sandbox";
 import { logger } from "@/lib/logger";
 import { logSecurity, verifyStoredOtp } from "@/lib/account";
+import { isOtpCode } from "@/lib/otp-code";
+import { OTP_CODE_FORMAT_ERROR } from "@/lib/auth-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,11 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const code = typeof body?.code === "string" ? body.code.trim() : "";
-  if (!/^\d{6}$/.test(code)) {
-    return Response.json({ error: "请输入 6 位验证码" }, { status: 400 });
+  if (!isOtpCode(code)) {
+    return Response.json(
+      { error: OTP_CODE_FORMAT_ERROR },
+      { status: 400 },
+    );
   }
 
   const v = await verifyStoredOtp({

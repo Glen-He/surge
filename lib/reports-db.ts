@@ -16,7 +16,6 @@ export type DbReport = {
   size_bytes: number;
   template_key: string | null;
   storage_key: string | null;
-  external_network_enabled: boolean;
   created_at: Date;
 };
 

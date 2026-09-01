@@ -113,10 +113,8 @@ export async function GET(
     capability_epoch: number;
     template_key: string | null;
     storage_key: string | null;
-    external_network_enabled: boolean;
   }>(
-    `SELECT user_id, revision_id, capability_epoch, template_key, storage_key,
-            external_network_enabled
+    `SELECT user_id, revision_id, capability_epoch, template_key, storage_key
      FROM reports WHERE id = $1 LIMIT 1`,
     [grant.reportId],
   );
@@ -206,7 +204,7 @@ export async function GET(
     // CORS；不下发 ACAO，阻止 opaque-origin 汇报脚本 fetch 后读取注入源码。
     delete headers["Access-Control-Allow-Origin"];
     // 入口文档：确定性后处理 + 统一网页汇报 CSP。
-    // 本 capability 目录与外部 HTTPS 资源可用，高权限仍由沙箱隔离。
+    // 仅允许当前 capability 目录中的资源，外部网络始终禁止。
     let content: Buffer;
     try {
       // 运行时数据独立挂载，绝不能被复制进构建产物追踪。
@@ -223,7 +221,6 @@ export async function GET(
           "Content-Security-Policy": reportDocCsp(
             `${reportsOrigin()}/r/${cap}`,
             applicationOrigin(),
-            row.external_network_enabled,
           ),
         },
       },

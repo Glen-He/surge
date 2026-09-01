@@ -16,7 +16,8 @@
 /* 大型横向认证舞台：左品牌区 + 右表单区，只有一张大卡 */
 .auth-stage {
   width: min(1080px, 100%);
-  min-height: 640px;
+  /* 按字段最多的注册态预留高度，登录 / 注册切换时外层卡片不改变尺寸。 */
+  min-height: 620px;
   margin-inline: auto;
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
@@ -71,7 +72,8 @@
 
 /* 右侧：表单面板；表单本身限宽 380px */
 .auth-form-panel {
-  padding: 52px 56px;
+  /* 保持总垂直留白不变，仅将表单视觉重心下移 8px。 */
+  padding: 50px 56px 34px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -79,6 +81,8 @@
 
 .auth-form-inner {
   width: min(100%, 380px);
+  /* 登录与注册使用相同骨架高度，切换时共有元素严格保持原位。 */
+  min-height: 465px;
   margin-inline: auto;
 }
 
@@ -102,19 +106,19 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  height: 44px;
-  padding: 4px;
-  margin-top: 28px;
+  height: 38px;
+  padding: 3px;
+  margin-top: 26px;
   background: #f2f2f4;
   border-radius: 999px;
 }
 
 .auth-tab-indicator {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc((100% - 8px) / 2);
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
   background: #fff;
   border-radius: 999px;
   box-shadow:
@@ -129,7 +133,7 @@
   z-index: 1;
   background: transparent;
   border: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
   transition: color 0.15s ease;
@@ -146,9 +150,9 @@
 
 .auth-field {
   position: relative;
-  margin-top: 14px;
+  margin-top: 10px;
   /* 底部预留错误提示位：间距恒定，报错不引起跳变 */
-  padding-bottom: 20px;
+  padding-bottom: 22px;
 }
 
 .auth-label {
@@ -164,7 +168,7 @@
 }
 
 .auth-input {
-  height: 50px;
+  height: 44px;
   width: 100%;
   border: 1px solid rgba(0, 0, 0, 0.11);
   border-radius: 12px;
@@ -173,15 +177,38 @@
   font-size: 15px;
   color: var(--text-primary);
   outline: none;
-  transition: border-color 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .auth-input::placeholder {
+  color: transparent;
+  transition: color 0.16s ease;
+}
+
+.auth-input:focus::placeholder {
   color: #a1a1a6;
 }
 
 /* 聚焦：只变边框颜色，不外扩光环 */
 .auth-input:focus {
+  border-color: var(--accent);
+}
+
+/* Chrome / Safari 的密码自动填充会覆盖输入框底色；保留自动填充状态提示，
+ * 仅把底色统一为低对比度浅蓝，并确保文字与光标仍有足够对比度。 */
+.auth-input:is(:autofill, :-webkit-autofill),
+.auth-input:is(:autofill, :-webkit-autofill):hover,
+.auth-input:is(:autofill, :-webkit-autofill):focus {
+  border-color: rgba(0, 113, 227, 0.22);
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px #eef6ff inset;
+  box-shadow: 0 0 0 1000px #eef6ff inset;
+}
+
+.auth-input:is(:autofill, :-webkit-autofill):focus {
   border-color: var(--accent);
 }
 
@@ -191,7 +218,13 @@
 }
 
 .auth-input-pw {
-  padding-right: 48px;
+  padding-right: 44px;
+}
+
+.auth-input-code {
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
 }
 
 .auth-input-error,
@@ -209,6 +242,52 @@
   pointer-events: none;
 }
 
+/* 浮动标签：空闲时位于输入框内，聚焦或已有内容时贴到边框左上。 */
+.auth-floating-label {
+  position: absolute;
+  z-index: 1;
+  left: 44px;
+  top: 50%;
+  max-width: calc(100% - 92px);
+  padding-inline: 0;
+  overflow: hidden;
+  color: #86868b;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transform-origin: left center;
+  transition:
+    top 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    left 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    padding 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 180ms ease,
+    font-size 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-input:focus + .auth-floating-label,
+.auth-input:not(:placeholder-shown) + .auth-floating-label,
+.auth-input:is(:autofill, :-webkit-autofill) + .auth-floating-label {
+  left: 12px;
+  top: 0;
+  padding-inline: 5px;
+  background: #fff;
+  color: #86868b;
+  font-size: 11px;
+}
+
+.auth-input:focus + .auth-floating-label {
+  color: var(--accent);
+}
+
+.auth-input-error + .auth-floating-label,
+.auth-input-error:focus + .auth-floating-label {
+  color: var(--danger);
+}
+
 /* 眼睛：视觉轻、点击区域 40px */
 .auth-eye {
   position: absolute;
@@ -218,8 +297,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -231,23 +310,26 @@
   color: var(--text-primary);
 }
 
-.auth-otp-shell {
-  display: flex;
-  gap: 8px;
-}
-
 .auth-otp {
-  height: 50px;
+  height: 44px;
   width: 100%;
   border: 1px solid rgba(0, 0, 0, 0.11);
   border-radius: 12px;
   background: #fff;
+  padding-inline: 16px;
   text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  letter-spacing: 0.25em;
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.18s ease;
+}
+
+.auth-otp::placeholder {
+  font-weight: 400;
+  letter-spacing: normal;
+  color: #a1a1a6;
 }
 
 .auth-otp:focus {
@@ -290,19 +372,6 @@
   color: var(--danger);
 }
 
-/* 元信息行：登录=右对齐忘记密码，注册=居中提示；两种模式同高，元素位置固定 */
-.auth-meta-row {
-  margin-top: 10px;
-  min-height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.auth-meta-center {
-  justify-content: center;
-}
-
 /* 验证码区域：grid-rows 过渡平滑展开，避免卡片跳变 */
 .auth-collapse {
   display: grid;
@@ -316,6 +385,23 @@
 
 .auth-collapse > div {
   overflow: hidden;
+}
+
+/* 第三行在两种模式下严格等高，避免下方按钮随邀请码出现而移动。 */
+.auth-mode-slot {
+  display: flow-root;
+  height: 76px;
+}
+
+.auth-login-support {
+  height: 44px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.auth-login-field {
+  margin-top: 2px;
 }
 
 .auth-link {
@@ -333,16 +419,24 @@
   cursor: not-allowed;
 }
 
+/* 底部操作左右等分；实心按钮与带边框按钮按边框厚度补偿尺寸。 */
+.auth-actions {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
+}
+
 /* 主提交：苹果官网按钮蓝 */
 .auth-submit {
-  margin-top: 24px;
   width: 100%;
-  height: 48px;
+  height: 40px;
   border: 0;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   transition:
     background-color 0.15s ease,
@@ -360,9 +454,8 @@
 
 /* 游客登录：浅色次级按钮，hover 变深 */
 .auth-guest {
-  margin-top: 12px;
   width: 100%;
-  height: 44px;
+  height: 42px;
   border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   background: #fff;
@@ -382,6 +475,11 @@
 }
 
 @media (max-width: 768px) {
+  .auth-main {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
   .auth-stage {
     display: block;
     width: 100%;
@@ -398,11 +496,12 @@
   }
 
   .auth-form-panel {
-    padding: 28px 24px 32px;
+    padding: 34px 24px 22px;
+    /* 移动端同样按注册态预留表单空间，切换时只更新内容而不推拉卡片。 */
+    min-height: 560px;
   }
 
   .auth-form-inner {
     width: 100%;
   }
 }
-

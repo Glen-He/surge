@@ -17,7 +17,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-在 `.env.local` 中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定；本地也应使用当前 checkout 之外的专用目录。
+在环境变量中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`API_TOKEN_ENCRYPTION_KEY`、`INVITE_CODE_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定，并使用当前 checkout 之外的专用目录。
 
 ```bash
 pnpm lint
@@ -35,6 +35,8 @@ pnpm check  # 一次执行全部检查
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL 连接串 |
 | `BETTER_AUTH_SECRET` | 会话与内部密钥派生的高熵根密钥 |
+| `API_TOKEN_ENCRYPTION_KEY` | API 令牌回显所用的独立加密根密钥（至少 32 字符，必须持久保存） |
+| `INVITE_CODE_SECRET` | 邀请码 HMAC 查询与 AES-GCM 加密的独立根密钥（至少 32 字符，必须持久保存） |
 | `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
 | `REPORTS_ORIGIN` | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站 |
 | `REPORTS_DATA_DIR` | checkout 之外的持久化报告目录，所有环境必填 |
@@ -49,11 +51,14 @@ pnpm check  # 一次执行全部检查
 | `STORAGE_ORPHAN_GRACE_MINUTES` | 崩溃遗留暂存/孤儿版本的安全回收等待时间，默认 60 分钟 |
 | `STORAGE_RECOVERY_RETENTION_HOURS` | 无法自动判定的回收区数据最长保留时间，默认 168 小时 |
 | `SECURITY_LOG_RETENTION_DAYS` | 含邮箱/IP 的安全日志保留期，默认 90 天 |
-| `REGISTRATION_MODE` | `closed`（生产默认）关闭公开注册；明确设为 `open` 才开放 |
 | `MAINTENANCE_SECRET` | 外部 cron 触发完整清理任务的 Bearer 密钥 |
 | `LOG_REDACTION_SECRET` | 日志中邮箱/IP 的不可逆指纹盐；默认从认证密钥派生 |
 
 密钥可用 `openssl rand -hex 32` 生成。不要把 `.env.local`、数据库备份或报告数据卷提交到 Git。
+
+首次启用管理员功能时，先正常启动一次让 Better Auth 和项目迁移完成，再在部署环境执行 `pnpm admin:grant <管理员邮箱>`。管理员角色存储在数据库中，不绑定种子账号环境变量；注册开关和邀请码强制策略在“管理员后台”即时生效，普通用户由服务端权限校验拒绝访问。每个正式用户只有一个专属邀请码，可在“用户中心 → 邀请注册”中查看、复制邀请链接、更换或撤销；邀请码永久有效且不限制使用次数，实际邀请次数会持续记录。邀请链接使用 fragment 自动填写并锁定邀请码输入框；`INVITE_CODE_SECRET` 丢失后现有邀请码将无法回显或验证。
+
+每个正式用户同时只能有一个有效 API 令牌。账户页可随时显示和复制令牌；认证仍通过不可逆 lookup 定位，明文只以 `API_TOKEN_ENCRYPTION_KEY` 派生的 AES-GCM 密钥加密保存。更换或撤销会立即使旧值失效。丢失或更换该加密根密钥后，现有令牌必须重新生成。
 
 ## 数据库迁移与启动
 
@@ -95,13 +100,13 @@ pnpm start
 
 ## 报告网页能力
 
-报告可以运行 HTML/CSS/JavaScript，并读取同一报告目录中的脚本、样式、JSON/CSV、图片、字体、音视频、PDF 和 Blob Worker。包内资源使用相对路径。新项目默认关闭外部网络；只有创建/编辑时明确开启后，外部 HTTPS API、CDN、图片、字体、媒体和 iframe 才可引用。关闭时浏览器 CSP 只允许当前报告包内资源，适合包含敏感数据的汇报。外部 `fetch`/模块资源仍需要目标站正确提供 CORS 响应头。
+报告可以运行 HTML/CSS/JavaScript，并读取同一报告目录中的脚本、样式、JSON/CSV、图片、字体、音视频、PDF 和 Blob Worker。包内资源使用相对路径。浏览器 CSP 始终只允许当前报告 capability 目录内的资源，外部 API、CDN、图片、字体、媒体和 iframe 均不可加载；用户明确点击的 HTTPS 外链仍可在隔离的新标签页中打开。
 
 ## 安全边界
 
 - ZIP 按顺序流式解压，同时校验路径穿越、符号链接、重复文件、文件数和实际解压字节数。
 - 报告使用短时 HMAC capability 访问，与内容 revision 和撤销 epoch 绑定。
-- 报告由独立内容域提供，仅在不带 `allow-same-origin`/顶层导航/表单提交/设备权限的固定视口 sandbox iframe 中运行；包内资源与外部 HTTPS 网页能力可用。
+- 报告由独立内容域提供，仅在不带 `allow-same-origin`/顶层导航/表单提交/设备权限的固定视口 sandbox iframe 中运行；只允许加载包内资源，用户触发的新标签页外链仍可用。
 - OTP 只以 HMAC 落库，核销、错误次数和一次性变更 token 均使用数据库事务。
 - API token 按 SHA-256 指纹等值定位，只有失败认证才进入 PostgreSQL 共享限流。
 - 分享 URL 令牌按 SHA-256 指纹查询，明文使用 AES-256-GCM 和独立派生密钥加密后存储；数据库只读泄漏不会直接暴露可访问链接。

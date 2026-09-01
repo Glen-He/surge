@@ -4,9 +4,15 @@ import { toChineseError } from "@/lib/auth-errors";
 import { clientIp } from "@/lib/client-ip";
 import { consumeSharedRateLimit } from "@/lib/db-rate-limit";
 import {
+  getRegistrationPolicy,
   registrationInternalProof,
-  registrationIsOpen,
 } from "@/lib/registration-policy";
+import {
+  inviteCodeHasValidFormat,
+  normalizeInviteCode,
+  validateRegistrationInvite,
+} from "@/lib/registration-invites";
+import { registrationErrorCopy } from "@/lib/registration-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +22,21 @@ function authEndpointUrl(req: Request): string {
 }
 
 export async function POST(req: Request) {
-  if (!registrationIsOpen()) {
-    return NextResponse.json({ error: "当前未开放新账号注册" }, { status: 403 });
+  const policy = await getRegistrationPolicy();
+  if (!policy.enabled) {
+    return NextResponse.json(
+      { error: registrationErrorCopy("REGISTRATION_CLOSED") },
+      { status: 403 },
+    );
   }
-  const body = (await req.json().catch(() => null)) as { email?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    email?: unknown;
+    inviteCode?: unknown;
+  } | null;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const inviteCode = normalizeInviteCode(
+    typeof body?.inviteCode === "string" ? body.inviteCode : "",
+  );
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320) {
     return NextResponse.json({ error: "邮箱格式不正确" }, { status: 400 });
   }
@@ -36,6 +52,25 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "验证码发送过于频繁，请稍后再试" },
       { status: 429 },
+    );
+  }
+
+  if (policy.inviteRequired && !inviteCode) {
+    return NextResponse.json(
+      { code: "INVITE_REQUIRED", error: registrationErrorCopy("INVITE_REQUIRED") },
+      { status: 400 },
+    );
+  }
+  if (inviteCode && !inviteCodeHasValidFormat(inviteCode)) {
+    return NextResponse.json(
+      { code: "INVITE_FORMAT", error: registrationErrorCopy("INVITE_FORMAT") },
+      { status: 400 },
+    );
+  }
+  if (inviteCode && !(await validateRegistrationInvite(inviteCode))) {
+    return NextResponse.json(
+      { code: "INVITE_INVALID", error: registrationErrorCopy("INVITE_INVALID") },
+      { status: 400 },
     );
   }
 
