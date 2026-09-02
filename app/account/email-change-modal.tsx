@@ -229,138 +229,143 @@ function EmailChangeDialog({
       busy={busy}
       dirty={dirty}
       plainHeader
+      bodyClassName="security-modal-body-step"
     >
       {step === "verify-current" && (
-        <div key="verify-current" className="animate-step">
+        <div key="verify-current" className="animate-step security-step">
           <StepIndicator steps={STEPS} current={0} />
 
-          <p className="text-[16px] font-semibold text-[#1d1d1f]">
-            验证当前邮箱
-          </p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
-            为了保护账号安全，请先验证当前绑定邮箱。
-          </p>
+          <div className="security-step-center">
+            <p className="text-[16px] font-semibold text-[#1d1d1f]">
+              验证当前邮箱
+            </p>
+            <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
+              为了保护账号安全，请先验证当前绑定邮箱。
+            </p>
 
-          <p className="mt-4 text-[13px] text-[#6e6e73]">当前绑定邮箱</p>
-          <div className="info-card mt-1.5">
-            <span className="info-card-icon">{ICON_MAIL}</span>
-            <span className="break-email min-w-0 text-[15px] font-semibold text-[#1d1d1f]">
-              {currentEmail}
-            </span>
-          </div>
+            <p className="mt-4 text-[13px] text-[#6e6e73]">当前绑定邮箱</p>
+            <div className="info-card mt-1.5">
+              <span className="info-card-icon">{ICON_MAIL}</span>
+              <span className="break-email min-w-0 text-[15px] font-semibold text-[#1d1d1f]">
+                {currentEmail}
+              </span>
+            </div>
 
-          {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
-          <div className="mt-4 flex items-center gap-2.5">
-            <OtpCodeInput
-              ref={oldOtpRef}
-              value={oldOtp}
-              onValueChange={(value) => {
-                setOldOtp(value);
-                setMsg(null);
-              }}
-              onComplete={(value) => void verifyOldOtp(value)}
-              placeholder="输入验证码"
-              disabled={loading}
-              aria-label="当前邮箱验证码"
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
-            />
-            <button
-              type="button"
-              onClick={sendOldOtp}
-              disabled={oldSending || oldCooldown > 0 || oldDailyLimit || loading}
-              className="btn-primary otp-send"
-            >
-              {oldSending
-                ? "发送中…"
-                : oldDailyLimit
-                  ? "明日再试"
-                  : oldCooldown > 0
-                    ? `${oldCooldown}s 后重发`
-                    : "获取验证码"}
-            </button>
+            {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
+            <div className="mt-4 flex items-center gap-2.5">
+              <OtpCodeInput
+                ref={oldOtpRef}
+                value={oldOtp}
+                onValueChange={(value) => {
+                  setOldOtp(value);
+                  setMsg(null);
+                }}
+                onComplete={(value) => void verifyOldOtp(value)}
+                placeholder="输入验证码"
+                disabled={loading}
+                aria-label="当前邮箱验证码"
+                className="otp-input"
+              />
+              <button
+                type="button"
+                onClick={sendOldOtp}
+                disabled={oldSending || oldCooldown > 0 || oldDailyLimit || loading}
+                className="btn-primary otp-send"
+              >
+                {oldSending
+                  ? "发送中…"
+                  : oldDailyLimit
+                    ? "明日再试"
+                    : oldCooldown > 0
+                      ? `${oldCooldown}s 后重发`
+                      : "获取验证码"}
+              </button>
+            </div>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              验证码 6 位数字，输入后自动验证，5 分钟内有效
+            </p>
+            <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
+              {loading ? "验证中…" : ""}
+            </p>
           </div>
-          <p className="mt-2 text-[13px] text-[#6e6e73]">
-            验证码 6 位数字，输入后自动验证，5 分钟内有效
-          </p>
-          <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
-            {loading ? "验证中…" : ""}
-          </p>
         </div>
       )}
 
       {step === "enter-new" && (
-        <div key="enter-new" className="animate-step">
+        <div key="enter-new" className="animate-step security-step">
           <BackLink onClick={() => setStep("verify-current")} />
           <StepIndicator steps={STEPS} current={1} />
 
-          <p className="text-[16px] font-semibold text-[#1d1d1f]">
-            设置新的登录邮箱
-          </p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
-            新的邮箱将用于后续登录、身份验证和接收安全通知。
-          </p>
+          <div className="security-step-center">
+            <p className="text-[16px] font-semibold text-[#1d1d1f]">
+              设置新的登录邮箱
+            </p>
+            <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
+              新的邮箱将用于后续登录、身份验证和接收安全通知。
+            </p>
 
-          <label className="mb-2 mt-4 block text-[14px] font-medium text-[#1d1d1f]">
-            新邮箱地址
-          </label>
-          <input
-            type="email"
-            placeholder="name@example.com"
-            value={newEmail}
-            onChange={(e) => {
-              setNewEmail(e.target.value);
-              setNewEmailError("");
-              setMsg(null);
-            }}
-            className={`input ${newEmailError ? "input-error" : ""}`}
-          />
-          <p className="field-error">{newEmailError}</p>
-
-          {/* 单行：验证码输入 + 获取验证码，输满 6 位自动完成 */}
-          <div className="mt-4 flex items-center gap-2.5">
-            <OtpCodeInput
-              ref={newOtpRef}
-              value={newOtp}
-              onValueChange={(value) => {
-                setNewOtp(value);
+            <label className="mb-2 mt-4 block text-[14px] font-medium text-[#1d1d1f]">
+              新邮箱地址
+            </label>
+            <input
+              type="email"
+              placeholder="name@example.com"
+              value={newEmail}
+              onChange={(e) => {
+                setNewEmail(e.target.value);
+                setNewEmailError("");
                 setMsg(null);
               }}
-              onComplete={(value) => void completeEmailChange(value)}
-              placeholder="输入验证码"
-              disabled={loading}
-              aria-label="新邮箱验证码"
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+              className={`input ${newEmailError ? "input-error" : ""}`}
             />
-            <button
-              type="button"
-              onClick={sendNewOtp}
-              disabled={newSending || newCooldown > 0 || newDailyLimit || loading}
-              className="btn-primary otp-send"
-            >
-              {newSending
-                ? "发送中…"
-                : newDailyLimit
-                  ? "明日再试"
-                  : newCooldown > 0
-                    ? `${newCooldown}s 后重发`
-                    : "获取验证码"}
-            </button>
+            <p className="field-error">{newEmailError}</p>
+
+            {/* 单行：验证码输入 + 获取验证码，输满 6 位自动完成 */}
+            <div className="mt-4 flex items-center gap-2.5">
+              <OtpCodeInput
+                ref={newOtpRef}
+                value={newOtp}
+                onValueChange={(value) => {
+                  setNewOtp(value);
+                  setMsg(null);
+                }}
+                onComplete={(value) => void completeEmailChange(value)}
+                placeholder="输入验证码"
+                disabled={loading}
+                aria-label="新邮箱验证码"
+                className="otp-input"
+              />
+              <button
+                type="button"
+                onClick={sendNewOtp}
+                disabled={newSending || newCooldown > 0 || newDailyLimit || loading}
+                className="btn-primary otp-send"
+              >
+                {newSending
+                  ? "发送中…"
+                  : newDailyLimit
+                    ? "明日再试"
+                    : newCooldown > 0
+                      ? `${newCooldown}s 后重发`
+                      : "获取验证码"}
+              </button>
+            </div>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              验证码 6 位数字，输入后自动验证，5 分钟内有效
+            </p>
+            <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
+              {loading ? "验证中…" : ""}
+            </p>
           </div>
-          <p className="mt-2 text-[13px] text-[#6e6e73]">
-            验证码 6 位数字，输入后自动验证，5 分钟内有效
-          </p>
-          <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
-            {loading ? "验证中…" : ""}
-          </p>
         </div>
       )}
 
       {step === "success" && (
         <div
           key="success"
-          className="animate-step flex flex-col items-center py-4 text-center"
+          className="animate-step security-step security-step-success"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(52,199,89,0.12)]">
             <svg

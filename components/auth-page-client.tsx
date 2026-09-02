@@ -15,6 +15,7 @@ import {
 import { PASSWORD_RULE_TEXT } from "@/lib/password-policy";
 import { inviteCodeFromFragment } from "@/lib/invite-link";
 import { OtpCodeInput } from "@/components/otp-code-input";
+import { Modal } from "@/components/modal";
 import { isOtpCode } from "@/lib/otp-code";
 import {
   GUEST_WELCOME_KEY,
@@ -77,6 +78,7 @@ export function AuthPageClient({
   // 注册验证码
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
@@ -93,7 +95,7 @@ export function AuthPageClient({
 
   const isSignUp = mode === "signup";
   const authBusy = loading || guestLoading || loginPending || loginState.ok;
-  const otpPhase = isSignUp && otpSent;
+  const otpModalVisible = isSignUp && otpSent && otpModalOpen;
   const visibleError =
     error ||
     (!isSignUp && loginState.submissionId > dismissedLoginSubmissionId
@@ -136,8 +138,8 @@ export function AuthPageClient({
 
   // 发送验证码后聚焦输入框
   useEffect(() => {
-    if (otpSent) otpRef.current?.focus();
-  }, [otpSent]);
+    if (otpModalVisible) otpRef.current?.focus({ preventScroll: true });
+  }, [otpModalVisible]);
 
   // 请求超过 4 秒时明确告知仍在处理，不让用户反复点击。
   useEffect(() => {
@@ -188,6 +190,7 @@ export function AuthPageClient({
         return;
       }
       setOtpSent(true);
+      setOtpModalOpen(true);
       setCooldown(COOLDOWN_SECONDS);
     } finally {
       otpSendPendingRef.current = false;
@@ -248,16 +251,16 @@ export function AuthPageClient({
     setInviteError("");
     setOtpCode("");
     setOtpSent(false);
+    setOtpModalOpen(false);
   }
 
-  // 验证码阶段点“修改”：回到填写阶段，保留已填内容
-  function backToFields() {
+  // 注册信息发生变化后，旧验证码不再匹配当前注册请求。
+  function invalidateRegistrationOtp() {
+    if (!otpSent) return;
     setOtpSent(false);
     setOtpCode("");
-    setError("");
+    setOtpModalOpen(false);
   }
-
-  const otpComplete = isOtpCode(otpCode);
 
   return (
     <main className="auth-page text-[#1d1d1f] antialiased">
@@ -330,80 +333,19 @@ export function AuthPageClient({
                   setDismissedLoginSubmissionId(loginState.submissionId);
                   if (isSignUp) {
                     e.preventDefault();
-                    if (otpSent) return;
+                    if (otpSent) {
+                      setOtpModalOpen(true);
+                      return;
+                    }
                     void sendOtp();
                   }
                 }}
                 noValidate
               >
-                {/* 注册验证码阶段：摘要 + 验证码格（平滑展开） */}
-                <div
-                  className={`auth-collapse ${otpPhase ? "auth-collapse-open" : ""}`}
-                  aria-hidden={!otpPhase}
-                  inert={!otpPhase}
-                >
-                  <div>
-                    <div className="auth-field auth-field-top">
-                      <div className="auth-summary">
-                        <span className="auth-summary-value break-email">
-                          {email}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={backToFields}
-                          className="auth-link shrink-0"
-                        >
-                          修改
-                        </button>
-                      </div>
-                    </div>
-                    <div className="auth-field">
-                      <label className="auth-label">验证码</label>
-                      <OtpCodeInput
-                        ref={otpRef}
-                        value={otpCode}
-                        onValueChange={(value) => {
-                          setOtpCode(value);
-                          setError("");
-                        }}
-                        onComplete={(value) => void verifyOtp(value)}
-                        aria-label="验证码"
-                        placeholder="输入 6 位验证码"
-                        disabled={loading}
-                        className="auth-otp"
-                      />
-                      <div className="mt-2 flex items-center justify-between text-[12px]">
-                        <button
-                          type="button"
-                          onClick={sendOtp}
-                          disabled={cooldown > 0 || loading}
-                          className="auth-link"
-                        >
-                          {cooldown > 0
-                            ? `${cooldown}s 后重新获取`
-                            : loading
-                              ? "发送中…"
-                              : "重新获取验证码"}
-                        </button>
-                        <span className="text-[#6e6e73]">
-                          输入完整验证码后自动验证
-                        </span>
-                      </div>
-                      <p className="auth-error-slot">{error}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 填写阶段：邮箱 + 密码（验证码阶段平滑收起） */}
-                <div
-                  className={`auth-collapse ${otpPhase ? "" : "auth-collapse-open"}`}
-                  aria-hidden={otpPhase}
-                  inert={otpPhase}
-                >
-                  <div>
-                    {/* 邮箱 */}
-                    <div className="auth-field auth-field-top">
-                      <div className="auth-input-wrap">
+                <div>
+                  {/* 邮箱 */}
+                  <div className="auth-field auth-field-top">
+                    <div className="auth-input-wrap">
                         <span className="auth-input-icon">{ICON_MAIL}</span>
                         <input
                           id="auth-email"
@@ -412,6 +354,7 @@ export function AuthPageClient({
                           placeholder="name@example.com"
                           value={email}
                           onChange={(e) => {
+                            invalidateRegistrationOtp();
                             setEmail(e.target.value);
                             setError("");
                             setDismissedLoginSubmissionId(
@@ -429,13 +372,13 @@ export function AuthPageClient({
                         <label className="auth-floating-label" htmlFor="auth-email">
                           邮箱
                         </label>
-                      </div>
-                      <p className="auth-error-slot">{emailError}</p>
                     </div>
+                    <p className="auth-error-slot">{emailError}</p>
+                  </div>
 
-                    {/* 密码（登录和注册都需要，注册用于保存） */}
-                    <div className="auth-field">
-                      <div className="auth-input-wrap">
+                  {/* 密码（登录和注册都需要，注册用于保存） */}
+                  <div className="auth-field">
+                    <div className="auth-input-wrap">
                         <span className="auth-input-icon">{ICON_LOCK}</span>
                         <input
                           id="auth-password"
@@ -444,6 +387,7 @@ export function AuthPageClient({
                           placeholder={isSignUp ? PASSWORD_RULE_TEXT : "••••••••"}
                           value={password}
                           onChange={(e) => {
+                            invalidateRegistrationOtp();
                             setPassword(e.target.value);
                             setError("");
                             setDismissedLoginSubmissionId(
@@ -482,15 +426,15 @@ export function AuthPageClient({
                             </svg>
                           )}
                         </button>
-                      </div>
-                      <p className="auth-error-slot">{visibleError}</p>
                     </div>
+                    <p className="auth-error-slot">{visibleError}</p>
+                  </div>
 
-                    {/* 第三行始终等高：登录显示辅助入口，注册显示邀请码。 */}
-                    <div className="auth-mode-slot">
-                      {isSignUp ? (
-                        <div className="auth-field">
-                          <div className="auth-input-wrap">
+                  {/* 第三行始终等高：登录显示辅助入口，注册显示邀请码。 */}
+                  <div className="auth-mode-slot">
+                    {isSignUp ? (
+                      <div className="auth-field">
+                        <div className="auth-input-wrap">
                             <span className="auth-input-icon">{ICON_INVITE}</span>
                             <input
                               id="auth-invite-code"
@@ -502,6 +446,7 @@ export function AuthPageClient({
                               value={inviteCode}
                               onChange={(event) => {
                                 if (inviteLocked) return;
+                                invalidateRegistrationOtp();
                                 setInviteCode(
                                   event.target.value
                                     .toUpperCase()
@@ -529,31 +474,26 @@ export function AuthPageClient({
                                   ? "邀请码"
                                   : "邀请码（选填）"}
                             </label>
-                          </div>
-                          <p className="auth-error-slot">{inviteError}</p>
                         </div>
-                      ) : (
-                        <div className="auth-field auth-login-field">
-                          <div className="auth-login-support">
-                            <Link href="/forgot" className="auth-link">
-                              忘记密码？
-                            </Link>
-                          </div>
-                          <p className="auth-error-slot" />
+                        <p className="auth-error-slot">{inviteError}</p>
+                      </div>
+                    ) : (
+                      <div className="auth-field auth-login-field">
+                        <div className="auth-login-support">
+                          <Link href="/forgot" className="auth-link">
+                            忘记密码？
+                          </Link>
                         </div>
-                      )}
-                    </div>
+                        <p className="auth-error-slot" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="auth-actions">
                   <button
                     type="submit"
-                    disabled={
-                      authBusy ||
-                      (isSignUp && !registrationOpen) ||
-                      (otpPhase && !otpComplete)
-                    }
+                    disabled={authBusy || (isSignUp && !registrationOpen)}
                     className="auth-submit"
                   >
                     {loading || loginPending
@@ -564,9 +504,7 @@ export function AuthPageClient({
                         ? "当前未开放注册"
                         : isSignUp
                         ? otpSent
-                          ? otpComplete
-                            ? "注册中…"
-                            : "请输入验证码"
+                          ? "输入验证码"
                           : "获取验证码"
                         : "登录"}
                   </button>
@@ -586,6 +524,55 @@ export function AuthPageClient({
                   </button>
                 </div>
               </form>
+
+              <Modal
+                open={otpModalVisible}
+                onClose={() => setOtpModalOpen(false)}
+                title="验证邮箱"
+                busy={loading}
+                plainHeader
+              >
+                <p className="text-[14px] leading-[1.55] text-[#6e6e73]">
+                  验证码已发送至{" "}
+                  <span className="break-email font-medium text-[#1d1d1f]">
+                    {email}
+                  </span>
+                </p>
+                <div className="mt-4 flex items-center gap-2.5">
+                  <OtpCodeInput
+                    ref={otpRef}
+                    value={otpCode}
+                    onValueChange={(value) => {
+                      setOtpCode(value);
+                      setError("");
+                    }}
+                    onComplete={(value) => void verifyOtp(value)}
+                    aria-label="验证码"
+                    placeholder="输入验证码"
+                    disabled={loading}
+                    className="otp-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void sendOtp()}
+                    disabled={cooldown > 0 || loading}
+                    className="btn-primary otp-send"
+                  >
+                    {loading
+                      ? "发送中…"
+                      : cooldown > 0
+                        ? `${cooldown}s 后重发`
+                        : "重新获取"}
+                  </button>
+                </div>
+                <p className="mt-2 text-[13px] text-[#6e6e73]">
+                  验证码 6 位数字，输入后自动验证，5 分钟内有效
+                </p>
+                <p className="field-error">{error}</p>
+                <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
+                  {loading ? "验证中…" : ""}
+                </p>
+              </Modal>
             </div>
           </section>
         </div>

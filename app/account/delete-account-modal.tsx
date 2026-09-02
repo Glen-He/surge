@@ -99,7 +99,7 @@ function DeleteAccountDialog({
           placeholder="输入验证码"
           disabled={loading}
           aria-label="删除账号验证码"
-          className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+          className="otp-input"
         />
         <button
           type="button"

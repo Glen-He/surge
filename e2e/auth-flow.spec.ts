@@ -321,12 +321,25 @@ test("注册验证码使用单输入框并阻止重复自动提交", async ({ pa
     await page.getByRole("button", { name: "注册", exact: true }).click();
     await page.getByLabel("邮箱", { exact: true }).fill("otp-ui@example.test");
     await page.getByLabel("设置密码", { exact: true }).fill("Password1");
+    const authStageBefore = await page.locator(".auth-stage").boundingBox();
     await page
       .getByRole("button", { name: "获取验证码", exact: true })
       .click();
 
-    const otpInput = page.getByLabel("验证码", { exact: true });
+    const registrationDialog = page.getByRole("dialog", {
+      name: "验证邮箱",
+    });
+    await expect(registrationDialog).toBeVisible();
+    await page.waitForTimeout(250);
+    const authStageAfter = await page.locator(".auth-stage").boundingBox();
+    expect(authStageAfter).toEqual(authStageBefore);
+    await expect(page.getByLabel("设置密码", { exact: true })).toHaveValue(
+      "Password1",
+    );
+
+    const otpInput = registrationDialog.getByLabel("验证码", { exact: true });
     await expect(otpInput).toHaveCount(1);
+    await expect(otpInput).toHaveClass(/otp-input/);
     await expect(otpInput).toHaveAttribute("maxlength", "6");
     await expect(otpInput).toHaveAttribute("autocomplete", "one-time-code");
 
@@ -802,8 +815,89 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(page.getByRole("link", { name: "系统管理" })).toHaveCount(0);
   await page.getByRole("link", { name: "用户中心" }).click();
   await expect(page).toHaveURL(/\/account$/);
-  await expect(page.getByRole("link", { name: "管理员后台" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "管理后台" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "邀请注册" })).toBeVisible();
+  await page.getByRole("button", { name: "修改密码" }).click();
+  const passwordModal = page.locator(".security-modal");
+  await expect(passwordModal).toBeVisible();
+  await page.waitForTimeout(250);
+  const passwordModalSize = await passwordModal.evaluate((element) => ({
+    width: (element as HTMLElement).offsetWidth,
+    height: (element as HTMLElement).offsetHeight,
+  }));
+  await page.getByRole("button", { name: /当前密码/ }).click();
+  await expect(page.getByText("验证当前密码", { exact: true })).toBeVisible();
+  await page.waitForTimeout(220);
+  expect(
+    await passwordModal.evaluate((element) => ({
+      width: (element as HTMLElement).offsetWidth,
+      height: (element as HTMLElement).offsetHeight,
+    })),
+  ).toEqual(passwordModalSize);
+  await passwordModal
+    .locator('input[autocomplete="current-password"]')
+    .fill(fixture.password);
+  await page.getByRole("button", { name: "验证身份" }).click();
+  await expect(
+    passwordModal.locator("p").filter({ hasText: /^设置新密码$/ }),
+  ).toBeVisible();
+  const newPasswordInputs = passwordModal.locator(
+    'input[autocomplete="new-password"]',
+  );
+  const confirmPasswordTopBefore = await newPasswordInputs
+    .nth(1)
+    .evaluate((element) => element.getBoundingClientRect().top);
+  await newPasswordInputs.first().fill("A");
+  await expect(page.getByText("密码强度：弱", { exact: true })).toBeVisible();
+  expect(
+    await newPasswordInputs
+      .nth(1)
+      .evaluate((element) => element.getBoundingClientRect().top),
+  ).toBe(confirmPasswordTopBefore);
+  await newPasswordInputs.first().fill("");
+  await page.getByRole("button", { name: "返回选择方式" }).click();
+  await page.getByRole("button", { name: /邮箱验证码/ }).click();
+  await expect(page.getByText("验证邮箱", { exact: true })).toBeVisible();
+  await page.waitForTimeout(220);
+  expect(
+    await passwordModal.evaluate((element) => ({
+      width: (element as HTMLElement).offsetWidth,
+      height: (element as HTMLElement).offsetHeight,
+    })),
+  ).toEqual(passwordModalSize);
+  await page.getByRole("button", { name: "关闭" }).click();
+
+  await page.route("**/api/account/email/verify-old", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ emailChangeToken: "e2e-email-change-token" }),
+    });
+  });
+  await page.getByRole("button", { name: "修改邮箱" }).click();
+  const emailModal = page.locator(".security-modal");
+  await expect(emailModal).toBeVisible();
+  await page.waitForTimeout(250);
+  const emailModalSize = await emailModal.evaluate((element) => ({
+    width: (element as HTMLElement).offsetWidth,
+    height: (element as HTMLElement).offsetHeight,
+  }));
+  await emailModal
+    .getByLabel("当前邮箱验证码", { exact: true })
+    .fill("123456");
+  await expect(
+    page.getByText("设置新的登录邮箱", { exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(220);
+  expect(
+    await emailModal.evaluate((element) => ({
+      width: (element as HTMLElement).offsetWidth,
+      height: (element as HTMLElement).offsetHeight,
+    })),
+  ).toEqual(emailModalSize);
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.unroute("**/api/account/email/verify-old");
+
   await page.getByRole("button", { name: "新建令牌" }).click();
   const apiToken = page.locator("code").filter({ hasText: /^sgk_/ }).first();
   await expect(apiToken).toBeVisible();
@@ -878,7 +972,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(page).toHaveURL(/\/account$/);
   await page.reload();
   await expect(page.locator("code").filter({ hasText: inviteCodeText ?? "" }).first()).toBeVisible();
-  await page.getByRole("link", { name: "管理员后台" }).click();
+  await page.getByRole("link", { name: "管理后台" }).click();
   await expect(page).toHaveURL(/\/admin$/);
   const registrationToggle = page.getByRole("switch", {
     name: "允许用户注册",
