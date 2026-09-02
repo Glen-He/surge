@@ -315,152 +315,159 @@ function PasswordChangeDialog({
       busy={busy}
       dirty={dirty}
       plainHeader
+      bodyClassName="security-modal-body-step"
     >
       {mode === "select" && (
-        <div key="select" className="animate-step">
+        <div key="select" className="animate-step security-step">
           <StepIndicator steps={STEPS} current={0} />
 
-          <p className="text-[16px] font-semibold text-[#1d1d1f]">
-            选择身份验证方式
-          </p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
-            为了保护账号安全，请先确认是你本人。
-          </p>
+          <div className="security-step-center">
+            <p className="text-[16px] font-semibold text-[#1d1d1f]">
+              选择身份验证方式
+            </p>
+            <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
+              为了保护账号安全，请先确认是你本人。
+            </p>
 
-          <div className="verify-methods mt-4">
-            <button
-              type="button"
-              onClick={() => setMode("password")}
-              className="verify-method"
-            >
-              <span className="verify-method-icon">{ICON_LOCK}</span>
-              <span className="text-[15px] font-medium text-[#1d1d1f]">
-                当前密码
-              </span>
-              <span className="mt-0.5 text-[13px] leading-snug text-[#6e6e73]">
-                使用登录密码验证
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("otp")}
-              className="verify-method"
-            >
-              <span className="verify-method-icon">{ICON_MAIL}</span>
-              <span className="text-[15px] font-medium text-[#1d1d1f]">
-                邮箱验证码
-              </span>
-              <span className="break-email mt-0.5 text-[13px] leading-snug text-[#6e6e73]">
-                发送至 {currentEmail}
-              </span>
-            </button>
+            <div className="verify-methods mt-4">
+              <button
+                type="button"
+                onClick={() => setMode("password")}
+                className="verify-method"
+              >
+                <span className="verify-method-icon">{ICON_LOCK}</span>
+                <span className="text-[15px] font-medium text-[#1d1d1f]">
+                  当前密码
+                </span>
+                <span className="mt-0.5 text-[13px] leading-snug text-[#6e6e73]">
+                  使用登录密码验证
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("otp")}
+                className="verify-method"
+              >
+                <span className="verify-method-icon">{ICON_MAIL}</span>
+                <span className="text-[15px] font-medium text-[#1d1d1f]">
+                  邮箱验证码
+                </span>
+                <span className="break-email mt-0.5 text-[13px] leading-snug text-[#6e6e73]">
+                  发送至 {currentEmail}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {mode === "password" && (
-        <div key="password" className="animate-step">
+        <div key="password" className="animate-step security-step">
           <BackLink onClick={() => setMode("select")} />
 
-          <p className="text-[16px] font-semibold text-[#1d1d1f]">
-            验证当前密码
-          </p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
-            请输入当前登录密码以继续。
-          </p>
+          <div className="security-step-center">
+            <p className="text-[16px] font-semibold text-[#1d1d1f]">
+              验证当前密码
+            </p>
+            <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
+              请输入当前登录密码以继续。
+            </p>
 
-          <label className="mb-2 mt-4 block text-[14px] font-medium text-[#1d1d1f]">
-            当前密码
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              value={currentPassword}
-              onChange={(e) => {
-                setCurrentPassword(e.target.value);
-                setPasswordError("");
-              }}
-              autoComplete="current-password"
-              className={`input pr-12 ${passwordError ? "input-error" : ""}`}
-            />
-            <EyeToggle
-              shown={showPassword}
-              onToggle={() => setShowPassword((v) => !v)}
-            />
-          </div>
-          <p className="field-error">{passwordError}</p>
-          <Link href="/forgot" className="modal-back mt-2.5">
-            忘记密码？
-          </Link>
+            <label className="mb-2 mt-4 block text-[14px] font-medium text-[#1d1d1f]">
+              当前密码
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={currentPassword}
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  setPasswordError("");
+                }}
+                autoComplete="current-password"
+                className={`input pr-12 ${passwordError ? "input-error" : ""}`}
+              />
+              <EyeToggle
+                shown={showPassword}
+                onToggle={() => setShowPassword((v) => !v)}
+              />
+            </div>
+            <p className="field-error">{passwordError}</p>
+            <Link href="/forgot" className="modal-back mt-2.5">
+              忘记密码？
+            </Link>
 
-          <div className="modal-actions">
-            <button
-              type="button"
-              onClick={verifyByPassword}
-              disabled={loading || !currentPassword}
-              className="btn-primary"
-            >
-              {loading ? "验证中…" : "验证身份"}
-            </button>
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={verifyByPassword}
+                disabled={loading || !currentPassword}
+                className="btn-primary"
+              >
+                {loading ? "验证中…" : "验证身份"}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {mode === "otp" && (
-        <div key="otp" className="animate-step">
+        <div key="otp" className="animate-step security-step">
           <BackLink onClick={() => setMode("select")} />
 
-          <p className="text-[16px] font-semibold text-[#1d1d1f]">验证邮箱</p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
-            验证码将发送至{" "}
-            <span className="break-email font-medium text-[#1d1d1f]">
-              {currentEmail}
-            </span>
-          </p>
+          <div className="security-step-center">
+            <p className="text-[16px] font-semibold text-[#1d1d1f]">验证邮箱</p>
+            <p className="mt-1 text-[14px] leading-[1.55] text-[#6e6e73]">
+              验证码将发送至{" "}
+              <span className="break-email font-medium text-[#1d1d1f]">
+                {currentEmail}
+              </span>
+            </p>
 
-          {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
-          <div className="mt-4 flex items-center gap-2.5">
-            <OtpCodeInput
-              ref={otpRef}
-              value={otp}
-              onValueChange={(value) => {
-                setOtp(value);
-                setMsg(null);
-              }}
-              onComplete={(value) => void verifyByOtp(value)}
-              placeholder="输入验证码"
-              disabled={loading}
-              aria-label="验证码"
-              className="h-[44px] min-w-0 flex-1 rounded-full border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[16px] tracking-[0.25em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
-            />
-            <button
-              type="button"
-              onClick={sendOtp}
-              disabled={otpSending || cooldown > 0 || dailyLimit || loading}
-              className="btn-primary otp-send"
-            >
-              {otpSending
-                ? "发送中…"
-                : dailyLimit
-                  ? "明日再试"
-                  : cooldown > 0
-                    ? `${cooldown}s 后重发`
-                    : "获取验证码"}
-            </button>
+            {/* 单行：验证码输入 + 获取验证码，输满 6 位自动验证 */}
+            <div className="mt-4 flex items-center gap-2.5">
+              <OtpCodeInput
+                ref={otpRef}
+                value={otp}
+                onValueChange={(value) => {
+                  setOtp(value);
+                  setMsg(null);
+                }}
+                onComplete={(value) => void verifyByOtp(value)}
+                placeholder="输入验证码"
+                disabled={loading}
+                aria-label="验证码"
+                className="otp-input"
+              />
+              <button
+                type="button"
+                onClick={sendOtp}
+                disabled={otpSending || cooldown > 0 || dailyLimit || loading}
+                className="btn-primary otp-send"
+              >
+                {otpSending
+                  ? "发送中…"
+                  : dailyLimit
+                    ? "明日再试"
+                    : cooldown > 0
+                      ? `${cooldown}s 后重发`
+                      : "获取验证码"}
+              </button>
+            </div>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              验证码 6 位数字，输入后自动验证，5 分钟内有效
+            </p>
+            <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
+              {loading ? "验证中…" : ""}
+            </p>
           </div>
-          <p className="mt-2 text-[13px] text-[#6e6e73]">
-            验证码 6 位数字，输入后自动验证，5 分钟内有效
-          </p>
-          <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-          <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">
-            {loading ? "验证中…" : ""}
-          </p>
         </div>
       )}
 
       {mode === "new-password" && (
-        <div key="new-password" className="animate-step">
+        <div key="new-password" className="animate-step security-step">
           <BackLink
             onClick={() => {
               setMode("select");
@@ -491,26 +498,27 @@ function PasswordChangeDialog({
             />
             <EyeToggle shown={newShow} onToggle={() => setNewShow((v) => !v)} />
           </div>
-          {strengthMeta && (
-            <div className="pw-strength">
-              <span className="pw-bars">
-                {[1, 2, 3].map((i) => (
-                  <span
-                    key={i}
-                    className="pw-bar"
-                    style={
-                      strengthMeta && i <= strength
-                        ? { background: strengthMeta.color }
-                        : undefined
-                    }
-                  />
-                ))}
-              </span>
-              <span className="pw-strength-label">
-                密码强度：{strengthMeta.label}
-              </span>
-            </div>
-          )}
+          <div
+            className={`pw-strength ${strengthMeta ? "" : "pw-strength-hidden"}`}
+            aria-hidden={!strengthMeta}
+          >
+            <span className="pw-bars">
+              {[1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className="pw-bar"
+                  style={
+                    strengthMeta && i <= strength
+                      ? { background: strengthMeta.color }
+                      : undefined
+                  }
+                />
+              ))}
+            </span>
+            <span className="pw-strength-label">
+              密码强度：{strengthMeta?.label ?? "弱"}
+            </span>
+          </div>
 
           <label className="mb-2 mt-4 block text-[14px] font-medium text-[#1d1d1f]">
             确认新密码
@@ -534,7 +542,7 @@ function PasswordChangeDialog({
           </div>
           <p className="field-error">{newPasswordError}</p>
 
-          <div className="modal-actions">
+          <div className="modal-actions security-step-actions">
             <button
               type="button"
               onClick={submitNewPassword}
@@ -550,7 +558,7 @@ function PasswordChangeDialog({
       {mode === "success" && (
         <div
           key="success"
-          className="animate-step flex flex-col items-center py-4 text-center"
+          className="animate-step security-step security-step-success"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(52,199,89,0.12)]">
             <svg

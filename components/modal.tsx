@@ -3,6 +3,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -29,6 +30,7 @@ export function Modal({
   dirty = false,
   plainHeader = false,
   wide = false,
+  bodyClassName = "",
   children,
 }: {
   open: boolean;
@@ -42,6 +44,8 @@ export function Modal({
   plainHeader?: boolean;
   /** 宽内容（如 PDF 阅读器）使用的大号布局 */
   wide?: boolean;
+  /** 多步骤内容可预留统一高度，后续变化只在 body 内部滚动 */
+  bodyClassName?: string;
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,6 +58,11 @@ export function Modal({
     top: number;
     height: number;
   } | null>(null);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const stateRef = useRef({ busy, dirty, confirming, onClose });
   useEffect(() => {
@@ -90,6 +99,20 @@ export function Modal({
       vv.removeEventListener("scroll", apply);
     };
   }, [open]);
+
+  // Modal 打开后锁定外壳高度。后续步骤、错误提示、异步内容和放弃确认
+  // 只允许在 body 内部变化，不能再次撑大或缩小整张卡片。
+  useLayoutEffect(() => {
+    if (!mounted || !open) return;
+    const root = rootRef.current;
+    if (!root) return;
+    // offsetHeight 不受入场 transform 影响，避免把 0.98 缩放后的视觉高度
+    // 误当成布局高度，造成 Modal 打开后再跳一次。
+    root.style.height = `${root.offsetHeight}px`;
+    return () => {
+      root.style.height = "";
+    };
+  }, [mounted, open]);
 
   // 用户发起的关闭：busy 忽略；dirty 先确认
   function requestClose() {
@@ -170,11 +193,6 @@ export function Modal({
   // transform 祖先会把 fixed 定位基准劫持为该卡片，导致遮罩/弹窗错位。
   // 渲染到 body 下可脱离任何 transform/层叠上下文祖先。
   // SSR 安全：open 初始恒为 false（null），客户端交互后才挂载 portal。
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -221,7 +239,7 @@ export function Modal({
             </svg>
           </button>
         </header>
-        <div className="security-modal-body">
+        <div className={`security-modal-body ${bodyClassName}`}>
           {confirming ? (
             <div className="animate-step">
               <p className="text-[16px] font-semibold text-[#1d1d1f]">
