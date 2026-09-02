@@ -10,7 +10,18 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # 部署边界
 
-本项目的长期运行环境仅为云服务器，不把本地服务当作生产部署。需要验证数据库迁移、生产构建或自动化浏览器流程时，使用隔离的临时数据库和临时报告目录，验证结束后立即清理；不得把 `reports_local/` 当作运行时数据目录或随本地部署删除。用户明确进入本地预览或交互验收阶段后，必须保持 `http://localhost:3000` 可访问，未经用户要求不得主动停止；构建或测试如果临时中断服务，必须在交付前自动恢复并完成健康检查，不得让用户重复提醒。
+本项目的长期运行环境仅为云服务器，不把本地服务当作生产部署。需要验证数据库迁移、生产构建或自动化浏览器流程时，使用隔离的临时数据库和临时报告目录，验证结束后立即清理；不得把 `reports_local/` 当作运行时数据目录或随本地部署删除。默认不得启动或常驻 `next dev` / `next-server`，能通过静态检查、测试或短时自动化验证完成的任务，不得为了方便额外开启本地开发服务器。只有确实需要浏览器交互验收时才允许临时启动；自动验证结束后应主动关闭。若需要用户亲自操作，必须明确告知开发服务器正在运行且可能持续占用 CPU，并提醒用户验收完成后关闭；用户确认完成后立即停止，不得继续后台常驻。
+
+# 汇报页脚本加载规范（报告 HTML，违反会被打回）
+
+ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本化 URL（登记于 `reports/_shared/platform-manifest.json`，见 `lib/platform-assets.ts`）；磁盘文件名与 URL 文件名一致并内嵌内容 hash。报告 HTML 的硬性约定：
+
+- 生成或修改报告前读取 manifest 取当前 `fileName`；HTML 用 `<script defer src="/platform/<fileName>">` 引用；上传包不包含 ECharts 库文件。
+- 禁止 `document.write` 注入脚本、本地 ECharts 副本与任何 fallback loader、CDN 加载 ECharts、硬编码环境域名。
+- 外部大 JS 不在 head 同步阻塞 HTML 解析：ECharts 与 data.js 均加 `defer`；图表初始化在 DOMContentLoaded 后执行并检查 `window.echarts`，缺失时显示图表错误态。
+- 3Dmol 等非首屏库用 IntersectionObserver 懒加载（rootMargin 约 400px），只加载一次。
+- 使用平台资源的报告本地验收走项目本地服务，不以 file:// 直接打开作为验收目标。
+- 参考实现与完整代码见 `reports_local/README.md` 第五节；上传打包细则见 `reports_local/upload.md`。
 
 # 项目 UI 硬性规则（用户强偏好，违反会被打回）
 

@@ -23,7 +23,6 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/report-storage", () => ({
-  REPORT_SHARED_DIR: "/tmp/surge-route-test-shared",
   reportContentDir: vi.fn(() => mocked.reportRoot),
 }));
 

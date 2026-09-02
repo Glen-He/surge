@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import { validatePlatformManifest } from "./lib/platform-assets";
+
+// 平台公共资源完整性 fail-fast：/platform/ 版本化 URL 承诺 immutable
+// 长缓存，manifest 登记的 hash 与 reports/_shared 实际字节不一致时，
+// 旧 URL 会向新访客输出新字节（缓存正确性破坏），必须在构建/启动期
+// 直接失败。next build 与 next start 都会加载本配置，两处同时设防。
+validatePlatformManifest();
 
 const nextConfig: NextConfig = {
   // 压缩由前置 OpenResty 统一负责（Brotli 优先、Gzip fallback）。
