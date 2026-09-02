@@ -5,7 +5,9 @@ SURGE 是自托管的工作汇报平台：用户可上传单个 HTML 或包含 `
 ## 环境要求
 
 - Node.js 24+ / pnpm 11.21+
+
 - PostgreSQL 17
+
 - 代码目录之外的持久化报告数据卷
 
 ## 本地开发
@@ -31,28 +33,28 @@ pnpm check  # 一次执行全部检查
 
 完整示例见 [`.env.example`](./.env.example)。生产环境的关键项：
 
-| 变量 | 用途 |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL 连接串 |
-| `BETTER_AUTH_SECRET` | 会话与内部密钥派生的高熵根密钥 |
-| `API_TOKEN_ENCRYPTION_KEY` | API 令牌回显所用的独立加密根密钥（至少 32 字符，必须持久保存） |
-| `INVITE_CODE_SECRET` | 邀请码 HMAC 查询与 AES-GCM 加密的独立根密钥（至少 32 字符，必须持久保存） |
-| `BETTER_AUTH_URL` | 对外的 HTTPS 站点地址 |
-| `REPORTS_ORIGIN` | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站 |
-| `REPORTS_DATA_DIR` | checkout 之外的持久化报告目录，所有环境必填 |
-| `SHARE_SECRET` | 分享解锁凭证的独立签名密钥（所有环境必填，至少 32 字符） |
-| `SHARE_TOKEN_ENCRYPTION_KEY` | 分享 URL 令牌和 4 位提取码的独立加密根密钥（至少 32 字符，必须持久保存） |
-| `OTP_SECRET` | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生 |
-| `TRUSTED_PROXIES` | 允许提供真实客户端 IP 的反向代理 IP/CIDR |
-| `DB_QUERY_TIMEOUT_MS` | 业务数据库查询超时，默认 15000 ms |
-| `AUTH_DB_QUERY_TIMEOUT_MS` | 登录/会话数据库查询超时，默认 15000 ms |
-| `UPLOAD_MAX_CONCURRENCY` | 跨实例共享的同时上传数，默认 2 |
-| `STORAGE_MIN_FREE_BYTES` | 接受上传后仍须保留的磁盘空间，默认 512 MiB |
-| `STORAGE_ORPHAN_GRACE_MINUTES` | 崩溃遗留暂存/孤儿版本的安全回收等待时间，默认 60 分钟 |
-| `STORAGE_RECOVERY_RETENTION_HOURS` | 无法自动判定的回收区数据最长保留时间，默认 168 小时 |
-| `SECURITY_LOG_RETENTION_DAYS` | 含邮箱/IP 的安全日志保留期，默认 90 天 |
-| `MAINTENANCE_SECRET` | 外部 cron 触发完整清理任务的 Bearer 密钥 |
-| `LOG_REDACTION_SECRET` | 日志中邮箱/IP 的不可逆指纹盐；默认从认证密钥派生 |
+| 变量                                 | 用途                                             |
+| ---------------------------------- | ---------------------------------------------- |
+| `DATABASE_URL`                     | PostgreSQL 连接串                                 |
+| `BETTER_AUTH_SECRET`               | 会话与内部密钥派生的高熵根密钥                                |
+| `API_TOKEN_ENCRYPTION_KEY`         | API 令牌回显所用的独立加密根密钥（至少 32 字符，必须持久保存）            |
+| `INVITE_CODE_SECRET`               | 邀请码 HMAC 查询与 AES-GCM 加密的独立根密钥（至少 32 字符，必须持久保存） |
+| `BETTER_AUTH_URL`                  | 对外的 HTTPS 站点地址                                 |
+| `REPORTS_ORIGIN`                   | 独立、无 Cookie 的 HTTPS 汇报内容域，生产必填且主机名必须不同于主站      |
+| `REPORTS_DATA_DIR`                 | checkout 之外的持久化报告目录，所有环境必填                     |
+| `SHARE_SECRET`                     | 分享解锁凭证的独立签名密钥（所有环境必填，至少 32 字符）                 |
+| `SHARE_TOKEN_ENCRYPTION_KEY`       | 分享 URL 令牌和 4 位提取码的独立加密根密钥（至少 32 字符，必须持久保存）     |
+| `OTP_SECRET`                       | OTP HMAC 密钥；不设时从 `BETTER_AUTH_SECRET` 派生       |
+| `TRUSTED_PROXIES`                  | 允许提供真实客户端 IP 的反向代理 IP/CIDR                     |
+| `DB_QUERY_TIMEOUT_MS`              | 业务数据库查询超时，默认 15000 ms                          |
+| `AUTH_DB_QUERY_TIMEOUT_MS`         | 登录/会话数据库查询超时，默认 15000 ms                       |
+| `UPLOAD_MAX_CONCURRENCY`           | 跨实例共享的同时上传数，默认 2                               |
+| `STORAGE_MIN_FREE_BYTES`           | 接受上传后仍须保留的磁盘空间，默认 512 MiB                      |
+| `STORAGE_ORPHAN_GRACE_MINUTES`     | 崩溃遗留暂存/孤儿版本的安全回收等待时间，默认 60 分钟                  |
+| `STORAGE_RECOVERY_RETENTION_HOURS` | 无法自动判定的回收区数据最长保留时间，默认 168 小时                   |
+| `SECURITY_LOG_RETENTION_DAYS`      | 含邮箱/IP 的安全日志保留期，默认 90 天                        |
+| `MAINTENANCE_SECRET`               | 外部 cron 触发完整清理任务的 Bearer 密钥                    |
+| `LOG_REDACTION_SECRET`             | 日志中邮箱/IP 的不可逆指纹盐；默认从认证密钥派生                     |
 
 密钥可用 `openssl rand -hex 32` 生成。不要把 `.env.local`、数据库备份或报告数据卷提交到 Git。
 
@@ -80,12 +82,19 @@ pnpm start
 ```
 
 - `REPORTS_DATA_DIR` 必须指向容器镜像/代码 checkout 之外的持久卷；缺失或指向不安全路径时实例拒绝启动。
+
 - 反向代理应是应用的唯一入口，应用端口必须由防火墙限制为仅本机/内网代理可访问。代理覆盖（不是追加客户端传入的）`Host`、`X-Forwarded-Host`、`X-Forwarded-Proto` 与 `X-Forwarded-For`，只允许 HTTPS，把单请求体上限设为 `51 MiB`，并保留 `Content-Length`。上传缺少该头时返回 `411`，超限时在解析 multipart 前返回 `413`。
-- 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/r/*`；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
+
+- 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/r/*` 与 `/platform/*`（平台内置公共库的版本化 URL）；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
+
 - readiness probe 指向 `GET /api/health`：数据库、报告卷可写且剩余空间高于保护线时返回 `200`，否则返回 `503`。
+
 - 给进程留出 10–30 秒 `SIGTERM` 优雅退出时间，使请求和 Next.js `after()` 任务完成。
+
 - PostgreSQL 连接上限需同时计入业务池和 Better Auth 池，再乘以实例数。
+
 - 使用系统 cron 每 15 分钟调用一次 `POST /api/internal/maintenance`，请求头为 `Authorization: Bearer $MAINTENANCE_SECRET`。进程内调度仍作为兜底，但外部 cron 能覆盖应用重启或长时间无请求场景；`GET /api/health` 会返回最近一次完整维护时间和错误。
+
 - OpenResty/1Panel 访问日志不得记录 `/s/*`、`/b/*`、`/r/*` 的完整 URI；将这些路径统一写成脱敏标签。应用 stdout/stderr 日志也必须配置轮换和有限保留期（建议 30 天以内），不要永久保留容器日志。
 
 上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 2 GiB，站点总量硬上限 20 GiB。上传先取得 PostgreSQL 中的短租约，因此多实例也不会同时产生过多临时文件；系统临时卷和报告卷都通过剩余空间保护线后才写入。
@@ -100,17 +109,24 @@ pnpm start
 
 ## 报告网页能力
 
-报告可以运行 HTML/CSS/JavaScript，并读取同一报告目录中的脚本、样式、JSON/CSV、图片、字体、音视频、PDF 和 Blob Worker。包内资源使用相对路径。浏览器 CSP 始终只允许当前报告 capability 目录内的资源，外部 API、CDN、图片、字体、媒体和 iframe 均不可加载；用户明确点击的 HTTPS 外链仍可在隔离的新标签页中打开。
+报告可以运行 HTML/CSS/JavaScript，并读取同一报告目录中的脚本、样式、JSON/CSV、图片、字体、音视频、PDF 和 Blob Worker。包内资源使用相对路径；平台内置公共库（如 ECharts）直接引用 `/platform/<文件名>` 版本化 URL（登记于 `reports/_shared/platform-manifest.json`，manifest、磁盘文件名与 URL 三者一致，构建期强制校验内容 hash）。浏览器 CSP 允许当前报告 capability 目录内的资源与 `/platform/` 前缀，外部 API、CDN、图片、字体、媒体和 iframe 均不可加载；用户明确点击的 HTTPS 外链仍可在隔离的新标签页中打开。报告 HTML 的制作与脚本加载规范见 `reports_local/README.md`。
 
 ## 安全边界
 
 - ZIP 按顺序流式解压，同时校验路径穿越、符号链接、重复文件、文件数和实际解压字节数。
+
 - 报告使用短时 HMAC capability 访问，与内容 revision 和撤销 epoch 绑定。
+
 - 报告由独立内容域提供，仅在不带 `allow-same-origin`/顶层导航/表单提交/设备权限的固定视口 sandbox iframe 中运行；只允许加载包内资源，用户触发的新标签页外链仍可用。
+
 - OTP 只以 HMAC 落库，核销、错误次数和一次性变更 token 均使用数据库事务。
+
 - API token 按 SHA-256 指纹等值定位，只有失败认证才进入 PostgreSQL 共享限流。
+
 - 分享 URL 令牌按 SHA-256 指纹查询，明文使用 AES-256-GCM 和独立派生密钥加密后存储；数据库只读泄漏不会直接暴露可访问链接。
+
 - 新分享的 4 位提取码放在 URL fragment 中供浏览器自动解锁；fragment 不会发送给反向代理、应用服务器或下游 Referer，验证后立即从地址栏清除。已登录属主访问自己的分享时由服务端所有权校验直接放行。
+
 - 自定义浏览器写接口统一验证 Origin/Fetch Metadata，密码登录与重新认证使用 PostgreSQL 跨实例失败限流。
 
 CI 会对每个 PR 执行 lint、TypeScript、Vitest 和生产构建。

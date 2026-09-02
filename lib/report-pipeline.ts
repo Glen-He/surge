@@ -1,9 +1,10 @@
 // 报告文档渲染（登录态查看页与分享页共用）。
 //
 // 架构：报告文件通过 /r/<cap>/ 虚拟目录原样输出（capability 即访问凭证，
-// 见 lib/report-capability.ts），浏览器按文档 URL 原生解析一切相对引用，
-// 平台不做任何资源路径改写。本模块只负责与路径无关的确定性后处理：
-// 剥离模板自带报告头、注入 PDF 桥接与滚动条样式。
+// 见 lib/report-capability.ts），浏览器按文档 URL 原生解析一切相对引用；
+// 平台公共库（echarts 等）由报告 HTML 直接以 /platform/<文件名> 引用
+//（见 lib/platform-assets.ts）。平台不改写用户资源路径。本模块的后处理
+// 与路径无关：剥离模板自带报告头、注入 PDF 桥接与滚动条样式。
 
 import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
 
@@ -23,10 +24,15 @@ export function reportDocCsp(
   capBase: string,
   frameAncestor: string,
 ): string {
+  // 平台公共资源（echarts 等）与 capability 无关：报告 HTML 直接引用的
+  // /platform/ 版本化 URL 需要独立 script source。同样用路径前缀
+  // 收紧到 /platform/，不开放整个内容域 origin；该命名空间只可能输出
+  // manifest 白名单登记的公开库字节，不构成能力扩张。
+  const platformBase = `${new URL(capBase).origin}/platform/`;
   return [
     `sandbox ${REPORT_SANDBOX_TOKENS}`,
     "default-src 'none'",
-    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/`,
+    `script-src 'unsafe-inline' 'unsafe-eval' ${capBase}/ ${platformBase}`,
     `style-src 'unsafe-inline' ${capBase}/`,
     `img-src ${capBase}/ data: blob:`,
     `font-src ${capBase}/ data:`,
@@ -77,7 +83,7 @@ const reportHeaderSpacer =
   '<div data-surge-report-header style="display:block!important;position:relative!important;width:100%!important;height:82px!important;min-height:82px!important;max-height:82px!important;flex:0 0 82px!important;margin:0!important;padding:0!important;border:0!important"></div>';
 
 /**
- * 报告入口 HTML 的确定性后处理（与资源路径解析无关，平台约定层面）：
+ * 报告入口 HTML 的确定性后处理（平台约定层面）：
  * 1. 剥离模板自带的报告头（标题 + 返回按钮）：页面统一在上方渲染系统头；
  * 2. 注入 PDF/系统头安全桥接、文档流系统头与滚动条隐藏样式。
  */
@@ -85,6 +91,7 @@ export function renderReportDoc(html: string, bridgeToken: string): string {
   if (!/^[A-Za-z0-9_-]{43}$/.test(bridgeToken)) {
     throw new Error("report bridge token is invalid");
   }
+
   // 剥离模板自带的报告头
   html = html.replace(
     /<header\b[^>]*class="[^"]*\brpt-head\b[^"]*"[^>]*>[\s\S]*?<\/header>/gi,

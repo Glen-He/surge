@@ -33,10 +33,12 @@ const PROMPT = `请根据我提供的工作材料，制作一份可上传到汇�
 4. 用户点击的 HTTPS 链接可以通过 target="_blank" 在新标签页打开。HTTP 链接和真正的表单提交不可用；表单只用于页内交互时，需要用 JavaScript 阻止默认提交。
 
 五、图表与媒体
-1. 图表实现方式自由选择，可以使用 HTML/CSS、SVG、Canvas、WebGL、ECharts 或其他随汇报打包的前端库。
+1. 图表实现方式自由选择，可以使用 HTML/CSS、SVG、Canvas、WebGL、ECharts（平台内置，见第 5 条）或其他前端库；ECharts 以外的库需要把依赖文件放进汇报包并用相对路径引用。
 2. 照片、截图等位图建议转换为 WebP，质量建议设置为 90–95，并按页面实际展示尺寸缩放；不要直接使用远超展示尺寸的 4K/8K 原图，也不要把大图转换为 base64 塞进 HTML 或 data.js。
 3. 视频优先使用浏览器兼容性最好的 MP4（H.264 视频编码 + AAC 音频编码）；如需额外提供 WebM，可作为补充格式而不是唯一格式。根据实际展示尺寸控制分辨率和码率，建议设置 poster，并使用 preload="metadata"，避免页面打开时预加载完整视频。
 4. 图片、视频、PDF 等媒体文件保持为独立文件并使用相对路径引用，按需延迟加载，避免首次打开页面时同时加载全部大资源。
+5. ECharts 平台已内置：生成报告前，先读取汇报平台的平台资源清单（platform-manifest.json）获取当前登记的文件名，再在 HTML 里以 <script defer src="/platform/文件名"> 引用；如果当前执行环境无法读取该清单，不得猜测文件名或 hash，必须先向使用者索取当前的 manifest 内容或文件名。不要把 ECharts 库文件放进汇报包，也不要从 CDN 或其他外部地址加载。
+6. 外部大脚本不要在 head 同步加载阻塞页面解析：脚本动态加载或加 defer，不要用 document.write 注入；数据文件（如 data.js）加 defer，图表初始化在页面加载完成（DOMContentLoaded）后执行，并检查图表库是否加载成功，失败时在图表区域显示明确错误提示；位于页面下方、滚动才能看到的重型组件（如 3D 结构查看器）在滚动临近时再动态加载。
 
 六、交付检查
 1. 确认 report.html 可以打开，页面内容完整，包内资源路径正确，交互可用，关键数据与原始材料一致。
@@ -325,7 +327,7 @@ function GuideContent() {
             <FaqTile
               no={1}
               q="图表怎么画？"
-              a="可以使用 HTML/CSS、SVG、Canvas、WebGL 或任意合适的图表库。使用第三方库时，需要把依赖文件放进汇报包并用相对路径引用，不能依赖外部 CDN。"
+              a="可以使用 HTML/CSS、SVG、Canvas、WebGL 或任意合适的图表库。ECharts 平台已内置，在 HTML 里以 defer 脚本引用 /platform/ 下的版本化地址即可（具体文件名以平台的 platform-manifest 清单为准，不要凭记忆猜），不需要打包库文件；使用其他第三方库时，需要把依赖文件放进汇报包并用相对路径引用，不能依赖外部 CDN。"
             />
             <FaqTile
               no={2}

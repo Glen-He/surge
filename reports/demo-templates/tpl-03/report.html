@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>8.13 搜索服务超时故障 P1 分析报告</title>
-<script src="./_platform/echarts.min.js"></script>
-<script>window.echarts || document.write('<script src="echarts.min.js"><\/script>')</script>
+<script defer src="/platform/echarts.42f8329d989b6f65.min.js"></script>
 <style>
   :root {
     --ink: #1d1d1f; --muted: #6e6e73; --muted-2: #86868b; --line: #e8e8ed;
@@ -167,6 +166,8 @@
 
 <script>
 (function () {
+  // 图表初始化时机：本模板数据内联，等待 DOM 就绪 + ECharts 就绪后初始化。
+  function initCharts() {
   var FONT = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
   var AXIS = { fontSize:11, color:'#6e6e73', fontFamily:FONT };
   var TOOLTIP = {
@@ -248,6 +249,28 @@
   })();
 
   window.addEventListener('resize', function(){ charts.forEach(function(c){ c.resize(); }); });
+  }
+
+  // ECharts 双失败（平台与本地副本均不可用）时图表区域的错误态
+  function chartFallback() {
+    var nodes = document.querySelectorAll('[id^="chart"]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:120px;font-size:13px;color:#86868b">图表组件未能加载（echarts 不可用）。</div>';
+    }
+  }
+
+  function start() {
+    // defer 平台脚本先于 DOMContentLoaded 执行完毕：echarts 就绪即正常初始化；
+    // 加载失败时 initCharts 内各图表段 guard 跳过，容器由 chartFallback 填入错误态
+    try { initCharts(); } catch (e) { console.error('chart init failed', e); }
+    if (!window.echarts) chartFallback();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
 })();
 </script>
 </body>

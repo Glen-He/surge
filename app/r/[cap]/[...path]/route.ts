@@ -14,10 +14,7 @@ import {
   isReportOriginRequest,
   reportsOrigin,
 } from "@/lib/report-origin";
-import {
-  REPORT_SHARED_DIR,
-  reportContentDir,
-} from "@/lib/report-storage";
+import { reportContentDir } from "@/lib/report-storage";
 import { REPORT_PDF_DOWNLOAD_PARAM } from "@/lib/report-pdf";
 import { parseByteRange } from "@/lib/http-range";
 import { REPORT_PERMISSIONS_POLICY } from "@/lib/report-security";
@@ -36,8 +33,6 @@ export const dynamic = "force-dynamic";
 // 每个请求：验签 → 比对数据库当前 revision + epoch（报告已更新或权限已
 // 吊销则旧 cap 整体 404，不泄露存在性）→ 安全定位文件 → 输出。
 // 仅导出 GET（HEAD 由框架代理）；无任何写语义。
-
-const SHARED_DIR = REPORT_SHARED_DIR;
 
 // 服务端按扩展名判定的 MIME（不信任上传声明）。
 // 不在此表内的扩展名一律 octet-stream + attachment（见下方处理）。
@@ -130,28 +125,22 @@ export async function GET(
   // 安全定位（读取阶段二次防御，不依赖上传阶段的检查）：
   // segment 级禁 . / .. / 空段只是前置过滤；真正的安全不变量是下方
   // resolve 后的目录包含检查——无论 URL 编码如何构造，最终用于文件系统
-  // 的路径必须严格位于报告根目录内
+  // 的路径必须严格位于报告根目录内。平台内置库不在此命名空间输出，
+  // 一律走 /platform/ 版本化 URL（见 lib/platform-assets.ts）
   if (segments.some((s) => !s || s === "." || s === "..")) return notFound();
   const rel = segments.join("/");
 
-  // _platform/*：平台内置库命名空间（echarts 等），映射到受控公共目录
-  let filePath: string;
   let allowedRoot: string;
-  if (segments[0] === "_platform") {
-    allowedRoot = path.resolve(SHARED_DIR);
-    filePath = path.resolve(SHARED_DIR, segments.slice(1).join("/"));
-  } else {
-    try {
-      allowedRoot = reportContentDir({
-        userId: row.user_id,
-        templateKey: row.template_key,
-        storageKey: row.storage_key,
-      });
-    } catch {
-      return notFound();
-    }
-    filePath = path.resolve(allowedRoot, rel);
+  try {
+    allowedRoot = reportContentDir({
+      userId: row.user_id,
+      templateKey: row.template_key,
+      storageKey: row.storage_key,
+    });
+  } catch {
+    return notFound();
   }
+  const filePath = path.resolve(allowedRoot, rel);
   if (filePath !== allowedRoot && !filePath.startsWith(allowedRoot + path.sep)) {
     return notFound();
   }

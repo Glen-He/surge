@@ -15,11 +15,6 @@ export const REPORT_DATA_DIR = path.resolve(
   /* turbopackIgnore: true */ configuredReportDataDir,
 );
 const REPORT_TRASH_DIR = path.join(REPORT_DATA_DIR, ".trash");
-export const REPORT_SHARED_DIR = path.join(
-  process.cwd(),
-  "reports",
-  "_shared",
-);
 export const REPORT_DEMO_TEMPLATES_DIR = path.join(
   process.cwd(),
   "reports",
