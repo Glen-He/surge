@@ -164,15 +164,27 @@
 }
 
 .auth-input-wrap {
+  --auth-field-background: #fff;
+  --auth-field-border: rgba(0, 0, 0, 0.11);
   position: relative;
+  border-radius: 12px;
+  background: var(--auth-field-background);
+  transition: background-color 0.18s ease;
+}
+
+.auth-input-wrap:has(.auth-input:is(:autofill, :-webkit-autofill)) {
+  --auth-field-background: #eef6ff;
+  --auth-field-border: rgba(0, 113, 227, 0.22);
 }
 
 .auth-input {
+  position: relative;
+  z-index: 1;
   height: 44px;
   width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.11);
+  border: 1px solid var(--auth-field-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--auth-field-background);
   padding: 0 14px 0 44px;
   font-size: 15px;
   color: var(--text-primary);
@@ -201,15 +213,10 @@
 .auth-input:is(:autofill, :-webkit-autofill),
 .auth-input:is(:autofill, :-webkit-autofill):hover,
 .auth-input:is(:autofill, :-webkit-autofill):focus {
-  border-color: rgba(0, 113, 227, 0.22);
   -webkit-text-fill-color: var(--text-primary);
   caret-color: var(--text-primary);
-  -webkit-box-shadow: 0 0 0 1000px #eef6ff inset;
-  box-shadow: 0 0 0 1000px #eef6ff inset;
-}
-
-.auth-input:is(:autofill, :-webkit-autofill):focus {
-  border-color: var(--accent);
+  -webkit-box-shadow: 0 0 0 1000px var(--auth-field-background) inset;
+  box-shadow: 0 0 0 1000px var(--auth-field-background) inset;
 }
 
 .auth-input:disabled {
@@ -234,6 +241,7 @@
 
 .auth-input-icon {
   position: absolute;
+  z-index: 3;
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
@@ -245,7 +253,7 @@
 /* 浮动标签：空闲时位于输入框内，聚焦或已有内容时贴到边框左上。 */
 .auth-floating-label {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   left: 44px;
   top: 50%;
   max-width: calc(100% - 92px);
@@ -274,7 +282,12 @@
   left: 12px;
   top: 0;
   padding-inline: 5px;
-  background: #fff;
+  /* 标签正好跨在 1px 边框中心：上半部衔接页面，下半部衔接字段底色。 */
+  background: linear-gradient(
+    to bottom,
+    #fff 0 50%,
+    var(--auth-field-background) 50% 100%
+  );
   color: #86868b;
   font-size: 11px;
 }
@@ -291,6 +304,7 @@
 /* 眼睛：视觉轻、点击区域 40px */
 .auth-eye {
   position: absolute;
+  z-index: 3;
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
