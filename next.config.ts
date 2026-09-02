@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // 压缩由前置 OpenResty 统一负责（Brotli 优先、Gzip fallback）。
+  // Next.js 自身只支持 gzip，若在此压缩，OpenResty 收到已编码响应就无法再
+  // 转成 Brotli，导致 SSR HTML 拿不到 br（实测首页 gzip 4118B vs br 3328B）。
+  compress: false,
+
   experimental: {
     // proxy.ts 会克隆请求体，Next.js 默认只保留前 10MB。上传接口允许
     // 50MB 文件，因此为 multipart 边界和元数据额外预留 1MB。
