@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v4：删除废弃的 token_hash 列（v2 遗留，NOT NULL + UNIQUE，

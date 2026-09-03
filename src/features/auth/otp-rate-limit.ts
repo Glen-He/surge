@@ -1,5 +1,5 @@
 import { db } from "@/infrastructure/database/client";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 
 /* ================================================================
  * 统一验证码频控（覆盖注册 / 登录 / 修改邮箱 / 修改密码 / 找回密码等）

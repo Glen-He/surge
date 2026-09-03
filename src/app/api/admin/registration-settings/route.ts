@@ -4,7 +4,7 @@ import {
   getRegistrationPolicy,
   updateRegistrationPolicy,
 } from "@/features/auth/registration-policy";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 
 export const dynamic = "force-dynamic";
 

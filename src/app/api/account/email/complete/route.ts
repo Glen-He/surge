@@ -1,7 +1,7 @@
-import { getApiSession } from "@/features/auth/api-session";
-import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { getApiSession } from "@/features/session/api-session";
+import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { completeEmailChange, getChangeToken } from "@/features/account/change-tokens";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 import { verifyStoredOtp } from "@/features/account/otp";
 import { isOtpCode } from "@/features/auth/otp-code";
 import { NEW_EMAIL_OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";

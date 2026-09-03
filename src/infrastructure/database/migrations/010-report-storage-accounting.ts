@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v10：报告存储字节记账 + 日期数据库约束 ──

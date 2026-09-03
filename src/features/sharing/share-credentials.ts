@@ -8,7 +8,7 @@ import {
 import { serverEnv } from "@/infrastructure/environment/server";
 
 function encryptionRoot(): string {
-  // always 必需：缺失或过短由 serverEnv 校验抛错
+  // 该配置始终必需：缺失或过短由 serverEnv 校验抛错。
   return serverEnv.SHARE_TOKEN_ENCRYPTION_KEY;
 }
 

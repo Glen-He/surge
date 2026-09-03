@@ -1,14 +1,15 @@
 import { getReportCards } from "@/features/reports/data/report-cards";
-import { ReportBoard } from "@/features/reports/board/report-board";
+import { ReportBoard } from "@/features/report-management/report-board";
 import { GuestSessionWatcher } from "@/features/auth/guest/guest-toasts";
-import { isGuestEmail, getGuestExpiry } from "@/features/auth/guest/guest-sandbox";
-import { requireSession } from "@/features/auth/session";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
+import { getGuestExpiry } from "@/features/guest/guest-sandbox";
+import { requireSession } from "@/features/session/session";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页（弹回诊断日志见 lib/session）
+  // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页（见 features/session/session.ts）
   const session = await requireSession();
 
   // 游客：挂会话守望器（到期前 5 分钟提醒 + 到点自动退出）

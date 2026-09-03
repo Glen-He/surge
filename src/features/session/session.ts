@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/features/auth/auth";
-import { expireGuestIfNeeded } from "@/features/auth/guest/guest-sandbox";
+import { expireGuestIfNeeded } from "@/features/guest/guest-sandbox";
 import { logger } from "@/infrastructure/logging/logger";
 
 /** 公开页面可识别已登录 owner，但不强制要求登录。 */

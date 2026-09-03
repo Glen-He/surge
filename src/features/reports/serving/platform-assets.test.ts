@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 
 // ── 平台资源 manifest 完整性校验单测 ──
 //
-// 校验逻辑见 lib/platform-assets.ts 的 validatePlatformManifest：
+// 校验逻辑见 platform-assets.ts 的 validatePlatformManifest：
 // schema（fileName 为内嵌登记 hash 的简单文件名 / 16 位 hex /
 // contentType 白名单 / entry 字段形状）+ 磁盘文件名与 fileName 一致 +
 // 真实 sha256 前 16 位与登记值一致。该校验在 next.config.ts（构建与

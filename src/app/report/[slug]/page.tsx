@@ -1,19 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getReportBySlug } from "@/features/reports/data/reports-db";
-import { requireSession } from "@/features/auth/session";
+import { requireSession } from "@/features/session/session";
 import { issueCapability, reportBridgeToken } from "@/features/reports/report-capability";
 import { ReportShareButton } from "@/features/sharing/report-share-button";
 import { ReportFrame } from "@/features/reports/viewer/report-frame";
 import { GuestSessionWatcher } from "@/features/auth/guest/guest-toasts";
-import { getGuestExpiry, isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
+import { getGuestExpiry } from "@/features/guest/guest-sandbox";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
 
 export const dynamic = "force-dynamic";
 
 // 报告查看器（登录态）：只负责系统头（标题/分享/返回）+ 签发 capability。
 // 报告本体经 /r/<cap>/ 虚拟目录原样输出（capability 即 iframe 及其子资源
-// 的访问凭证，见 lib/report-capability.ts），在 sandbox iframe
+// 的访问凭证，见 features/reports/report-capability.ts），在 sandbox iframe
 // （opaque origin）内渲染——用户 HTML 绝不进入主站 DOM。
 export default async function ReportPage({
   params,

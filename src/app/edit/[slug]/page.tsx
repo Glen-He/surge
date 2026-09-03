@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { EditReportForm } from "@/features/reports/editing/edit-report-form";
-import { requireSession } from "@/features/auth/session";
+import { requireSession } from "@/features/session/session";
 import { getReportBySlug } from "@/features/reports/data/reports-db";
 import { requireTagColor } from "@/features/reports/tag-colors";
 

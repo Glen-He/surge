@@ -5,7 +5,7 @@ import { logger } from "@/infrastructure/logging/logger";
 import { boardUnlockCookieName, findPublicShareBoard, incrementBoardView, shouldCountBoardView, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
 import { ShareBoardPasswordGate } from "@/features/sharing/share-board-password-gate";
 import { ShareBoardPublic } from "@/features/sharing/share-board-public";
-import { getOptionalSession } from "@/features/auth/session";
+import { getOptionalSession } from "@/features/session/session";
 
 export const dynamic = "force-dynamic";
 

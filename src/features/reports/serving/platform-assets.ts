@@ -1,7 +1,7 @@
 // 平台公共资源（reports/_shared 内的平台内置库，如 echarts）登记、查找
 // 与完整性校验。
 //
-// 本模块刻意不依赖 lib/report-storage（其模块加载需要 REPORTS_DATA_DIR
+// 本模块刻意不依赖 reports/storage/report-storage（其模块加载需要 REPORTS_DATA_DIR
 // 等运行时环境）：next.config.ts 在构建期导入本模块做 fail-fast 校验，
 // 必须保持零环境依赖（仅 node 内置模块）。
 //

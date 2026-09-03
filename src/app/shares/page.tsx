@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listAllShares, shareStatus } from "@/features/sharing/report-share";
 import { ShareRowActions } from "@/features/sharing/share-row-actions";
-import { requireSession } from "@/features/auth/session";
+import { requireSession } from "@/features/session/session";
 import { listShareBoardsWithItems } from "@/features/sharing/share-board";
 import { ShareBoardsManager } from "@/features/sharing/share-boards-manager";
 import { ShareManagementEmptyState } from "@/features/sharing/share-management-empty-state";

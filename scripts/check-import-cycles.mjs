@@ -1,102 +1,159 @@
-// 循环依赖检查：扫描 src/ 全部 TS 模块的 import 说明符（静态 + 动态），
-// 构建依赖图并检出环。环意味着 ownership 或抽象放错位置，CI 直接失败。
-// 用法：node scripts/check-import-cycles.mjs
-import { readdirSync, readFileSync } from "node:fs";
+// 循环依赖检查：使用 TypeScript AST 扫描 src/ 内生产模块的静态导入、
+// 再导出与字面量动态 import，构建真实的仓库内依赖图并检出全部环。
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 const ROOT = path.resolve(process.cwd());
 const SRC = path.join(ROOT, "src");
-const EXT = /\.(ts|tsx|mts)$/;
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts"];
+const SOURCE_FILE = /\.(?:ts|tsx|mts)$/;
+const TEST_FILE = /(?:^|\/).+\.(?:test|spec)\.(?:ts|tsx|mts)$/;
 
 function walk(dir, files = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name === ".next") continue;
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) walk(p, files);
-    else if (EXT.test(e.name) && e.name.endsWith(".test.ts") === false) files.push(p);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const absolute = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(absolute, files);
+    } else if (SOURCE_FILE.test(entry.name) && !TEST_FILE.test(absolute)) {
+      files.push(absolute);
+    }
   }
   return files;
 }
 
-// 提取 import 说明符：from "x"（含 type import）与动态 import("x")
-function importSpecifiers(content) {
-  const specs = new Set();
-  for (const m of content.matchAll(/import\s+(?:type\s+)?[\s\S]*?from\s+["']([^"']+)["']/g)) {
-    specs.add(m[1]);
-  }
-  for (const m of content.matchAll(/^\s*import\s+["']([^"']+)["']/gm)) {
-    specs.add(m[1]);
-  }
-  for (const m of content.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) {
-    specs.add(m[1]);
-  }
-  return [...specs];
-}
+function moduleSpecifiers(file, content) {
+  const source = ts.createSourceFile(
+    file,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const result = new Set();
 
-// 说明符 → 仓库内文件路径（外部包与 CSS 返回 null）
-function resolveSpecifier(spec, fromFile) {
-  if (!spec.startsWith("@/") && !spec.startsWith("./") && !spec.startsWith("../")) {
-    return null; // 外部包（react、better-auth 等）
-  }
-  const base = spec.startsWith("@/")
-    ? path.join(SRC, spec.slice(2))
-    : path.resolve(path.dirname(fromFile), spec);
-  for (const ext of ["", ".ts", ".tsx", ".mts", "/index.ts"]) {
-    const candidate = base + ext;
-    try {
-      const stat = readdirSync(candidate) !== undefined ? candidate : null;
-      if (stat) return stat;
-    } catch {
-      // 不是目录/文件，继续尝试扩展名
+  function visit(node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      result.add(node.moduleSpecifier.text);
     }
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require")) &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      result.add(node.arguments[0].text);
+    }
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      result.add(node.moduleReference.expression.text);
+    }
+    ts.forEachChild(node, visit);
   }
-  return null;
+
+  visit(source);
+  return result;
 }
 
-const files = walk(SRC);
-const graph = new Map(); // file -> Set<file>
-const byModule = (f) => path.relative(ROOT, f);
-
-for (const f of files) {
-  const content = readFileSync(f, "utf8");
-  const deps = new Set();
-  for (const spec of importSpecifiers(content)) {
-    const resolved = resolveSpecifier(spec, f);
-    if (resolved && resolved !== f) deps.add(resolved);
-  }
-  graph.set(f, deps);
+function isFile(candidate) {
+  return existsSync(candidate) && statSync(candidate).isFile();
 }
 
-// DFS 检环（迭代式，报告所有环）
-const WHITE = 0, GRAY = 1, BLACK = 2;
-const color = new Map([...graph.keys()].map((f) => [f, WHITE]));
+function resolveSpecifier(specifier, fromFile) {
+  if (
+    !specifier.startsWith("@/") &&
+    !specifier.startsWith("./") &&
+    !specifier.startsWith("../")
+  ) {
+    return null;
+  }
+  const base = specifier.startsWith("@/")
+    ? path.join(SRC, specifier.slice(2))
+    : path.resolve(path.dirname(fromFile), specifier);
+  const candidates = [
+    base,
+    ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`),
+    ...SOURCE_EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
+  ];
+  return candidates.find(isFile) ?? null;
+}
+
+const files = walk(SRC).sort();
+const graph = new Map();
+let edgeCount = 0;
+
+for (const file of files) {
+  const dependencies = new Set();
+  for (const specifier of moduleSpecifiers(file, readFileSync(file, "utf8"))) {
+    const resolved = resolveSpecifier(specifier, file);
+    if (resolved && resolved !== file) dependencies.add(resolved);
+  }
+  edgeCount += dependencies.size;
+  graph.set(file, dependencies);
+}
+
+const WHITE = 0;
+const GRAY = 1;
+const BLACK = 2;
+const colors = new Map(files.map((file) => [file, WHITE]));
 const stack = [];
+const cycleKeys = new Set();
 const cycles = [];
 
-function dfs(node) {
-  color.set(node, GRAY);
-  stack.push(node);
-  for (const dep of graph.get(node) ?? []) {
-    if (color.get(dep) === GRAY) {
-      const idx = stack.indexOf(dep);
-      cycles.push([...stack.slice(idx), node].map(byModule));
-    } else if (color.get(dep) === WHITE) {
-      dfs(dep);
+function canonicalCycle(cycle) {
+  const body = cycle.slice(0, -1);
+  const rotations = body.map((_, index) => [
+    ...body.slice(index),
+    ...body.slice(0, index),
+  ]);
+  rotations.sort((a, b) => a.join("\0").localeCompare(b.join("\0")));
+  const canonical = rotations[0];
+  return [...canonical, canonical[0]];
+}
+
+function visit(file) {
+  colors.set(file, GRAY);
+  stack.push(file);
+  for (const dependency of graph.get(file) ?? []) {
+    if (!graph.has(dependency)) continue;
+    if (colors.get(dependency) === GRAY) {
+      const start = stack.lastIndexOf(dependency);
+      const cycle = canonicalCycle([...stack.slice(start), dependency]);
+      const key = cycle.join("\0");
+      if (!cycleKeys.has(key)) {
+        cycleKeys.add(key);
+        cycles.push(cycle);
+      }
+    } else if (colors.get(dependency) === WHITE) {
+      visit(dependency);
     }
   }
   stack.pop();
-  color.set(node, BLACK);
+  colors.set(file, BLACK);
 }
 
-for (const f of graph.keys()) {
-  if (color.get(f) === WHITE) dfs(f);
+for (const file of files) {
+  if (colors.get(file) === WHITE) visit(file);
 }
 
+const relative = (file) => path.relative(ROOT, file);
 if (cycles.length > 0) {
   console.error("import cycles detected:");
-  for (const c of new Set(cycles.map((c) => c.join(" -> ")))) {
-    console.error(`  ${c}`);
+  for (const cycle of cycles) {
+    console.error(`  ${cycle.map(relative).join(" -> ")}`);
   }
   process.exit(1);
 }
-console.log(`no import cycles across ${files.length} modules`);
+
+console.log(
+  `no import cycles across ${files.length} modules and ${edgeCount} internal edges`,
+);

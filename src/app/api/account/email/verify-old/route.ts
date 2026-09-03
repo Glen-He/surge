@@ -1,6 +1,6 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { createChangeToken, getUserVersion } from "@/features/account/change-tokens";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 import { verifyStoredOtp } from "@/features/account/otp";
 import { isOtpCode } from "@/features/auth/otp-code";
 import { OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";

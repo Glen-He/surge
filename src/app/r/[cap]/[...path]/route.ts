@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 // ── 报告虚拟目录运行时（/r/<cap>/<path...>）──
 //
 // <cap> 是 capability（HMAC 签名的 reportId+revision+epoch+expires，见
-// lib/report-capability.ts），/r/<cap>/ 即报告的虚拟根目录：入口文档
+// features/reports/report-capability.ts），/r/<cap>/ 即报告的虚拟根目录：入口文档
 // /r/<cap>/report.html，其余相对引用（./data.js、images/a.png、CSS url()）
 // 由浏览器按文档 URL 原生解析，落在同一命名空间下。
 //
@@ -126,7 +126,7 @@ export async function GET(
   // segment 级禁 . / .. / 空段只是前置过滤；真正的安全不变量是下方
   // resolve 后的目录包含检查——无论 URL 编码如何构造，最终用于文件系统
   // 的路径必须严格位于报告根目录内。平台内置库不在此命名空间输出，
-  // 一律走 /platform/ 版本化 URL（见 lib/platform-assets.ts）
+  // 一律走 /platform/ 版本化 URL（见 features/reports/serving/platform-assets.ts）
   if (segments.some((s) => !s || s === "." || s === "..")) return notFound();
   const rel = segments.join("/");
 

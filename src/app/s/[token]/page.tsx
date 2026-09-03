@@ -7,7 +7,7 @@ import { ReportFrame } from "@/features/reports/viewer/report-frame";
 import { after } from "next/server";
 import { logger } from "@/infrastructure/logging/logger";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
-import { getOptionalSession } from "@/features/auth/session";
+import { getOptionalSession } from "@/features/session/session";
 
 export const dynamic = "force-dynamic";
 

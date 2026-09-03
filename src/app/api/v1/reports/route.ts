@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 //   description(≤200字) keywords(≤50字) file*(HTML 或 zip，≤50MB)
 // 响应：{ ok: true, slug }；错误 { error } + 状态码
 //
-// 上传业务与网页端共用 lib/report-upload.ts（同一套校验/配额/锁）
+// 上传业务与网页端共用 features/reports/upload/（同一套校验/配额/锁）
 
 // 令牌请求全局限速：同 IP 30 次 / 分钟（认证失败另有更严的 20 次/10 分钟）
 const REQ_LIMIT = 30;

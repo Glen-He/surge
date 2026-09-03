@@ -17,7 +17,7 @@ vi.mock("@/infrastructure/database/client", () => ({
   ),
 }));
 
-vi.mock("@/features/auth/guest/guest-sandbox", () => ({
+vi.mock("@/features/auth/guest/guest-identity", () => ({
   isGuestEmail: vi.fn(() => false),
 }));
 

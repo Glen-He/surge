@@ -15,8 +15,9 @@
     "test:integration": "SURGE_DB_INTEGRATION=1 vitest run --project integration",
     "test:e2e": "playwright test",
     "admin:grant": "node scripts/grant-admin.mjs",
-    "verify": "pnpm env:check && pnpm lint && pnpm check:imports && pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm build",
-    "check:imports": "node scripts/check-import-cycles.mjs"
+    "verify": "pnpm env:check && pnpm lint && pnpm check:imports && pnpm check:architecture && pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm build",
+    "check:imports": "node scripts/check-import-cycles.mjs",
+    "check:architecture": "node scripts/check-architecture.mjs"
   },
   "dependencies": {
     "@dnd-kit/dom": "0.5.0",

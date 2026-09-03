@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v3：令牌改为可再次查看（AES-GCM 加密存储）──

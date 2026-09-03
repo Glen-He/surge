@@ -12,21 +12,20 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 本项目的长期运行环境仅为云服务器，不把本地服务当作生产部署。需要验证数据库迁移、生产构建或自动化浏览器流程时，使用隔离的临时数据库和临时报告目录，验证结束后立即清理；不得把 `reports_local/` 当作运行时数据目录或随本地部署删除。默认不得启动或常驻 `next dev` / `next-server`，能通过静态检查、测试或短时自动化验证完成的任务，不得为了方便额外开启本地开发服务器。只有确实需要浏览器交互验收时才允许临时启动；自动验证结束后应主动关闭。若需要用户亲自操作，必须明确告知开发服务器正在运行且可能持续占用 CPU，并提醒用户验收完成后关闭；用户确认完成后立即停止，不得继续后台常驻。
 
-# 汇报页脚本加载规范（报告 HTML，违反会被打回）
+# 规范适用范围
 
-ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本化 URL（登记于 `reports/_shared/platform-manifest.json`，见 `src/features/reports/serving/platform-assets.ts`）；磁盘文件名与 URL 文件名一致并内嵌内容 hash。报告 HTML 的硬性约定：
+本文件只规范 SURGE 平台源码、平台 UI、接口、数据与部署，不作为汇报 HTML 的设计规范。生成、修改、检查或打包 `reports_local/**` 下的汇报时，必须先完整阅读并以 `reports_local/README.md` 为唯一汇报制作规范；上传记录再遵循 `reports_local/upload.md`。若两处存在表述差异，汇报 HTML 以 `reports_local/README.md` 为准，平台源码以本文件为准。不得把平台 UI 偏好机械套进汇报内容，也不得把单份汇报的设计选择写回本文件。
 
-- 生成或修改报告前读取 manifest 取当前 `fileName`；HTML 用 `<script defer src="/platform/<fileName>">` 引用；上传包不包含 ECharts 库文件。
+# 架构与代码组织
 
-- 禁止 `document.write` 注入脚本、本地 ECharts 副本与任何 fallback loader、CDN 加载 ECharts、硬编码环境域名。
-
-- 外部大 JS 不在 head 同步阻塞 HTML 解析：ECharts 与 data.js 均加 `defer`；图表初始化在 DOMContentLoaded 后执行并检查 `window.echarts`，缺失时显示图表错误态。
-
-- 3Dmol 等非首屏库用 IntersectionObserver 懒加载（rootMargin 约 400px），只加载一次。
-
-- 使用平台资源的报告本地验收走项目本地服务，不以 file:// 直接打开作为验收目标。
-
-- 参考实现与完整代码见 `reports_local/README.md` 第五节；上传打包细则见 `reports_local/upload.md`。
+1. **所有权优先于目录整齐**：先读完整文件、重要 callers、dependencies 与相关测试，再判断 keep / rename / move / split / merge。不得按行数、文件名或预设模板机械拆分，不追求目录对称和“文件越多越专业”。
+2. **`src/app` 只做交付适配**：`page.tsx` 负责路由入口和 Server Component 组合；`route.ts` 只解析 HTTP 输入、取得会话、调用 feature use case、把结构化结果映射为响应。业务事务、配额、授权、邮件场景和 SQL 不得以 Route Handler 为 owner。只有 health、平台资源和经过能力校验的文件流等 framework / infrastructure endpoint 可直接使用底层设施，并须在架构检查白名单中逐项登记。
+3. **业务按 feature 归属并 colocate**：业务规则、use case、领域数据访问、UI、CSS 和单元测试放在所属 `src/features/<feature>/`；技术设施放 `src/infrastructure/`；只有已被多个独立 feature 证明复用且完全不知道 SURGE 业务语义的代码才进入 `src/shared/`。禁止重新创建 `lib/`、中央 `components/`、全局 `actions/`、`utils.ts`、`helpers.ts` 或 `common.ts` 垃圾桶。
+4. **依赖方向是硬约束**：`app → features → infrastructure`，`app / features → shared`；`infrastructure`、`shared` 不得反向依赖业务层，feature 不得依赖 `app`。跨 feature 依赖必须单向、稳定且语义明确；出现双向依赖或 Feature 级依赖环时，优先修正 owner、抽取真正的编排 feature 或稳定接口，禁止把业务对象塞进 `shared/` 掩盖边界问题。
+5. **数据库与外部系统分层**：连接池、迁移执行器、SMTP transport 等纯技术能力属于 `infrastructure`；具体报告查询、邀请码核销、账号验证码场景和邮件文案属于相应 feature。基础设施邮件渲染器只接受业务层传入的内容，不得维护登录、改邮箱、删除账号等业务场景表。
+6. **命名必须描述真实职责**：只有真正保存状态的实现才使用 `store`；加密、哈希和凭证序列化使用 `credentials` 等准确名称。文件同时存在多个独立变化原因或跨越多个架构边界时才拆分；生命周期完全一致、拆开只增加跳转的代码应合并。
+7. **自动约束必须随重构更新**：结构变更后运行 `pnpm check:imports` 与 `pnpm check:architecture`。循环检查必须解析真实 TypeScript import graph，不能用会漏掉文件、`import type`、再导出或动态 import 的正则假检查。新增合法基础设施端点须最小化白名单；不得用扩大忽略范围让 CI 变绿。
+8. **重构保持行为与视觉契约**：目录重构不得顺手改变 API、数据库语义、安全边界、用户文案或页面视觉。确需改变行为时必须有明确问题、独立说明和针对性测试。删除旧实现后同步清理导入、注释、测试、文档、空目录与兼容分支，不保留“以后也许会用”的废弃路径。
 
 # 项目 UI 硬性规则（用户强偏好，违反会被打回）
 
@@ -52,6 +51,10 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 
 10. **认证页浏览器行为与视觉必须一致**：登录、注册的同类字段和按钮在状态切换时位置、尺寸保持不变；一次提交成功后立即锁定重复提交并只执行一次进入目标页的导航，不得出现需要再次点击登录的中间状态。必须保留浏览器密码管理器和自动填充能力，Chrome / Safari 的 `:autofill` 与 `:-webkit-autofill` 统一使用浅蓝底色 `#eef6ff`，不得保留浏览器默认黄色，也不得为了消除底色关闭 `autocomplete`。自动填充、手动输入和聚焦状态下的文字、浮动标签、图标与边框层级必须一致。
 
+11. **复用平台已有交互组件**：Modal、Toast、复制反馈、OTP 输入、Select、日期选择器、危险确认和空状态必须先复用 `src/shared/ui/` 或已有 feature 组件，禁止在页面内另写一套近似实现。平台 UI 不使用与整体风格割裂的浏览器原生下拉面板；需要下拉选择时复用既有 Select 组件并保留键盘、焦点和读屏行为。
+
+12. **同类元素保持稳定位置**：登录/注册、分享方式、Modal 步骤和卡片状态切换时，同类型输入框、主次按钮、标题与说明应占据稳定槽位；不得因条件渲染重新排列共同元素。异步提交时原位展示 loading / disabled 状态，不用临时插入新块制造跳动。重构拖拽、弹层或认证逻辑时，除非用户明确要求，不得改变现有尺寸、间距、色彩、圆角和操作路径。
+
 # 注释与输出信息规范（用户强偏好，违反会被打回）
 
 四类信息各归其层：**注释**给维护者（中文）、**日志与内部异常**给开发排查（英文）、**用户文案**给终端用户（中文、集中管理）。禁止混写。
@@ -63,7 +66,7 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 3. 同一文件注释语言统一；不写复述代码的无意义注释；导出 API 用 JSDoc 中文说明。
 4. 例外：自动生成文件、依赖/压缩/构建产物、直接下载的第三方文件（如 `reports/**/echarts.min.js`）保持原样；确需修改第三方文件时，只给自己新增/修改的片段写中文注释。
 
-## 2. 运行日志（lib/logger.ts）：message 英文
+## 2. 运行日志（`src/infrastructure/logging/logger.ts`）：message 英文
 
 1. message 是面向开发排查的英文短语，小写开头、说清事件（例 `"failed to rotate report storage pointer"`）。
 2. 业务参数一律放 ctx 对象（`{ userId, slug }`），禁止拼进 message 字符串；scope 用英文 kebab-case。
@@ -76,8 +79,8 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 
 ## 4. 用户可见文案：中文，仅允许三类位置
 
-1. **文案模块**（领域文案唯一来源）：`src/features/auth/auth-errors.ts`（better-auth 错误码）、`src/features/reports/upload/upload-errors.ts`（上传/解压/表单/配额）、`src/features/sharing/share-board-errors.ts`（分享面板）、`src/features/auth/password-policy.ts`（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
-2. **API 边界层**：路由内一次性的请求级校验文案；better-auth 适配层（`src/features/auth/auth.ts` hooks）抛出的 APIError message（它本身就是响应体机制）。跨越业务层与 API 层的失败必须传递 code + 强类型 params，Route Handler 最后调用对应的 response 函数生成中文与 HTTP 状态，业务层不得提前生成中文字符串。
+1. **文案模块**（领域文案唯一来源）：`src/features/auth/auth-errors.ts`（Better Auth 错误码）、`src/features/auth/registration-errors.ts`（注册）、`src/features/auth/guest/guest-login-errors.ts`（游客登录）、`src/features/account/account-otp-errors.ts`（账号验证码）、`src/features/account/api-token-errors.ts`（API 令牌）、`src/features/account/invitation-errors.ts`（邀请管理）、`src/features/session/end-session-errors.ts`（退出登录）、`src/features/reports/upload/upload-errors.ts`（上传/解压/表单/配额）、`src/features/sharing/report-share-errors.ts`（分享链接）、`src/features/sharing/share-board-errors.ts`（分享面板）、`src/features/auth/password-policy.ts`（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
+2. **API 边界层**：路由内一次性的请求级校验文案；Better Auth 适配层（`src/features/auth/auth-request-policy.ts`）抛出的 APIError message（它本身就是响应体机制）。跨越业务层与 API 层的失败必须传递 code + 强类型 params，Route Handler 最后调用对应的 response 函数生成中文与 HTTP 状态，业务层不得提前生成中文字符串。
 3. **纯校验或 UI 适配函数的返回值**：仅在结果不会继续跨层流转时可直接返回文案，如 `passwordPolicyError`、`verifyStoredOtp`。上传等跨层流程的校验函数必须返回结构化失败对象，不得返回裸字符串。
 
 错误码与 params 必须通过映射类型绑定：需要参数的 code 漏传、错传或拼错字段应在 `tsc` 阶段失败；无参数 code 不得接收多余 params。HTTP 状态属于 API 适配语义，不放入领域异常对象。
@@ -105,4 +108,3 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 - [ ] 新增领域文案进了对应文案模块，而非散落业务代码
 
 - [ ] 文件编码 UTF-8
-
