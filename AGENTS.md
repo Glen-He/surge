@@ -14,13 +14,18 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # 汇报页脚本加载规范（报告 HTML，违反会被打回）
 
-ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本化 URL（登记于 `reports/_shared/platform-manifest.json`，见 `lib/platform-assets.ts`）；磁盘文件名与 URL 文件名一致并内嵌内容 hash。报告 HTML 的硬性约定：
+ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本化 URL（登记于 `reports/_shared/platform-manifest.json`，见 `src/features/reports/serving/platform-assets.ts`）；磁盘文件名与 URL 文件名一致并内嵌内容 hash。报告 HTML 的硬性约定：
 
 - 生成或修改报告前读取 manifest 取当前 `fileName`；HTML 用 `<script defer src="/platform/<fileName>">` 引用；上传包不包含 ECharts 库文件。
+
 - 禁止 `document.write` 注入脚本、本地 ECharts 副本与任何 fallback loader、CDN 加载 ECharts、硬编码环境域名。
+
 - 外部大 JS 不在 head 同步阻塞 HTML 解析：ECharts 与 data.js 均加 `defer`；图表初始化在 DOMContentLoaded 后执行并检查 `window.echarts`，缺失时显示图表错误态。
+
 - 3Dmol 等非首屏库用 IntersectionObserver 懒加载（rootMargin 约 400px），只加载一次。
+
 - 使用平台资源的报告本地验收走项目本地服务，不以 file:// 直接打开作为验收目标。
+
 - 参考实现与完整代码见 `reports_local/README.md` 第五节；上传打包细则见 `reports_local/upload.md`。
 
 # 项目 UI 硬性规则（用户强偏好，违反会被打回）
@@ -67,12 +72,12 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 ## 3. 内部异常 message：英文
 
 1. `throw new Error(...)` 与自定义异常类的 message 一律英文（配置校验、迁移完整性、内部断言等排查信息）。内部常量可写进 message；用户输入、路径、token、账号等业务参数必须放在异常的强类型字段或日志 ctx 中，避免后续记录 `error.message` 时意外泄漏。
-2. 失败原因需要展示给用户时，异常只携带错误码 + 强类型 params，由 API 边界翻译。模式见 lib/upload-errors.ts 的 `UploadError` 与 lib/share-board-errors.ts 的 `ShareBoardError`；message 只写稳定英文错误码（如 `upload rejected: ZIP_FILE_COUNT`），不得拼接 params 或中文文案。
+2. 失败原因需要展示给用户时，异常只携带错误码 + 强类型 params，由 API 边界翻译。模式见 `src/features/reports/upload/upload-errors.ts` 的 `UploadError` 与 `src/features/sharing/share-board-errors.ts` 的 `ShareBoardError`；message 只写稳定英文错误码（如 `upload rejected: ZIP_FILE_COUNT`），不得拼接 params 或中文文案。
 
 ## 4. 用户可见文案：中文，仅允许三类位置
 
-1. **文案模块**（领域文案唯一来源）：lib/auth-errors.ts（better-auth 错误码）、lib/upload-errors.ts（上传/解压/表单/配额）、lib/share-board-errors.ts（分享面板）、lib/password-policy.ts（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
-2. **API 边界层**：路由内一次性的请求级校验文案；better-auth 适配层（lib/auth.ts hooks）抛出的 APIError message（它本身就是响应体机制）。跨越业务层与 API 层的失败必须传递 code + 强类型 params，Route Handler 最后调用对应的 response 函数生成中文与 HTTP 状态，业务层不得提前生成中文字符串。
+1. **文案模块**（领域文案唯一来源）：`src/features/auth/auth-errors.ts`（better-auth 错误码）、`src/features/reports/upload/upload-errors.ts`（上传/解压/表单/配额）、`src/features/sharing/share-board-errors.ts`（分享面板）、`src/features/auth/password-policy.ts`（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
+2. **API 边界层**：路由内一次性的请求级校验文案；better-auth 适配层（`src/features/auth/auth.ts` hooks）抛出的 APIError message（它本身就是响应体机制）。跨越业务层与 API 层的失败必须传递 code + 强类型 params，Route Handler 最后调用对应的 response 函数生成中文与 HTTP 状态，业务层不得提前生成中文字符串。
 3. **纯校验或 UI 适配函数的返回值**：仅在结果不会继续跨层流转时可直接返回文案，如 `passwordPolicyError`、`verifyStoredOtp`。上传等跨层流程的校验函数必须返回结构化失败对象，不得返回裸字符串。
 
 错误码与 params 必须通过映射类型绑定：需要参数的 code 漏传、错传或拼错字段应在 `tsc` 阶段失败；无参数 code 不得接收多余 params。HTTP 状态属于 API 适配语义，不放入领域异常对象。
@@ -87,16 +92,17 @@ ECharts 平台已内置：报告 HTML 直接引用 `/platform/<fileName>` 版本
 
 ## CR 自查清单
 
-* [ ] 注释中文，技术标识保留英文，中英文之间有空格，无中英混杂
+- [ ] 注释中文，技术标识保留英文，中英文之间有空格，无中英混杂
 
-* [ ] logger message 英文，业务参数在 ctx 对象
+- [ ] logger message 英文，业务参数在 ctx 对象
 
-* [ ] throw/自定义异常 message 只含稳定英文信息，不含用户输入或中文；需用户可见的走错误码 + 强类型 params + 边界翻译
+- [ ] throw/自定义异常 message 只含稳定英文信息，不含用户输入或中文；需用户可见的走错误码 + 强类型 params + 边界翻译
 
-* [ ] 跨层业务失败不传裸字符串；仅 Route Handler 生成中文响应与 HTTP 状态
+- [ ] 跨层业务失败不传裸字符串；仅 Route Handler 生成中文响应与 HTTP 状态
 
-* [ ] 错误码与 params 编译期绑定；异常对象不携带 HTTP status
+- [ ] 错误码与 params 编译期绑定；异常对象不携带 HTTP status
 
-* [ ] 新增领域文案进了对应文案模块，而非散落业务代码
+- [ ] 新增领域文案进了对应文案模块，而非散落业务代码
 
-* [ ] 文件编码 UTF-8
+- [ ] 文件编码 UTF-8
+

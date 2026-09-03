@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "admin:grant": "node scripts/grant-admin.mjs",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm check:imports && pnpm typecheck && pnpm test && pnpm build",
+    "check:imports": "node scripts/check-import-cycles.mjs"
   },
   "dependencies": {
     "@dnd-kit/dom": "0.5.0",

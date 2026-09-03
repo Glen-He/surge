@@ -2,14 +2,14 @@ import { expect, test, type BrowserContext, type FrameLocator, type Page } from 
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { reportArtifactDir } from "@/lib/report-storage";
+import { auth } from "@/features/auth/auth";
+import { db } from "@/infrastructure/database/client";
+import { reportArtifactDir } from "@/features/reports/storage/report-storage";
 import {
   encryptShareToken,
   shareTokenHash,
-} from "@/lib/share-token-store";
-import { generateShareToken } from "@/lib/shares";
+} from "@/features/sharing/share-credentials";
+import { generateShareToken } from "@/features/sharing/report-share";
 
 // ── 报告运行时性能测量专用（PERF_RUN=1 才运行）──
 //
