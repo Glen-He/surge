@@ -76,6 +76,20 @@ describe("moveReportToDateIndex", () => {
     ]);
   });
 
+  it("最后一项移出后不再保留原日期", () => {
+    const source = [
+      { slug: "a", date: "2026-08-28", title: "A" },
+      { slug: "b", date: "2026-08-26", title: "B" },
+    ];
+    const next = moveReportToDateIndex(source, "a", "2026-08-26", 1);
+
+    expect(next.some((report) => report.date === "2026-08-28")).toBe(false);
+    expect(reportOrderItems(next)).toEqual([
+      { slug: "b", date: "2026-08-26" },
+      { slug: "a", date: "2026-08-26" },
+    ]);
+  });
+
   it("项目无效或位置没有变化时保留原数组", () => {
     expect(moveReportToDateIndex(reports, "missing", "2026-08-28", 0)).toBe(
       reports,
