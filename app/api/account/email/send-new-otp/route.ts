@@ -80,6 +80,7 @@ export async function POST(req: Request) {
     subject: tpl.subject,
     text: tpl.text,
     html: tpl.html,
+    attachments: tpl.attachments,
   });
   await recordOtpSent(newEmail, "OTP_SENT_EMAIL_CHANGE_NEW");
 

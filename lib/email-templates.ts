@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 /* 邮件 HTML 渲染：Apple 风格一版式（2026-08 重设计 v3）
  *
  * 设计原则（对齐 Apple ID 验证码邮件 / apple.com 邮件语言）：
@@ -9,15 +12,10 @@
  *   客户端（Gmail IMAP、部分国产 webmail）渲染完全一致
  * - 文案行宽按 320px 窄屏一行不折校准：场景句 ≤16 全角字符（15px）、脚注 ≤20（12px）
  *
- * 使用方式：
- *   import { renderOtpEmail, renderResetPasswordEmail } from "@/lib/email-templates";
- *   const { subject, html, text } = renderOtpEmail("login", { code: "824619" });
- *   await transporter.sendMail({ to, subject, text, html });
- *
- * 图片 URL（邮件客户端必须走绝对地址）：
- *   优先读 process.env.MAIL_PUBLIC_URL，其次回退到常见部署变量。
- *   没有配置时用 http://localhost:3000（只适合本地调试邮件客户端，
- *   真正发信必须配置 MAIL_PUBLIC_URL，否则对方邮件客户端无法加载图）。
+ * 装饰图标（logo / 时钟）以 CID inline 附件随邮件本体发送：
+ * HTML 引用 src="cid:..."，SMTP 层在 multipart/related 中携带 PNG 字节，
+ * 收件人首次打开无需回源网站。CID 名称与附件定义集中在下方
+ * MAIL_CID / MAIL_ATTACHMENTS，模板与发送层不得各自维护一套名称。
  */
 
 export type OtpTemplateId =
@@ -27,30 +25,55 @@ export type OtpTemplateId =
   | "password_change"
   | "account_deletion";
 
+/** nodemailer 内联附件（结构兼容，发送层直接透传给 sendMail） */
+export type MailInlineAttachment = {
+  filename: string;
+  cid: string;
+  content: Buffer;
+  contentType: "image/png";
+  contentDisposition: "inline";
+};
+
 export type EmailRenderResult = {
   subject: string;
   html: string;
   text: string;
+  /** CID inline 装饰图标：与 html 内 cid: 引用一一对应，直接透传 sendMail */
+  attachments: readonly MailInlineAttachment[];
 };
 
-/* ── 配置 ──────────────────────────────────────────────── */
+/* ── CID inline 图标（单一来源）───────────────────────── */
 
-function buildPublicBase(): string {
-  const raw =
-    process.env.MAIL_PUBLIC_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL ||
-    "http://localhost:3000";
-  let base = raw.trim().replace(/\/+$/, "");
-  if (base && !/^https?:\/\//i.test(base)) {
-    base = `https://${base}`;
-  }
-  return base;
+/** CID 名称：HTML src 与附件 Content-ID 一一对应 */
+const MAIL_CID = {
+  emailIcon: "mail-icon-email@surge",
+  clockIcon: "mail-icon-clock@surge",
+} as const;
+
+/** 图标文件随部署存在于 public/mail/（git 跟踪）；缺失时模块加载即抛错
+ *  （fail-fast），不做任何远程 URL 回退——装饰图标不该在运行期兜底，
+ *  部署缺资源这种错误要在启动期暴露。 */
+function loadMailAsset(filename: string): Buffer {
+  return readFileSync(path.join(process.cwd(), "public", "mail", filename));
 }
 
-const PUBLIC_BASE = buildPublicBase();
-const LOGO_SRC = `${PUBLIC_BASE}/mail/icon-email.png`;
-const CLOCK_SRC = `${PUBLIC_BASE}/mail/clock-email.png`;
+/** 两份模板共用 logo + 时钟，进程内一次读入（约 6KB） */
+const MAIL_ATTACHMENTS: readonly MailInlineAttachment[] = [
+  {
+    filename: "icon-email.png",
+    cid: MAIL_CID.emailIcon,
+    content: loadMailAsset("icon-email.png"),
+    contentType: "image/png",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "clock-email.png",
+    cid: MAIL_CID.clockIcon,
+    content: loadMailAsset("clock-email.png"),
+    contentType: "image/png",
+    contentDisposition: "inline",
+  },
+];
 
 /* ── 共享骨架 ─────────────────────────────────────────── */
 
@@ -83,7 +106,7 @@ const HEAD_STYLE = `
     p { margin: 0; }
 `;
 
-const CLOCK_ICON = `<img src="${CLOCK_SRC}" width="14" height="14" alt="" style="display:inline-block;border:0;vertical-align:-2px;">`;
+const CLOCK_ICON = `<img src="cid:${MAIL_CID.clockIcon}" width="14" height="14" alt="" style="display:inline-block;border:0;vertical-align:-2px;">`;
 
 const FOOTER_TEXT = "SURGE 工作汇报系统 · 自动发送，请勿回复";
 const SAFE_NOTE = "请勿向任何人透露验证码；非本人操作可忽略";
@@ -163,7 +186,7 @@ function renderOtpHtml(meta: OtpMeta, code: string): string {
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:18px;">
           <tr>
             <td align="center" style="padding:48px 28px 0;">
-              <img src="${LOGO_SRC}" width="28" height="28" alt="SURGE" style="display:block;margin:0 auto;border:0;">
+              <img src="cid:${MAIL_CID.emailIcon}" width="28" height="28" alt="" style="display:block;margin:0 auto;border:0;">
             </td>
           </tr>
           <tr>
@@ -225,7 +248,7 @@ function renderResetHtml(url: string): string {
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:18px;">
           <tr>
             <td align="center" style="padding:48px 28px 0;">
-              <img src="${LOGO_SRC}" width="28" height="28" alt="SURGE" style="display:block;margin:0 auto;border:0;">
+              <img src="cid:${MAIL_CID.emailIcon}" width="28" height="28" alt="" style="display:block;margin:0 auto;border:0;">
             </td>
           </tr>
           <tr>
@@ -321,6 +344,7 @@ export function renderOtpEmail(
     subject: meta.subject,
     html: renderOtpHtml(meta, code),
     text: otpPlainText(meta, code),
+    attachments: MAIL_ATTACHMENTS,
   };
 }
 
@@ -331,5 +355,6 @@ export function renderResetPasswordEmail(opts: {
     subject: "重置你的 SURGE 密码",
     html: renderResetHtml(opts.url),
     text: resetPlainText(opts.url),
+    attachments: MAIL_ATTACHMENTS,
   };
 }

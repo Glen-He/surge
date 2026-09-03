@@ -46,6 +46,7 @@ export async function POST() {
       subject: tpl.subject,
       text: tpl.text,
       html: tpl.html,
+      attachments: tpl.attachments,
     });
     await recordOtpSent(email, "OTP_SENT_DELETION");
     await logSecurity({
