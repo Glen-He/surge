@@ -1,9 +1,8 @@
 import { promises as fs } from "node:fs";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { UploadError } from "@/features/reports/upload/upload-errors";
 
-export const STORAGE_MIN_FREE_BYTES = Number(
-  process.env.STORAGE_MIN_FREE_BYTES ?? 512 * 1024 * 1024,
-);
+export const STORAGE_MIN_FREE_BYTES = serverEnv.STORAGE_MIN_FREE_BYTES;
 
 /** 磁盘余量不足：错误码 STORAGE_CAPACITY，用户文案由边界层翻译 */
 export class StorageCapacityError extends UploadError<"STORAGE_CAPACITY"> {

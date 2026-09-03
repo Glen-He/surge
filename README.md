@@ -6,7 +6,7 @@ SURGE 是自托管的工作汇报平台：用户可上传单个 HTML 或包含 `
 
 - Node.js 24+ / pnpm 11.21+
 
-- PostgreSQL 17
+- PostgreSQL 18
 
 - 代码目录之外的持久化报告数据卷
 
@@ -19,14 +19,15 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-在环境变量中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`API_TOKEN_ENCRYPTION_KEY`、`INVITE_CODE_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定，并使用当前 checkout 之外的专用目录。
+在环境变量中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`API_TOKEN_ENCRYPTION_KEY`、`INVITE_CODE_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定，并使用当前 checkout 之外的专用目录。所有变量的唯一契约见 `src/infrastructure/environment/schema.ts`（新增变量必须先在此注册，`pnpm env:check` 会校验 `.env.local` 与 `.env.example` 的同步）。
 
 ```bash
 pnpm lint
 pnpm typecheck
-pnpm test
+pnpm test:unit          # 单元测试（不需要数据库）
+pnpm test:integration   # PostgreSQL 集成测试（需要 DATABASE_URL）
 pnpm build
-pnpm check  # 一次执行全部检查
+pnpm verify             # 一次执行全部本地检查（不含 e2e）
 ```
 
 ## 配置

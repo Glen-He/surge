@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 
 function secret(): string {
-  const value = process.env.BETTER_AUTH_SECRET;
-  if (!value) throw new Error("BETTER_AUTH_SECRET is required for internal auth proof");
-  return value;
+  // BETTER_AUTH_SECRET 为 always 必需：缺失或过短在此直接抛错
+  return serverEnv.BETTER_AUTH_SECRET;
 }
 
 export function internalAuthProof(purpose: string, subject = ""): string {

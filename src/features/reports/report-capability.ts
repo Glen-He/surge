@@ -5,6 +5,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 
 // ── 报告 capability（/r/<cap>/ 虚拟目录的访问凭证）──
 //
@@ -38,14 +39,11 @@ let derivedKey: Buffer | null = null;
 
 function capKey(): Buffer {
   if (derivedKey) return derivedKey;
-  const root = process.env.BETTER_AUTH_SECRET;
-  if (!root || root.length < 32) {
-    throw new Error("BETTER_AUTH_SECRET is required to sign report capabilities");
-  }
+  // always 必需：缺失或过短由 serverEnv 校验抛错，绝不落入固定开发密钥
   derivedKey = Buffer.from(
     hkdfSync(
       "sha256",
-      root,
+      serverEnv.BETTER_AUTH_SECRET,
       "surge-report-capability",
       "v1",
       32,

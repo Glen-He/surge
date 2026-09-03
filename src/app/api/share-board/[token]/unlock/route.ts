@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { clientIp } from "@/infrastructure/security/client-ip";
 import { boardUnlockCookieName, boardUnlockProof, findPublicShareBoard } from "@/features/sharing/public-share-board";
 import {
@@ -51,7 +52,7 @@ export async function POST(
   const jar = await cookies();
   jar.set(boardUnlockCookieName(token), boardUnlockProof(token, board.accessEpoch), {
     httpOnly: true,
-    secure: new URL(process.env.BETTER_AUTH_URL ?? req.url).protocol === "https:",
+    secure: new URL(serverEnv.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
     path: `/b/${token}`,
   });

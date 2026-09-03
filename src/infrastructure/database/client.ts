@@ -1,13 +1,14 @@
 import { Pool } from "pg";
+import { serverEnv } from "@/infrastructure/environment/server";
 
-const DB_QUERY_TIMEOUT_MS = Number(process.env.DB_QUERY_TIMEOUT_MS ?? 15_000);
+const DB_QUERY_TIMEOUT_MS = serverEnv.DB_QUERY_TIMEOUT_MS;
 
 // 业务数据访问用共享连接池（auth 也有自己的 Pool）
 export const db = new Pool({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString: serverEnv.DATABASE_URL,
   // 池参数显式化：默认 max=10 不变（可通过 DB_POOL_MAX 调整）；
   // 建连/空闲超时兜底，防止数据库或代理抖动时请求无限挂起
-  max: Number(process.env.DB_POOL_MAX ?? 10),
+  max: serverEnv.DB_POOL_MAX,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
   // 同时约束客户端等待与 PostgreSQL 执行：认证与写操作必须显式失败，

@@ -5,13 +5,11 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 
 function rootSecret(): string {
-  const secret = process.env.INVITE_CODE_SECRET?.trim() ?? "";
-  if (secret.length < 32) {
-    throw new Error("INVITE_CODE_SECRET is missing or too short");
-  }
-  return secret;
+  // always 必需：缺失或过短由 serverEnv 校验抛错
+  return serverEnv.INVITE_CODE_SECRET;
 }
 
 function deriveKey(purpose: string): Buffer {

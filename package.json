@@ -8,10 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "env:check": "vitest run --project unit src/infrastructure/environment/env-contract.test.ts",
+    "env:check:ci": "vitest run --project unit src/infrastructure/environment/env-contract.test.ts",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "SURGE_DB_INTEGRATION=1 vitest run --project integration",
     "test:e2e": "playwright test",
     "admin:grant": "node scripts/grant-admin.mjs",
-    "check": "pnpm lint && pnpm check:imports && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm env:check && pnpm lint && pnpm check:imports && pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm build",
     "check:imports": "node scripts/check-import-cycles.mjs"
   },
   "dependencies": {

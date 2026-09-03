@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { clientIp } from "@/infrastructure/security/client-ip";
 import {
   checkUnlockRate,
@@ -61,7 +62,7 @@ export async function POST(
   const jar = await cookies();
   jar.set(unlockCookieName(token), unlockProof(token), {
     httpOnly: true,
-    secure: new URL(process.env.BETTER_AUTH_URL ?? req.url).protocol === "https:",
+    secure: new URL(serverEnv.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
     path: `/s/${token}`,
     // 会话级：不设 maxAge，关浏览器即失；重新打开需再次输入密码

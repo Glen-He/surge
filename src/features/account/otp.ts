@@ -4,6 +4,7 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
 import { isOtpCode, OTP_CODE_LENGTH } from "@/features/auth/otp-code";
 import { OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";
@@ -17,11 +18,8 @@ const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 3;
 
 function otpSecret(): string {
-  const secret = process.env.OTP_SECRET ?? process.env.BETTER_AUTH_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("OTP_SECRET or BETTER_AUTH_SECRET is required");
-  }
-  return secret;
+  // OTP_SECRET 可选；留空从 BETTER_AUTH_SECRET 派生（均为 32+ 密钥）
+  return serverEnv.OTP_SECRET ?? serverEnv.BETTER_AUTH_SECRET;
 }
 
 function hashOtp(email: string, purpose: string, code: string): string {
