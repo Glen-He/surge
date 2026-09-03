@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>平台资源夹具 B</title>
+    <script defer src="/platform/echarts.42f8329d989b6f65.min.js"></script>
+    <script defer src="./data.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #1d1d1f; font: 14px system-ui, sans-serif; }
+      main { width: 960px; margin: 0 auto; padding: 40px; }
+      .charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+      .chart { height: 240px; border-radius: 18px; background: #f5f5f7; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="charts">
+        <div class="chart"></div>
+        <div class="chart"></div>
+        <div class="chart"></div>
+      </div>
+    </main>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const series = window.__platformFixtureSeries;
+        for (const [index, element] of document.querySelectorAll(".chart").entries()) {
+          const chart = window.echarts.init(element);
+          chart.setOption({
+            animation: false,
+            xAxis: { type: "category", data: ["A", "B", "C", "D"] },
+            yAxis: { type: "value" },
+            series: [{ type: "bar", data: series.map((value) => value + index) }],
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

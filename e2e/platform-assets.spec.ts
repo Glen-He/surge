@@ -1,7 +1,6 @@
 import { expect, test, type BrowserContext, type FrameLocator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import path from "node:path";
 import { auth } from "@/features/auth/auth";
 import { db } from "@/infrastructure/database/client";
 import { issueCapability } from "@/features/reports/report-capability";
@@ -12,6 +11,10 @@ import {
   shareTokenHash,
 } from "@/features/sharing/share-credentials";
 import { generateShareToken } from "@/features/sharing/report-share";
+import {
+  copyReportFixture,
+  PLATFORM_REPORT_FIXTURES,
+} from "./support/report-fixtures";
 
 // ── 平台公共资源运行时回归验证 ──
 //
@@ -19,10 +22,9 @@ import { generateShareToken } from "@/features/sharing/report-share";
 // 报告 HTML 直接引用平台 URL（defer + DOMContentLoaded 初始化）、
 // 3Dmol IntersectionObserver 懒加载、/platform/ 与 capability 的安全
 // 边界、CSP script-src 与 sandbox 语义。
-// 报告 A = reports_local/2026-08-28/report-02（图表 + data.js + 3Dmol），
-// 报告 B = reports_local/2026-08-17/report-01（图表 + data.js，无 3Dmol），
-// 模板 T = tpl-01（仓库内联数据模板）。A/B 按 upload.md 打包口径复制
-//（排除 source/ 与杂项文件）。
+// 报告 A/B 使用仓库内最小确定性夹具，分别覆盖 ECharts + data.js +
+// 3Dmol 懒加载及 ECharts + data.js；模板 T 使用 tpl-01。E2E 不依赖
+// 被 gitignore 排除的 reports_local，确保本地与 CI 使用完全相同的输入。
 
 const ECHARTS_URL_FILE = "echarts.42f8329d989b6f65.min.js";
 
@@ -73,34 +75,6 @@ const fixture = {
   } satisfies ReportFixture,
 };
 
-// upload.md 打包口径：zip 不含平台公共库与 source/、.DS_Store 等杂项
-async function copyReportFiles(
-  sourceDir: string,
-  targetDir: string,
-): Promise<number> {
-  await fs.mkdir(targetDir, { recursive: true });
-  let total = 0;
-  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (
-      entry.name === "echarts.min.js" ||
-      entry.name === ".DS_Store" ||
-      entry.name === "source"
-    ) {
-      continue;
-    }
-    const from = path.join(sourceDir, entry.name);
-    const to = path.join(targetDir, entry.name);
-    if (entry.isDirectory()) {
-      total += await copyReportFiles(from, to);
-    } else {
-      await fs.copyFile(from, to);
-      total += (await fs.stat(from)).size;
-    }
-  }
-  return total;
-}
-
 async function insertReport(
   report: ReportFixture,
   templateKey: string | null,
@@ -146,13 +120,12 @@ test.beforeAll(async ({ browser }) => {
   );
   fixture.userId = user.id;
 
-  const checkout = process.cwd();
-  const sizeA = await copyReportFiles(
-    path.join(checkout, "reports_local", "2026-08-28", "report-02"),
+  const sizeA = await copyReportFixture(
+    PLATFORM_REPORT_FIXTURES.reportA,
     reportArtifactDir(fixture.userId, fixture.reportA.storageKey!),
   );
-  const sizeB = await copyReportFiles(
-    path.join(checkout, "reports_local", "2026-08-17", "report-01"),
+  const sizeB = await copyReportFixture(
+    PLATFORM_REPORT_FIXTURES.reportB,
     reportArtifactDir(fixture.userId, fixture.reportB.storageKey!),
   );
   await insertReport(fixture.reportA, null, sizeA);
@@ -235,7 +208,7 @@ async function platformEchartsTiming(
   });
 }
 
-test("report-02：平台 URL 直接引用、图表渲染、3Dmol 不随首屏加载", async ({
+test("报告 A：平台 URL 直接引用、图表渲染、3Dmol 不随首屏加载", async ({
   browserName,
 }) => {
   const page = await fixture.context!.newPage();
@@ -335,7 +308,7 @@ test("第二份 ECharts 报告与模板报告：平台缓存命中", async ({
   await page.close();
 });
 
-test("返回 report-02：平台缓存仍命中且 3Dmol 仍未请求", async () => {
+test("返回报告 A：平台缓存仍命中且 3Dmol 仍未请求", async () => {
   const page = await fixture.context!.newPage();
   track(page);
   const { report } = await openSharedReport(

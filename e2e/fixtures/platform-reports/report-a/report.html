@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>平台资源夹具 A</title>
+    <script defer src="/platform/echarts.42f8329d989b6f65.min.js"></script>
+    <script defer src="./data.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #1d1d1f; font: 14px system-ui, sans-serif; }
+      main { width: 960px; margin: 0 auto; padding: 40px; }
+      .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      .chart { height: 240px; border-radius: 18px; background: #f5f5f7; }
+      .spacer { height: 1800px; }
+      .v3dgrid { min-height: 240px; border-radius: 18px; background: #f5f5f7; }
+      .v3dgrid canvas { display: block; width: 100%; height: 240px; }
+      .v3d-fallback { padding: 32px; color: #6e6e73; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="charts">
+        <div class="chart"></div>
+        <div class="chart"></div>
+        <div class="chart"></div>
+        <div class="chart"></div>
+      </div>
+      <div class="spacer" aria-hidden="true"></div>
+      <div class="v3dgrid" aria-label="3D 分子区域"></div>
+    </main>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const series = window.__platformFixtureSeries;
+        for (const [index, element] of document.querySelectorAll(".chart").entries()) {
+          const chart = window.echarts.init(element);
+          chart.setOption({
+            animation: false,
+            xAxis: { type: "category", data: ["A", "B", "C", "D", "E"] },
+            yAxis: { type: "value" },
+            series: [{ type: "line", data: series.map((value) => value + index) }],
+          });
+        }
+
+        const grid = document.querySelector(".v3dgrid");
+        let requested = false;
+        const fallback = () => {
+          grid.innerHTML = '<div class="v3d-fallback">当前环境无法初始化 3D 视图</div>';
+        };
+        const observer = new IntersectionObserver((entries) => {
+          if (requested || !entries.some((entry) => entry.isIntersecting)) return;
+          requested = true;
+          observer.disconnect();
+          const script = document.createElement("script");
+          script.src = "./assets/3Dmol-min.js";
+          script.onload = () => {
+            try {
+              window.$3Dmol.createViewer(grid).render();
+            } catch {
+              fallback();
+            }
+          };
+          script.onerror = fallback;
+          document.head.appendChild(script);
+        }, { rootMargin: "400px 0px" });
+        observer.observe(grid);
+      });
+    </script>
+  </body>
+</html>
