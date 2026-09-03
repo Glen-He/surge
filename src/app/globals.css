@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "../shared/ui/design-system.css";
+@import "../shared/ui/card-head.css";
+@import "../shared/ui/modal/modal.css";
+@import "../shared/ui/date-picker/date-picker.css";
+@import "../features/auth/otp-input.css";
+@import "../features/auth/auth.css";
+@import "../features/auth/top-notice.css";
+@import "../features/reports/project.css";
+@import "../features/reports/viewer/report-viewer.css";
+@import "../features/account/account.css";

@@ -1,0 +1,70 @@
+/* ============ 账户中心 Shell（1080px 标准内容轨道） ============ */
+.account-shell {
+  width: min(1080px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-block: 32px 96px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.account-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 280px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 22px;
+  padding: 28px 30px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.015),
+    0 10px 30px rgba(0, 0, 0, 0.018);
+}
+
+.card-main {
+  margin-top: 24px;
+}
+
+/* 其余卡片内容下移：与账号信息卡的邮箱文字顶部对齐（48head + 40 = 88px） */
+.card-main.shifted {
+  margin-top: 40px;
+}
+
+.card-action {
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 贴底操作区：提示文字 + 操作按钮一起沉底，卡片高度不被内容撑大 */
+.card-action-wrap {
+  margin-top: auto;
+}
+
+/* ============ 手机响应式 ============ */
+@media (max-width: 768px) {
+  .account-shell {
+    width: calc(100% - 32px);
+    padding-block: 20px 64px;
+  }
+
+  .account-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+    gap: 16px;
+  }
+
+  .account-card {
+    min-height: 280px;
+    padding: 24px 22px;
+    border-radius: 20px;
+  }
+}
+

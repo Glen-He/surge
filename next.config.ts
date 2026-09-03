@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { validatePlatformManifest } from "./lib/platform-assets";
+import { validatePlatformManifest } from "./src/features/reports/serving/platform-assets";
 
 // 平台公共资源完整性 fail-fast：/platform/ 版本化 URL 承诺 immutable
 // 长缓存，manifest 登记的 hash 与 reports/_shared 实际字节不一致时，

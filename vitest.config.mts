@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["src/**/*.test.ts"],
     env: {
       REPORTS_DATA_DIR: "/tmp/surge-vitest-reports",
       BETTER_AUTH_SECRET: "vitest-better-auth-secret-at-least-32-characters",
@@ -17,7 +17,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(process.cwd()),
+      "@": path.resolve(process.cwd(), "src"),
     },
   },
 });
