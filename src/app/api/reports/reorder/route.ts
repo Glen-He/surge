@@ -1,4 +1,4 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { getReportsByUser, reorderReports } from "@/features/reports/data/reports-db";
 
 export const dynamic = "force-dynamic";

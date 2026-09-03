@@ -1,5 +1,5 @@
-import { getApiSession } from "@/features/auth/api-session";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { getApiSession } from "@/features/session/api-session";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { createShareBoard, listShareBoards, MAX_BOARD_TITLE_LENGTH, normalizeBoardTitle, parseBoardExpiry } from "@/features/sharing/share-board";
 import {
   shareBoardErrorResponse,

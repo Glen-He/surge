@@ -19,10 +19,12 @@ vi.mock("@/features/account/account-deletion", () => ({
 
 import {
   DEMO_TEMPLATES,
-  guestInternalProof,
   initializeGuestSandbox,
+} from "@/features/guest/guest-sandbox";
+import {
+  guestInternalProof,
   verifyGuestInternalProof,
-} from "@/features/auth/guest/guest-sandbox";
+} from "@/features/auth/guest/guest-identity";
 
 describe("游客共享模板沙箱", () => {
   beforeEach(() => {

@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { withStorageLocks } from "@/infrastructure/database/client";
 import { unzipStream, UnzipLimitError } from "@/features/reports/upload/zip";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { logger } from "@/infrastructure/logging/logger";
 import {
   assertSafeReportSlug,

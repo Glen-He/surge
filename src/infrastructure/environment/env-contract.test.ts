@@ -12,7 +12,7 @@ import {
 /* 环境契约三方同步校验（CI 的 environment job 在 1 秒内运行本文件）：
  *   schema ←→ .env.example（开发者文档不漂移）
  *   schema ←→ .github/ci.env（CI 假环境覆盖全部必需变量且格式合法）
- *   schema ←→ 本地 .env.local（存在时校验 always 必需项）
+ *   schema ←→ 本地 .env.local（存在时校验始终必需项）
  * 以后新增 XXX_SECRET：未注册 schema / 未写进两份 env 文件，这里直接失败，
  * 而不是等到第 200 个测试或生产启动才炸。
  */
@@ -114,7 +114,7 @@ describe("环境契约", () => {
   });
 
   it(
-    "本地 .env.local 满足 always 必需项（存在时才校验）",
+    "本地 .env.local 满足始终必需项（存在时才校验）",
     { skip: !existsSync(path.join(ROOT, ".env.local")) },
     () => {
       const local = parseEnvFile(path.join(ROOT, ".env.local"));

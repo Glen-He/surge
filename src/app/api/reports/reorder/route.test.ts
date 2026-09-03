@@ -6,7 +6,7 @@ const mocked = vi.hoisted(() => ({
   reorderReports: vi.fn(),
 }));
 
-vi.mock("@/features/auth/api-session", () => ({
+vi.mock("@/features/session/api-session", () => ({
   getApiSession: mocked.getApiSession,
 }));
 

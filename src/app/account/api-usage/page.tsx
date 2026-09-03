@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { requireSession } from "@/features/auth/session";
+import { requireSession } from "@/features/session/session";
 
 export const dynamic = "force-dynamic";
 

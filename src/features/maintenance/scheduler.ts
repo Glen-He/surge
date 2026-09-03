@@ -6,7 +6,7 @@ import {
   consumeSharedRateLimit,
   purgeExpiredSecurityRateLimits,
 } from "@/infrastructure/database/rate-limit";
-import { purgeStaleGuests } from "@/features/auth/guest/guest-sandbox";
+import { purgeStaleGuests } from "@/features/guest/guest-sandbox";
 import { logger } from "@/infrastructure/logging/logger";
 import {
   purgeOrphanedReportStorage,

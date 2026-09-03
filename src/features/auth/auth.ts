@@ -1,50 +1,22 @@
 import { randomUUID } from "crypto";
 import { betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin, anonymous, emailOTP } from "better-auth/plugins";
-import { Pool } from "pg";
-import {
-  renderOtpEmail,
-  renderResetPasswordEmail,
-} from "@/infrastructure/email/templates";
+import { loginOtpEmail, resetPasswordEmail } from "./auth-emails";
+import { authRequestPolicy } from "./auth-request-policy";
 import { transporter } from "@/infrastructure/email/client";
-import { checkOtpRateLimit, recordOtpSent } from "./otp-rate-limit";
-import {
-  GUEST_EMAIL_DOMAIN,
-  verifyGuestInternalProof,
-  isGuestEmail,
-} from "./guest/guest-sandbox";
-import { passwordPolicyError } from "@/features/auth/password-policy";
-import { clientIp } from "@/infrastructure/security/client-ip";
-import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
-import { verifyPasswordLoginInternalProof } from "@/features/auth/auth-attempts";
-import {
-  getRegistrationPolicy,
-  verifyRegistrationInternalProof,
-} from "@/features/auth/registration-policy";
-import { db } from "@/infrastructure/database/client";
-import { verifyInternalAuthProof } from "@/infrastructure/security/internal-auth-proof";
+import { recordOtpSent } from "./otp-rate-limit";
+import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "./guest/guest-identity";
+import { createAuthDatabasePool } from "@/infrastructure/auth/auth-database";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { OTP_CODE_LENGTH } from "./otp-code";
-
-const AUTH_DB_QUERY_TIMEOUT_MS = serverEnv.AUTH_DB_QUERY_TIMEOUT_MS;
 
 export const auth = betterAuth({
   // 官方建议：生产环境显式配置 baseURL（读 BETTER_AUTH_URL），
   // 不依赖请求头推断，避免反代场景下 origin/cookie 属性误判
   baseURL: serverEnv.BETTER_AUTH_URL,
 
-  database: new Pool({
-    connectionString: serverEnv.DATABASE_URL,
-    // 与业务连接池同款超时兜底，防止认证请求在数据库抖动时挂死
-    max: serverEnv.DB_POOL_MAX,
-    connectionTimeoutMillis: 10_000,
-    idleTimeoutMillis: 30_000,
-    query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
-    statement_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
-    lock_timeout: Math.min(AUTH_DB_QUERY_TIMEOUT_MS, 5_000),
-  }),
+  database: createAuthDatabasePool(),
 
   // 匿名游客签发限流：每次都会创建一次性账号 + 沙箱数据（5 张卡片 +
   // 磁盘目录），同 IP 10 分钟最多 5 次（沿用原 guest-login 路由的额度）
@@ -61,7 +33,7 @@ export const auth = betterAuth({
       // 游客不设密码，重置链接无消费方，仅短路避免向假域名发信
       if (isGuestEmail(user.email)) return;
       await recordOtpSent(user.email, "OTP_SENT_FORGET_PASSWORD");
-      const tpl = renderResetPasswordEmail({ url });
+      const tpl = resetPasswordEmail(url);
       await transporter.sendMail({
         from: serverEnv.SMTP_USER,
         to: user.email,
@@ -87,7 +59,7 @@ export const auth = betterAuth({
       // 反代 append 模式下 XFF 形如「伪造段, 真实IP」；不配置信任代理时
       // better-auth 遇多段头会直接放弃解析 -> 全站共享同一个限流桶，
       // 「同 IP 5 次/10 分钟」实际从未按 IP 生效。配置后从 XFF 末段
-      // 往前取第一个非代理 IP（即真实客户端 IP，与 lib/client-ip 同语义）。
+      // 往前取第一个非代理 IP（即真实客户端 IP，与 infrastructure/security/client-ip.ts 同语义）。
       trustedProxies: (serverEnv.TRUSTED_PROXIES ?? "127.0.0.1,::1")
         .split(",")
         .map((s) => s.trim())
@@ -117,7 +89,7 @@ export const auth = betterAuth({
         // 发送成功后记录频控日志（注册 / 登录 / 找回密码等所有 better-auth OTP 都经过这里）
         await recordOtpSent(email, `OTP_SENT_${type ?? "GENERIC"}`);
         // 修改邮箱只走自建流程；better-auth OTP 统一使用登录验证码模板。
-        const tpl = renderOtpEmail("login", { code: otp });
+        const tpl = loginOtpEmail(otp);
         await transporter.sendMail({
           from: serverEnv.SMTP_USER,
           to: email,
@@ -145,178 +117,5 @@ export const auth = betterAuth({
     nextCookies(),
   ],
 
-  hooks: {
-    before: createAuthMiddleware(async (ctx) => {
-      // 凭据与账号生命周期变更必须走自建路由：近期认证声明、冷却期、
-      // 清理与会话撤销在路由内原子执行。Better Auth 原生端点否则会形成
-      // 第二套更弱的策略面。
-      if (
-        ctx.path === "/change-password" ||
-        ctx.path === "/change-email" ||
-        ctx.path === "/delete-user"
-      ) {
-        throw new APIError("FORBIDDEN", {
-          message: "请使用平台账号设置入口",
-        });
-      }
-      if (
-        ctx.path === "/set-password" &&
-        !verifyInternalAuthProof(
-          "set-password",
-          "",
-          ctx.headers?.get("x-surge-set-password-proof"),
-        )
-      ) {
-        throw new APIError("FORBIDDEN", {
-          message: "请使用平台注册入口",
-        });
-      }
-      if (
-        ctx.path === "/sign-out" &&
-        !verifyInternalAuthProof(
-          "end-session",
-          "",
-          ctx.headers?.get("x-surge-end-session-proof"),
-        )
-      ) {
-        throw new APIError("FORBIDDEN", {
-          message: "请使用平台退出登录入口",
-        });
-      }
-      if (ctx.path === "/sign-in/email") {
-        const email =
-          typeof ctx.body?.email === "string"
-            ? ctx.body.email.trim().toLowerCase()
-            : "";
-        if (
-          !email ||
-          !verifyPasswordLoginInternalProof(
-            email,
-            ctx.headers?.get("x-surge-password-login-proof"),
-          )
-        ) {
-          throw new APIError("FORBIDDEN", {
-            message: "请使用登录页完成登录",
-          });
-        }
-      }
-      if (
-        ctx.path === "/sign-in/anonymous" &&
-        !verifyGuestInternalProof(ctx.headers?.get("x-surge-guest-proof"))
-      ) {
-        throw new APIError("FORBIDDEN", {
-          message: "请使用游客登录入口",
-        });
-      }
-      // 本应用只支持一条建号路径：OTP 验证后在自建 /api/auth/register
-      // 流程内事务化初始化密码。原生密码注册永远无效。
-      if (ctx.path === "/sign-up/email") {
-        throw new APIError("FORBIDDEN", { message: "请使用验证码注册" });
-      }
-      // Better Auth 原生 email/OTP 端点可能创建账号，因此新邮箱必须同时
-      // 满足实时注册开关和服务端 HMAC proof。邀请码在自建路由内校验，
-      // proof 只证明请求确实经过了该受控入口。
-      const isOtpSignIn =
-        ctx.path === "/sign-in/email-otp" ||
-        (ctx.path === "/email-otp/send-verification-otp" &&
-          (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
-      if (isOtpSignIn) {
-        const email =
-          typeof ctx.body?.email === "string"
-            ? ctx.body.email.trim().toLowerCase()
-            : "";
-        if (email && !isGuestEmail(email)) {
-          const existing = await db.query(
-            `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
-            [email],
-          );
-          if (!existing.rows[0]) {
-            const policy = await getRegistrationPolicy();
-            if (!policy.enabled) {
-              throw new APIError("FORBIDDEN", {
-                message: "当前未开放新账号注册",
-              });
-            }
-            if (
-              !verifyRegistrationInternalProof(
-                email,
-                ctx.headers?.get("x-surge-registration-proof"),
-              )
-            ) {
-              throw new APIError("FORBIDDEN", { message: "请使用注册页完成注册" });
-            }
-          }
-        }
-      }
-
-      // 用户首次注册时由服务端分配一个不可见的随机 ID 作为用户名。
-      // sign-in/email-otp 只在用户不存在时才会用 name 建号，老用户不受影响。
-      if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email-otp") {
-        return {
-          context: {
-            ...ctx,
-            body: {
-              ...ctx.body,
-              name: `user_${crypto.randomUUID()}`,
-            },
-          },
-        };
-      }
-
-      // ── 重置密码的复杂度校验（客户端之外的服务端强制点）──
-      // reset-password 是 better-auth 内置端点、不经过自建路由，
-      // 密码策略必须在这里拦，否则直连 API 可设置纯数字等弱密码
-      if (
-        ctx.path === "/reset-password" ||
-        ctx.path === "/email-otp/reset-password"
-      ) {
-        const pwd =
-          typeof ctx.body?.newPassword === "string" ? ctx.body.newPassword : "";
-        const pwdErr = passwordPolicyError(pwd);
-        if (pwdErr) {
-          throw new APIError("BAD_REQUEST", { message: pwdErr });
-        }
-      }
-
-      // ── 统一验证码发送频控（覆盖注册 / 登录 / 找回密码等所有 better-auth OTP）──
-      // 同一邮箱 60 秒最多 1 次 + 自然日最多 10 次，全部由服务器决定，跨设备生效。
-      let otpEmail: string | undefined;
-      if (ctx.path === "/email-otp/send-verification-otp") {
-        otpEmail = ctx.body?.email;
-      } else if (ctx.path === "/email-otp/request-email-change") {
-        otpEmail = ctx.body?.newEmail;
-      } else if (
-        ctx.path === "/email-otp/request-password-reset" ||
-        ctx.path === "/forget-password/email-otp" ||
-        ctx.path === "/request-password-reset"
-      ) {
-        otpEmail = ctx.body?.email;
-      }
-
-      if (otpEmail) {
-        // 游客邮箱免频控（不占每日 10 次配额、不占 60 秒冷却）
-        if (!isGuestEmail(otpEmail)) {
-          const rl = await checkOtpRateLimit({ email: otpEmail });
-          if (!rl.ok) {
-            throw new APIError("TOO_MANY_REQUESTS", {
-              message:
-                rl.reason === "daily_limit"
-                  ? "今日验证码发送次数已达上限，请明天再试"
-                  : `请 ${rl.retryAfter} 秒后再试`,
-            });
-          }
-          const sourceIp = clientIp(ctx.headers ?? new Headers());
-          const [byIp, global] = await Promise.all([
-            consumeSharedRateLimit("otp-send-ip", sourceIp, 30, 60 * 60),
-            consumeSharedRateLimit("otp-send-global", "global", 1_000, 24 * 60 * 60),
-          ]);
-          if (!byIp.allowed || !global.allowed) {
-            throw new APIError("TOO_MANY_REQUESTS", {
-              message: "验证码发送过于频繁，请稍后再试",
-            });
-          }
-        }
-      }
-    }),
-  },
+  hooks: { before: authRequestPolicy },
 });

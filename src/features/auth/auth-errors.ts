@@ -1,5 +1,5 @@
 // better-auth 错误码 → 中文文案（框架默认返回英文 message，这里统一翻译）。
-// 客户端流程层（lib/auth-flow.ts）与注册端点（app/api/auth/register）共用。
+// 客户端流程层（auth-flow.ts）与注册端点（app/api/auth/register）共用。
 import { OTP_CODE_LENGTH } from "@/features/auth/otp-code";
 
 export const OTP_CODE_FORMAT_ERROR = `请输入 ${OTP_CODE_LENGTH} 位验证码`;

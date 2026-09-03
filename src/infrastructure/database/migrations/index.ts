@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@/infrastructure/database/client";
 import { logger } from "@/infrastructure/logging/logger";
+import type { Migration } from "./migration";
 import { BASELINE } from "./001-baseline";
 import { API_TOKENS } from "./002-api-tokens";
 import { API_TOKEN_ENC } from "./003-api-token-enc";
@@ -36,8 +37,6 @@ import { REMOVE_DEVELOPMENT_COMPATIBILITY } from "./023-remove-development-compa
 import { REMOVE_REPORT_EXTERNAL_NETWORK } from "./024-remove-report-external-network";
 import { REGISTRATION_ADMIN } from "./025-registration-admin";
 import { SINGLE_INVITE_AND_VISIBLE_API_TOKEN } from "./026-single-invite-and-visible-api-token";
-
-export type Migration = { version: number; name: string; statements: string[] };
 
 const MIGRATIONS: Migration[] = [
   BASELINE,
@@ -146,4 +145,3 @@ export function ensureSchemaVersioned(): Promise<void> {
   }
   return ran;
 }
-

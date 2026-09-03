@@ -6,6 +6,12 @@ export type ShareBoardErrorParamsByCode = {
   BOARD_REPORT_NOT_FOUND: undefined;
   BOARD_NOT_FOUND: undefined;
   BOARD_ITEM_LIMIT_REACHED: { max: number };
+  BOARD_TITLE_INVALID: { max: number };
+  BOARD_PASSCODE_INVALID: undefined;
+  BOARD_PASSWORD_SETTING_INVALID: undefined;
+  BOARD_EXPIRY_INVALID: undefined;
+  BOARD_DISABLED_INVALID: undefined;
+  BOARD_NO_CHANGES: undefined;
 };
 
 export type ShareBoardErrorCode = keyof ShareBoardErrorParamsByCode;
@@ -39,6 +45,30 @@ const DEFINITIONS: ShareBoardErrorDefinitionTable = {
   BOARD_ITEM_LIMIT_REACHED: {
     status: 400,
     copy: (p) => `每个面板最多加入 ${p.max} 份汇报`,
+  },
+  BOARD_TITLE_INVALID: {
+    status: 400,
+    copy: ({ max }) => `面板名称不能为空，且最多 ${max} 个字符`,
+  },
+  BOARD_PASSCODE_INVALID: {
+    status: 400,
+    copy: () => "提取码必须是 4 位字母或数字",
+  },
+  BOARD_PASSWORD_SETTING_INVALID: {
+    status: 400,
+    copy: () => "无效的密码设置",
+  },
+  BOARD_EXPIRY_INVALID: {
+    status: 400,
+    copy: () => "请选择未来的有效期",
+  },
+  BOARD_DISABLED_INVALID: {
+    status: 400,
+    copy: () => "无效的启停设置",
+  },
+  BOARD_NO_CHANGES: {
+    status: 400,
+    copy: () => "没有可更新的内容",
   },
 };
 

@@ -14,12 +14,14 @@ vi.mock("@/infrastructure/security/client-ip", () => ({ clientIp: () => "203.0.1
 vi.mock("@/infrastructure/database/rate-limit", () => ({
   consumeSharedRateLimit: mocked.consumeRateLimit,
 }));
-vi.mock("@/features/auth/guest/guest-sandbox", () => ({
+vi.mock("@/features/guest/guest-sandbox", () => ({
+  initializeGuestSandbox: mocked.initializeSandbox,
+  destroyGuestUser: mocked.destroyGuest,
+}));
+vi.mock("@/features/auth/guest/guest-identity", () => ({
   GUEST_TTL_MINUTES: 60,
   guestInternalProof: () => "guest-proof",
   isGuestEmail: (email: string) => email.endsWith("@demo.surge"),
-  initializeGuestSandbox: mocked.initializeSandbox,
-  destroyGuestUser: mocked.destroyGuest,
 }));
 vi.mock("@/infrastructure/logging/logger", () => ({
   logger: {

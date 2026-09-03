@@ -1,4 +1,4 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { getReportBySlug } from "@/features/reports/data/reports-db";
 import { deleteReport } from "@/features/reports/upload/delete-report";
 import { metaFromForm, validateReportMeta } from "@/features/reports/upload/validate-report-meta";
@@ -10,7 +10,7 @@ import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 export const dynamic = "force-dynamic";
 
 // 更新项目信息；FormData 可选携带 file（新 ZIP），不传则保留原报告文件
-// 业务实现（校验/配额/锁/原子替换）在 lib/report-upload.ts，与开放 API 共用
+// 业务实现（校验/配额/锁/原子替换）在 features/reports/upload/，与开放 API 共用
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ slug: string }> },

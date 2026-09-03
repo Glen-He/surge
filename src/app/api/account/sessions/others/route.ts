@@ -1,6 +1,6 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { revokeOtherAccountSessions } from "@/features/account/account-sessions";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 
 export async function DELETE() {
   const session = await getApiSession();

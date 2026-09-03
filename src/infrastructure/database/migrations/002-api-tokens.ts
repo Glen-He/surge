@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v2：api_tokens（程序化上传 API 的个人访问令牌）──

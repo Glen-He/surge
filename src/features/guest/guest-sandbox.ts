@@ -8,17 +8,17 @@ import {
 } from "@/features/reports/storage/report-storage";
 import { deleteUserPermanently } from "@/features/account/account-deletion";
 import { logger } from "@/infrastructure/logging/logger";
-import { internalAuthProof, verifyInternalAuthProof } from "@/infrastructure/security/internal-auth-proof";
-
-export const GUEST_EMAIL_DOMAIN = "demo.surge";
-export const GUEST_TTL_MINUTES = 60;
+import {
+  GUEST_TTL_MINUTES,
+  isGuestEmail,
+} from "@/features/auth/guest/guest-identity";
 
 export interface DemoTemplate {
   tplDir: DemoTemplateKey; // 服务端掌管的模板白名单 key
   title: string;
   date: string; // YYYY-MM-DD
   tag: string;
-  tagColor: string; // lib/tag-colors.ts 7 色板之一
+  tagColor: string; // features/reports/tag-colors.ts 7 色板之一
   description: string;
   keywords: string;
 }
@@ -72,33 +72,6 @@ export const DEMO_TEMPLATES: DemoTemplate[] = [
     keywords: "LLM,RAG,Feasibility",
   },
 ];
-
-export function isGuestEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const lower = String(email).toLowerCase();
-  return lower.endsWith("@" + GUEST_EMAIL_DOMAIN);
-}
-
-/** 服务端专属 proof：证明匿名认证由原子化游客流程发起 */
-export function guestInternalProof(): string {
-  return internalAuthProof("guest-login");
-}
-
-export function verifyGuestInternalProof(proof: string | null | undefined): boolean {
-  return verifyInternalAuthProof("guest-login", "", proof);
-}
-
-/**
- * 事件驱动：发送验证码接口的响应体里附带游客验证码（仅当收件人是游客邮箱）。
- * 前端拿到响应后直接弹 Toast —— 验证码显示的唯一触发路径就是"用户点击发送且发送成功"，
- * 不存在任何轮询 / 后台拉取，从根上杜绝"进页面就误弹"。
- */
-export function guestOtpResponse(email: string, code: string, ttlSec = 600) {
-  if (!isGuestEmail(email)) return {};
-  return {
-    guestOtp: { code: String(code).padStart(6, "0"), expiresIn: ttlSec },
-  };
-}
 
 let templateValidation: Promise<void> | null = null;
 

@@ -18,13 +18,6 @@ import path from "node:path";
  * MAIL_CID / MAIL_ATTACHMENTS，模板与发送层不得各自维护一套名称。
  */
 
-export type OtpTemplateId =
-  | "login"
-  | "new_email"
-  | "old_email"
-  | "password_change"
-  | "account_deletion";
-
 /** nodemailer 内联附件（结构兼容，发送层直接透传给 sendMail） */
 export type MailInlineAttachment = {
   filename: string;
@@ -108,65 +101,34 @@ const HEAD_STYLE = `
 
 const CLOCK_ICON = `<img src="cid:${MAIL_CID.clockIcon}" width="14" height="14" alt="" style="display:inline-block;border:0;vertical-align:-2px;">`;
 
-const FOOTER_TEXT = "SURGE 工作汇报系统 · 自动发送，请勿回复";
-const SAFE_NOTE = "请勿向任何人透露验证码；非本人操作可忽略";
-
-/* 验证码场景元数据 */
-type OtpMeta = {
+/** 由业务 feature 提供的验证码邮件文案；基础设施层只负责安全渲染。 */
+export type OtpEmailContent = {
   subject: string;
   preheader: string;
-  title: string; // <title> 里显示的页面标题，不一定等于 subject
+  title: string;
   headline: string;
-  context: string; // 场景句（≤16 全角字符，15px 一行）
-  note: string; // 安全脚注（≤20 全角字符，12px 一行）
+  context: string;
+  note: string;
 };
 
-const OTP_META: Record<OtpTemplateId, OtpMeta> = {
-  login: {
-    subject: "你的 SURGE 登录验证码",
-    preheader: "你的 SURGE 登录验证码为 {code}，5 分钟内有效。",
-    title: "登录验证码",
-    headline: "登录验证码",
-    context: "你正在登录 SURGE 工作汇报系统",
-    note: SAFE_NOTE,
-  },
-  new_email: {
-    subject: "验证你的 SURGE 新邮箱",
-    preheader: "你的 SURGE 新邮箱验证码为 {code}，5 分钟内有效。",
-    title: "新邮箱验证码",
-    headline: "验证新邮箱",
-    context: "你正在验证新的账号邮箱地址",
-    note: SAFE_NOTE,
-  },
-  old_email: {
-    subject: "确认你的 SURGE 当前邮箱",
-    preheader: "你的 SURGE 当前邮箱验证码为 {code}，5 分钟内有效。",
-    title: "旧邮箱验证码",
-    headline: "确认当前邮箱",
-    context: "你正在确认当前邮箱的归属",
-    note: SAFE_NOTE,
-  },
-  password_change: {
-    subject: "你的 SURGE 修改密码验证码",
-    preheader: "你的 SURGE 修改密码验证码为 {code}，5 分钟内有效。",
-    title: "修改密码验证码",
-    headline: "修改登录密码",
-    context: "你正在修改登录密码",
-    note: SAFE_NOTE,
-  },
-  account_deletion: {
-    subject: "你的 SURGE 删除账号验证码",
-    preheader: "你的 SURGE 删除账号验证码为 {code}，5 分钟内有效。",
-    title: "删除账号验证码",
-    headline: "确认删除账号",
-    context: "你正在申请删除账号，此操作不可恢复",
-    note: "删除后数据将被永久清除；15 天内可取消",
-  },
+/** 由 auth feature 提供的重置密码邮件文案。 */
+export type ResetPasswordEmailContent = {
+  subject: string;
+  preheader: string;
+  title: string;
+  headline: string;
+  context: string;
+  buttonLabel: string;
+  expiryLabel: string;
+  fallbackIntro: string;
+  safetyNote: string;
 };
+
+const FOOTER_TEXT = "SURGE 工作汇报系统 · 自动发送，请勿回复";
 
 /* ── HTML 渲染 ─────────────────────────────────────────── */
 
-function renderOtpHtml(meta: OtpMeta, code: string): string {
+function renderOtpHtml(meta: OtpEmailContent, code: string): string {
   const preheader = meta.preheader.replaceAll("{code}", code);
   return `<!doctype html>
 <html lang="zh-CN">
@@ -228,8 +190,7 @@ function renderOtpHtml(meta: OtpMeta, code: string): string {
 }
 
 /* 重置密码场景：点击链接型 */
-function renderResetHtml(url: string): string {
-  const preheader = "你请求了重置 SURGE 密码，链接 1 小时内有效。";
+function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -237,11 +198,11 @@ function renderResetHtml(url: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <title>SURGE 工作汇报系统 · 重置密码</title>
+  <title>SURGE 工作汇报系统 · ${meta.title}</title>
   <style>${HEAD_STYLE}  </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background:#F5F5F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;visibility:hidden;mso-hide:all;">${preheader}</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;visibility:hidden;mso-hide:all;">${meta.preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#F5F5F7;">
     <tr>
       <td align="center" style="padding:40px 16px 48px;">
@@ -253,12 +214,12 @@ function renderResetHtml(url: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:18px 28px 0;">
-              <h1 style="margin:0;color:#1D1D1F;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.3px;">重置你的密码</h1>
+              <h1 style="margin:0;color:#1D1D1F;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.3px;">${meta.headline}</h1>
             </td>
           </tr>
           <tr>
             <td align="center" style="padding:8px 28px 0;">
-              <p style="margin:0;color:#6E6E73;font-size:15px;line-height:24px;">你请求了重置密码，请设置新密码</p>
+              <p style="margin:0;color:#6E6E73;font-size:15px;line-height:24px;">${meta.context}</p>
             </td>
           </tr>
           <tr>
@@ -266,7 +227,7 @@ function renderResetHtml(url: string): string {
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
                 <tr>
                   <td bgcolor="#0071E3" style="border-radius:999px;padding:13px 44px;">
-                    <a href="${url}" style="color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;">设置新密码</a>
+                    <a href="${url}" style="color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;">${meta.buttonLabel}</a>
                   </td>
                 </tr>
               </table>
@@ -274,7 +235,7 @@ function renderResetHtml(url: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:16px 28px 0;">
-              <p style="margin:0;color:#6E6E73;font-size:13px;line-height:22px;">${CLOCK_ICON}&nbsp;链接 1 小时内有效</p>
+              <p style="margin:0;color:#6E6E73;font-size:13px;line-height:22px;">${CLOCK_ICON}&nbsp;${meta.expiryLabel}</p>
             </td>
           </tr>
           <tr>
@@ -286,7 +247,7 @@ function renderResetHtml(url: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:40px 28px 0;">
-              <p style="margin:0;color:#86868B;font-size:12px;line-height:20px;">非本人操作请忽略，你的账号是安全的</p>
+              <p style="margin:0;color:#86868B;font-size:12px;line-height:20px;">${meta.safetyNote}</p>
             </td>
           </tr>
           <tr>
@@ -304,7 +265,7 @@ function renderResetHtml(url: string): string {
 
 /* ── 纯文本回退版本（图片关掉、无法收 HTML 时看这个） ─── */
 
-function otpPlainText(meta: OtpMeta, code: string): string {
+function otpPlainText(meta: OtpEmailContent, code: string): string {
   return [
     `【${meta.subject}】`,
     "",
@@ -318,15 +279,15 @@ function otpPlainText(meta: OtpMeta, code: string): string {
   ].join("\n");
 }
 
-function resetPlainText(url: string): string {
+function resetPlainText(meta: ResetPasswordEmailContent, url: string): string {
   return [
-    "【重置你的 SURGE 密码】",
+    `【${meta.subject}】`,
     "",
-    "你请求了重置密码，请点击链接设置新密码（1 小时内有效）：",
+    meta.fallbackIntro,
     "",
     url,
     "",
-    "非本人操作请忽略，你的账号是安全的。",
+    `${meta.safetyNote}。`,
     "",
     FOOTER_TEXT,
   ].join("\n");
@@ -335,10 +296,9 @@ function resetPlainText(url: string): string {
 /* ── 对外 API ─────────────────────────────────────────── */
 
 export function renderOtpEmail(
-  id: OtpTemplateId,
+  meta: OtpEmailContent,
   opts: { code: string },
 ): EmailRenderResult {
-  const meta = OTP_META[id];
   const code = String(opts.code).padStart(6, "0");
   return {
     subject: meta.subject,
@@ -348,13 +308,14 @@ export function renderOtpEmail(
   };
 }
 
-export function renderResetPasswordEmail(opts: {
-  url: string;
-}): EmailRenderResult {
+export function renderResetPasswordEmail(
+  meta: ResetPasswordEmailContent,
+  opts: { url: string },
+): EmailRenderResult {
   return {
-    subject: "重置你的 SURGE 密码",
-    html: renderResetHtml(opts.url),
-    text: resetPlainText(opts.url),
+    subject: meta.subject,
+    html: renderResetHtml(meta, opts.url),
+    text: resetPlainText(meta, opts.url),
     attachments: MAIL_ATTACHMENTS,
   };
 }

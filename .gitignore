@@ -53,7 +53,9 @@ tmp/
 
 # 运行时用户数据由 REPORTS_DATA_DIR 指向 checkout 外部目录，不进 Git。
 !reports/_shared/
-reports_local/
+# 本地汇报内容与上传记录不入库，只跟踪通用制作规范。
+reports_local/*
+!reports_local/README.md
 .runtime/
 
 # 本地笔记

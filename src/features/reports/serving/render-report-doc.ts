@@ -1,9 +1,9 @@
 // 报告文档渲染（登录态查看页与分享页共用）。
 //
 // 架构：报告文件通过 /r/<cap>/ 虚拟目录原样输出（capability 即访问凭证，
-// 见 lib/report-capability.ts），浏览器按文档 URL 原生解析一切相对引用；
+// 见 features/reports/report-capability.ts），浏览器按文档 URL 原生解析一切相对引用；
 // 平台公共库（echarts 等）由报告 HTML 直接以 /platform/<文件名> 引用
-//（见 lib/platform-assets.ts）。平台不改写用户资源路径。本模块的后处理
+//（见 features/reports/serving/platform-assets.ts）。平台不改写用户资源路径。本模块的后处理
 // 与路径无关：剥离模板自带报告头、注入 PDF 桥接与滚动条样式。
 
 import { REPORT_SANDBOX_TOKENS } from "@/features/reports/serving/report-security";

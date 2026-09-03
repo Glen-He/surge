@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listActiveAccountSessions } from "@/features/account/account-sessions";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
-import { requireSession } from "@/features/auth/session";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
+import { requireSession } from "@/features/session/session";
 import { SessionsManager } from "@/features/account/ui/sessions-manager";
 
 export const dynamic = "force-dynamic";
