@@ -6,8 +6,6 @@ import {
   STORAGE_MIN_FREE_BYTES,
 } from "@/features/reports/storage/storage-capacity";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const [maintenance, freeBytes] = await Promise.all([

@@ -8,8 +8,6 @@ import {
 } from "@/features/account/api-token-errors";
 import { mutateApiToken } from "@/features/account/manage-api-token";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });

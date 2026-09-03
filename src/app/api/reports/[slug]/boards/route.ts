@@ -1,8 +1,6 @@
 import { getApiSession } from "@/features/session/api-session";
 import { listShareBoardsForReport } from "@/features/sharing/share-board";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> },

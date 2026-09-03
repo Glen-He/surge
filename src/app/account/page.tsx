@@ -8,8 +8,6 @@ import { requireSession } from "@/features/session/session";
 import { getDeletionRequestedAt } from "@/features/account/account-deletion";
 import { listActiveAccountSessions } from "@/features/account/account-sessions";
 
-export const dynamic = "force-dynamic";
-
 export default async function AccountPage() {
   // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();

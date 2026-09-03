@@ -33,11 +33,15 @@ export function ToggleTrack({
 export function ToggleSwitch({
   checked,
   disabled = false,
+  pending = false,
+  muted = disabled,
   label,
   onChange,
 }: {
   checked: boolean;
   disabled?: boolean;
+  pending?: boolean;
+  muted?: boolean;
   label: string;
   onChange: (checked: boolean) => void;
 }) {
@@ -46,10 +50,13 @@ export function ToggleSwitch({
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-busy={pending || undefined}
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="group inline-flex h-[22px] w-[38px] shrink-0 rounded-full border-0 bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-45"
+      className={`group inline-flex h-[22px] w-[38px] shrink-0 rounded-full border-0 bg-transparent p-0 disabled:cursor-not-allowed ${
+        pending || muted ? "opacity-45" : ""
+      }`}
     >
       <ToggleTrack
         checked={checked}

@@ -2,8 +2,6 @@ import { getApiSession } from "@/features/session/api-session";
 import { cancelDeletion } from "@/features/account/account-deletion";
 import { logSecurity } from "@/features/security-audit/security-log";
 
-export const dynamic = "force-dynamic";
-
 // 冷却期内取消删除申请
 export async function POST() {
   const session = await getApiSession();

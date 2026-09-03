@@ -4,8 +4,6 @@ import { passwordPolicyError } from "@/features/auth/password-policy";
 import { completePasswordChange } from "@/features/account/change-tokens";
 import { logSecurity } from "@/features/security-audit/security-log";
 
-export const dynamic = "force-dynamic";
-
 // 设置新密码：必须携带 password_change_token
 // 成功后撤销其他设备的会话（当前设备保持登录）
 export async function POST(req: Request) {

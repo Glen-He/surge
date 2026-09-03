@@ -13,8 +13,6 @@ import { verifyStoredOtp } from "@/features/account/otp";
 import { isOtpCode } from "@/features/auth/otp-code";
 import { OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";
 
-export const dynamic = "force-dynamic";
-
 // 修改密码：验证身份（当前密码 或 邮箱验证码，二选一）
 // 验证成功后签发一次性 password_change_token
 export async function POST(req: Request) {

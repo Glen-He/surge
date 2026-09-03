@@ -6,8 +6,6 @@ import {
   endSessionErrorResponse,
 } from "@/features/session/end-session-errors";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: Request) {
   let result;
   try {

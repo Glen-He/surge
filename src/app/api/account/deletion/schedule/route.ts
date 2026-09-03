@@ -8,8 +8,6 @@ import { verifyStoredOtp } from "@/features/account/otp";
 import { isOtpCode } from "@/features/auth/otp-code";
 import { OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";
 
-export const dynamic = "force-dynamic";
-
 // 申请删除账号：必须先通过邮箱验证码，成功后进入 15 天冷却期（期内可取消）
 export async function POST(req: Request) {
   const session = await getApiSession();

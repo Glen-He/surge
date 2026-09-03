@@ -41,6 +41,16 @@ function expectCidsMatch(
   );
 }
 
+function pngDimensions(content: Buffer) {
+  expect(content.subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  return {
+    width: content.readUInt32BE(16),
+    height: content.readUInt32BE(20),
+  };
+}
+
 describe("renderOtpEmail", () => {
   it("在主题、HTML 与纯文本中保留业务层传入的验证码内容", () => {
     const result = renderOtpEmail(OTP_CONTENT, { code: "824619" });
@@ -66,6 +76,30 @@ describe("renderOtpEmail", () => {
       expect(Buffer.isBuffer(attachment.content)).toBe(true);
       expect(attachment.content.length).toBeGreaterThan(100);
     }
+  });
+
+  it("对图标同时使用内联 CSS 尺寸与邮件附件原始尺寸兜底", () => {
+    const result = renderOtpEmail(OTP_CONTENT, { code: "123456" });
+    const emailIcon = result.attachments.find(
+      (attachment) => attachment.filename === "icon-email.png",
+    );
+    const clockIcon = result.attachments.find(
+      (attachment) => attachment.filename === "clock-email.png",
+    );
+
+    expect(result.html).toContain(
+      'width="28" height="28" alt="" style="display:block;width:28px;height:28px;max-width:28px;max-height:28px;',
+    );
+    expect(result.html).toContain(
+      'width="14" height="14" alt="" style="display:block;width:14px;height:14px;max-width:14px;max-height:14px;',
+    );
+    expect(result.html).toContain(
+      'style="padding-right:6px;font-size:0;line-height:0;"',
+    );
+    expect(emailIcon).toBeDefined();
+    expect(clockIcon).toBeDefined();
+    expect(pngDimensions(emailIcon!.content)).toEqual({ width: 112, height: 112 });
+    expect(pngDimensions(clockIcon!.content)).toEqual({ width: 56, height: 56 });
   });
 
   it("不引入外部 CSS、脚本或远程图片", () => {

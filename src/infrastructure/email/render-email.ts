@@ -99,7 +99,19 @@ const HEAD_STYLE = `
     p { margin: 0; }
 `;
 
-const CLOCK_ICON = `<img src="cid:${MAIL_CID.clockIcon}" width="14" height="14" alt="" style="display:inline-block;border:0;vertical-align:-2px;">`;
+/* 同时声明 HTML 属性与内联 CSS，兼容会忽略 <img> width/height 属性的客户端。 */
+const EMAIL_ICON = `<img src="cid:${MAIL_CID.emailIcon}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;max-width:28px;max-height:28px;margin:0 auto;border:0;">`;
+const CLOCK_ICON = `<img src="cid:${MAIL_CID.clockIcon}" width="14" height="14" alt="" style="display:block;width:14px;height:14px;max-width:14px;max-height:14px;border:0;">`;
+
+/** 用两列表格固定时钟与有效期文字的垂直中心，避免不同客户端的基线偏移。 */
+function renderClockLabel(label: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+    <tr>
+      <td valign="middle" style="padding-right:6px;font-size:0;line-height:0;">${CLOCK_ICON}</td>
+      <td valign="middle" style="color:#6E6E73;font-size:13px;line-height:22px;">${label}</td>
+    </tr>
+  </table>`;
+}
 
 /** 由业务 feature 提供的验证码邮件文案；基础设施层只负责安全渲染。 */
 export type OtpEmailContent = {
@@ -148,7 +160,7 @@ function renderOtpHtml(meta: OtpEmailContent, code: string): string {
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:18px;">
           <tr>
             <td align="center" style="padding:48px 28px 0;">
-              <img src="cid:${MAIL_CID.emailIcon}" width="28" height="28" alt="" style="display:block;margin:0 auto;border:0;">
+              ${EMAIL_ICON}
             </td>
           </tr>
           <tr>
@@ -168,7 +180,7 @@ function renderOtpHtml(meta: OtpEmailContent, code: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:14px 28px 0;">
-              <p style="margin:0;color:#6E6E73;font-size:13px;line-height:22px;">${CLOCK_ICON}&nbsp;5 分钟内有效</p>
+              ${renderClockLabel("5 分钟内有效")}
             </td>
           </tr>
           <tr>
@@ -209,7 +221,7 @@ function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:18px;">
           <tr>
             <td align="center" style="padding:48px 28px 0;">
-              <img src="cid:${MAIL_CID.emailIcon}" width="28" height="28" alt="" style="display:block;margin:0 auto;border:0;">
+              ${EMAIL_ICON}
             </td>
           </tr>
           <tr>
@@ -235,7 +247,7 @@ function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:16px 28px 0;">
-              <p style="margin:0;color:#6E6E73;font-size:13px;line-height:22px;">${CLOCK_ICON}&nbsp;${meta.expiryLabel}</p>
+              ${renderClockLabel(meta.expiryLabel)}
             </td>
           </tr>
           <tr>

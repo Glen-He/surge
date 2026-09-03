@@ -4,8 +4,6 @@ import { requireSession } from "@/features/session/session";
 import { getReportBySlug } from "@/features/reports/data/reports-db";
 import { requireTagColor } from "@/features/reports/tag-colors";
 
-export const dynamic = "force-dynamic";
-
 export default async function EditReportPage({
   params,
 }: {

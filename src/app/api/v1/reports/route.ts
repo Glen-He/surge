@@ -6,8 +6,6 @@ import { metaFromForm } from "@/features/reports/upload/validate-report-meta";
 import { readUploadForm } from "@/features/reports/upload/upload-request";
 import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 
-export const dynamic = "force-dynamic";
-
 // ── 开放 API：程序化上传 ──
 // 认证：Authorization: Bearer sgk_xxx（账号设置页创建）
 // 请求：multipart 表单，字段与网页上传一致

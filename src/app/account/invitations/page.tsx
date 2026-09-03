@@ -5,8 +5,6 @@ import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { getRegistrationInvite } from "@/features/auth/registration-invites";
 import { requireSession } from "@/features/session/session";
 
-export const dynamic = "force-dynamic";
-
 const ICON_BACK = (
   <svg
     viewBox="0 0 24 24"

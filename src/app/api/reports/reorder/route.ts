@@ -1,8 +1,6 @@
 import { getApiSession } from "@/features/session/api-session";
 import { getReportsByUser, reorderReports } from "@/features/reports/data/reports-db";
 
-export const dynamic = "force-dynamic";
-
 type OrderItem = { slug: string; date: string };
 
 function isOrderItem(value: unknown): value is OrderItem {

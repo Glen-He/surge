@@ -7,8 +7,6 @@ import {
   startGuestSession,
 } from "@/features/session/start-guest-session";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(req: Request) {
   try {
     const result = await startGuestSession({

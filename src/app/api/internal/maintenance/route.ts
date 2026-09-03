@@ -2,8 +2,6 @@ import { timingSafeEqual } from "node:crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { runMaintenance } from "@/features/maintenance/scheduler";
 
-export const dynamic = "force-dynamic";
-
 function authorized(req: Request): boolean {
   // 生产必填；本地/测试未配置时统一视为未授权
   const expected = serverEnv.MAINTENANCE_SECRET;

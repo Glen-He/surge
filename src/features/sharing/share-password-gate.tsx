@@ -3,18 +3,37 @@
 import { useCallback, useRef, useState } from "react";
 import { useAutoSharePasscode } from "@/features/sharing/use-auto-share-passcode";
 
-// 分享密码门：苹果风格居中卡片，验证通过后刷新父页进入 iframe 视图
+const TARGETS = {
+  report: {
+    endpoint: "share",
+    action: "查看报告",
+    surface:
+      "border border-black/8 shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+  },
+  board: {
+    endpoint: "share-board",
+    action: "进入分享面板",
+    surface: "shadow-[0_2px_14px_rgba(0,0,0,0.05)]",
+  },
+} as const;
+
+type SharePasswordTarget = keyof typeof TARGETS;
+
+// 分享密码门：验证通过后刷新当前页面，让服务端读取新签发的解锁 Cookie。
 export function SharePasswordGate({
   token,
   title,
+  target,
 }: {
   token: string;
   title: string;
+  target: SharePasswordTarget;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inFlight = useRef(false);
+  const config = TARGETS[target];
 
   const submit = useCallback(async (providedPassword?: string) => {
     const nextPassword = providedPassword ?? password;
@@ -23,7 +42,7 @@ export function SharePasswordGate({
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/share/${token}/unlock`, {
+      const res = await fetch(`/api/${config.endpoint}/${token}/unlock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: nextPassword }),
@@ -40,7 +59,7 @@ export function SharePasswordGate({
       inFlight.current = false;
       setLoading(false);
     }
-  }, [password, token]);
+  }, [config.endpoint, password, token]);
 
   useAutoSharePasscode(true, (passcode) => {
     setPassword(passcode);
@@ -49,7 +68,9 @@ export function SharePasswordGate({
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-[#f5f5f7] px-6">
-      <div className="w-full max-w-[400px] rounded-[20px] border border-black/8 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <div
+        className={`w-full max-w-[400px] rounded-[20px] bg-white p-8 ${config.surface}`}
+      >
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(88,86,214,0.08)]">
           <svg viewBox="0 0 24 24" fill="none" stroke="#5856d6" strokeWidth="1.8" className="h-6 w-6">
             <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -86,7 +107,7 @@ export function SharePasswordGate({
           disabled={loading || !password}
           className="mt-4 h-[44px] w-full rounded-full bg-[#0071e3] text-[15px] font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
         >
-          {loading ? "验证中…" : "查看报告"}
+          {loading ? "验证中…" : config.action}
         </button>
         <p className="mt-5 text-center text-[12px] text-[#6e6e73]">
           来自 SURGE 工作汇报系统的分享

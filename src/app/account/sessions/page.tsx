@@ -5,8 +5,6 @@ import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { requireSession } from "@/features/session/session";
 import { SessionsManager } from "@/features/account/ui/sessions-manager";
 
-export const dynamic = "force-dynamic";
-
 const ICON_BACK = (
   <svg
     viewBox="0 0 24 24"
