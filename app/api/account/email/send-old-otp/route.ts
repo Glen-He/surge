@@ -42,6 +42,7 @@ export async function POST() {
     subject: tpl.subject,
     text: tpl.text,
     html: tpl.html,
+    attachments: tpl.attachments,
   });
   await recordOtpSent(email, "OTP_SENT_EMAIL_CHANGE_OLD");
   await logSecurity({ userId: session.user.id, action: "OTP_SENT_EMAIL_CHANGE_OLD" });
