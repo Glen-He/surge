@@ -2,16 +2,16 @@ import { expect, test, type BrowserContext, type FrameLocator, type Page } from 
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { issueCapability } from "@/lib/report-capability";
-import { REPORT_SANDBOX_TOKENS } from "@/lib/report-security";
-import { reportArtifactDir } from "@/lib/report-storage";
+import { auth } from "@/features/auth/auth";
+import { db } from "@/infrastructure/database/client";
+import { issueCapability } from "@/features/reports/report-capability";
+import { REPORT_SANDBOX_TOKENS } from "@/features/reports/serving/report-security";
+import { reportArtifactDir } from "@/features/reports/storage/report-storage";
 import {
   encryptShareToken,
   shareTokenHash,
-} from "@/lib/share-token-store";
-import { generateShareToken } from "@/lib/shares";
+} from "@/features/sharing/share-credentials";
+import { generateShareToken } from "@/features/sharing/report-share";
 
 // ── 平台公共资源运行时回归验证 ──
 //

@@ -1,0 +1,39 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { Toaster } from "sonner";
+import { GuestOtpModal } from "@/features/auth/guest/guest-otp-modal";
+import { GuestToasts } from "@/features/auth/guest/guest-toasts";
+import { connection } from "next/server";
+
+export const metadata: Metadata = {
+  title: "工作汇报系统",
+  description: "让工作记录更清晰，让每一次汇报都有迹可循。",
+};
+
+// Android Chrome 108+：软键盘弹出时压缩 layout viewport，100dvh 随之生效；
+// iOS 不支持该行为，由 Modal 内的 visualViewport 兜底。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // proxy.ts 会为每个请求附加 CSP nonce。等待请求到来，
+  // 避免构建期生成的 HTML 外壳携带过期 nonce。
+  await connection();
+  return (
+    <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster
+          position="top-center"
+          richColors
+          toastOptions={{ duration: 5000 }}
+        />
+        <GuestOtpModal />
+        <GuestToasts />
+      </body>
+    </html>
+  );
+}

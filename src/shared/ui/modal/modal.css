@@ -1,0 +1,387 @@
+/* ============ 安全操作 Modal ============ */
+.security-modal {
+  width: min(496px, calc(100vw - 32px));
+  /* 相对弹窗容器（= 可见视口，键盘弹出时被 visualViewport 缩小），
+     而非 100dvh（iOS 上 dvh 不响应键盘），保证键盘弹出时内容可完整滚读 */
+  max-height: calc(100% - 32px);
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.security-modal-wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.report-pdf-shell {
+  position: relative;
+  height: min(76vh, 820px);
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.report-pdf-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  opacity: 0;
+}
+
+.report-pdf-preview--ready {
+  opacity: 1;
+}
+
+.report-pdf-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #fff;
+  color: #1d1d1f;
+  text-align: center;
+}
+
+.report-pdf-loading p {
+  margin-top: 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.report-pdf-loading span:not(.report-pdf-spinner) {
+  margin-top: 6px;
+  color: #6e6e73;
+  font-size: 13px;
+}
+
+.report-pdf-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(0, 113, 227, 0.18);
+  border-top-color: #0071e3;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.security-modal-overlay {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+/* Header：68px，标题 20px/650，底部分隔线 */
+.security-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.security-modal-title {
+  font-size: 20px;
+  font-weight: 650;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+/* 无分隔线变体（如退出登录确认） */
+.security-modal-header-plain {
+  border-bottom: 0;
+}
+
+/* 关闭按钮 36×36，浅灰圆 */
+.security-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f5f5f7;
+  color: #6e6e73;
+  border: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.security-modal-close:hover {
+  background: #ebebed;
+  color: #1d1d1f;
+}
+
+.security-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 多步骤 Modal 以最长流程预留初始高度，切换后只在 body 内滚动。 */
+.security-modal-body-step {
+  min-height: 420px;
+}
+
+/* 账号安全的多步骤内容共用稳定骨架：顶部导航与中间内容
+   各归其位，操作区可固定在底部，不用空白堆在卡片下半部。 */
+.security-step {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.security-step-center {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.security-step-actions {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.security-step-success {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* 轻量步骤指示器：24px 圆点 + 13px 文字 + 细连接线 */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.step-dot-current,
+.step-dot-done {
+  background: var(--accent);
+  color: #fff;
+}
+
+.step-dot-todo {
+  background: #f0f0f2;
+  color: #6e6e73;
+}
+
+.step-label {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.step-label-current {
+  color: var(--accent);
+}
+
+.step-label-done {
+  color: var(--text-primary);
+}
+
+.step-label-todo {
+  color: var(--text-tertiary);
+}
+
+.step-line {
+  flex: 1 0 10px;
+  min-width: 10px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.step-line-done {
+  background: rgba(0, 113, 227, 0.35);
+}
+
+/* 当前绑定邮箱等轻量信息行 */
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f7f9;
+}
+
+.info-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d1d1f;
+  flex-shrink: 0;
+}
+
+/* 密码强度：三条小 bar + 文字 */
+.pw-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pw-bars {
+  display: flex;
+  gap: 4px;
+}
+
+.pw-bar {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e5e5ea;
+  transition: background-color 0.2s ease;
+}
+
+.pw-strength-label {
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.pw-strength-hidden {
+  visibility: hidden;
+}
+
+/* 验证方式选择：桌面双列小卡，手机单列 */
+.verify-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.verify-method {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 116px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.verify-method:hover {
+  background: rgba(0, 113, 227, 0.035);
+  border-color: rgba(0, 113, 227, 0.25);
+}
+
+.verify-method-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .verify-methods {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 返回链接（‹ 选择其他验证方式） */
+.modal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.modal-back:hover {
+  color: var(--accent-hover);
+}
+
+@media (max-width: 600px) {
+  .security-modal {
+    width: calc(100vw - 24px);
+    /* 同桌面：相对容器（= 可见视口），iOS 键盘弹出时 dvh 不收缩 */
+    max-height: calc(100% - 24px);
+    border-radius: 20px;
+  }
+
+  .security-modal-wide {
+    width: calc(100vw - 24px);
+  }
+
+  .report-pdf-shell {
+    height: 72vh;
+    min-height: 420px;
+  }
+
+  .security-modal-header {
+    padding: 0 20px;
+    min-height: 64px;
+  }
+
+  .security-modal-body {
+    padding: 20px 20px 24px;
+  }
+
+  .security-modal-body-step {
+    min-height: 0;
+  }
+
+  .security-step-center {
+    justify-content: flex-start;
+  }
+
+}
+

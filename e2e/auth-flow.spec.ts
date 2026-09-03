@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { decryptSharePasscode, decryptShareToken } from "@/lib/share-token-store";
-import { reportArtifactDir, userReportsDir } from "@/lib/report-storage";
-import { isGuestEmail } from "@/lib/guest-sandbox";
+import { auth } from "@/features/auth/auth";
+import { db } from "@/infrastructure/database/client";
+import { decryptSharePasscode, decryptShareToken } from "@/features/sharing/share-credentials";
+import { reportArtifactDir, userReportsDir } from "@/features/reports/storage/report-storage";
+import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
 
 const fixture = {
   userId: "",

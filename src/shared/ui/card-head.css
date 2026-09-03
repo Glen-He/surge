@@ -1,0 +1,8 @@
+/* 卡片三段骨架：标题区 → 主内容 → 弹性空间 → 操作（auto 推底，四卡 Y 对齐） */
+.card-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 40px;
+}
