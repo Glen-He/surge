@@ -79,6 +79,7 @@ export const auth = betterAuth({
         subject: tpl.subject,
         text: tpl.text,
         html: tpl.html,
+        attachments: [...tpl.attachments],
       });
     },
   },
@@ -134,6 +135,7 @@ export const auth = betterAuth({
           subject: tpl.subject,
           text: tpl.text,
           html: tpl.html,
+          attachments: [...tpl.attachments],
         });
       },
       // 修改邮箱由自建流程完成（/api/account/email/*），禁用插件内置端点，

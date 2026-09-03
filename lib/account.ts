@@ -10,6 +10,7 @@ import { logger } from "./logger";
 import { isGuestEmail } from "./guest-sandbox";
 import { isOtpCode, OTP_CODE_LENGTH } from "./otp-code";
 import { OTP_CODE_FORMAT_ERROR } from "./auth-errors";
+import type { MailInlineAttachment } from "./email-templates";
 
 // 邮件发送器（与 auth.ts 同一套 SMTP 配置）
 const transporter = nodemailer.createTransport({
@@ -284,6 +285,8 @@ export async function sendOtpMail(opts: {
   text: string;
   /** HTML 版本：可选，传入后以 multipart/alternative 发送（优先展示 HTML） */
   html?: string;
+  /** CID inline 装饰图标：来自邮件模板渲染结果，与 html 内 cid: 引用一一对应 */
+  attachments?: readonly MailInlineAttachment[];
 }) {
   // 游客不发真实邮件：验证码已由调用方的响应体（guestOtpResponse）直接返回
   if (isGuestEmail(opts.to)) return;
@@ -293,6 +296,7 @@ export async function sendOtpMail(opts: {
     subject: opts.subject,
     text: opts.text,
     ...(opts.html ? { html: opts.html } : {}),
+    ...(opts.attachments ? { attachments: [...opts.attachments] } : {}),
   });
 }
 
