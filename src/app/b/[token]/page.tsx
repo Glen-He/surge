@@ -3,11 +3,9 @@ import { cookies, headers } from "next/headers";
 import { clientIp } from "@/infrastructure/security/client-ip";
 import { logger } from "@/infrastructure/logging/logger";
 import { boardUnlockCookieName, findPublicShareBoard, incrementBoardView, shouldCountBoardView, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
-import { ShareBoardPasswordGate } from "@/features/sharing/share-board-password-gate";
+import { SharePasswordGate } from "@/features/sharing/share-password-gate";
 import { ShareBoardPublic } from "@/features/sharing/share-board-public";
 import { getOptionalSession } from "@/features/session/session";
-
-export const dynamic = "force-dynamic";
 
 function InvalidBoard() {
   return (
@@ -31,7 +29,7 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
     if (!verifyBoardUnlockProof(token, board.accessEpoch, proof)) {
       return (
-        <ShareBoardPasswordGate token={token} title={board.title} />
+        <SharePasswordGate token={token} title={board.title} target="board" />
       );
     }
   }

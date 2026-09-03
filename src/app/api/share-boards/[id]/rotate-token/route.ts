@@ -5,8 +5,6 @@ import {
   ShareBoardError,
 } from "@/features/sharing/share-board-errors";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },

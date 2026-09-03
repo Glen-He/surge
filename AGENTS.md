@@ -1,13 +1,3 @@
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
-
 # 部署边界
 
 本项目的长期运行环境仅为云服务器，不把本地服务当作生产部署。需要验证数据库迁移、生产构建或自动化浏览器流程时，使用隔离的临时数据库和临时报告目录，验证结束后立即清理；不得把 `reports_local/` 当作运行时数据目录或随本地部署删除。默认不得启动或常驻 `next dev` / `next-server`，能通过静态检查、测试或短时自动化验证完成的任务，不得为了方便额外开启本地开发服务器。只有确实需要浏览器交互验收时才允许临时启动；自动验证结束后应主动关闭。若需要用户亲自操作，必须明确告知开发服务器正在运行且可能持续占用 CPU，并提醒用户验收完成后关闭；用户确认完成后立即停止，不得继续后台常驻。

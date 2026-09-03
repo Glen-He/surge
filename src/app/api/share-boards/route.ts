@@ -12,8 +12,6 @@ import {
 } from "@/features/sharing/report-share";
 import { encryptSharePasscode } from "@/features/sharing/share-credentials";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });

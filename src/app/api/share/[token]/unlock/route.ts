@@ -11,8 +11,6 @@ import {
   verifySharePassword,
 } from "@/features/sharing/report-share";
 
-export const dynamic = "force-dynamic";
-
 // 密码解锁：校验通过后签发 HMAC 证明 cookie（HttpOnly + Path 绑定本 token）。
 // 报告子资源使用 capability，不消费分享 cookie，因此无需把 cookie 扩散到全站。
 export async function POST(

@@ -5,8 +5,6 @@ import {
   ShareBoardError,
 } from "@/features/sharing/share-board-errors";
 
-export const dynamic = "force-dynamic";
-
 async function change(
   included: boolean,
   params: Promise<{ slug: string; boardId: string }>,

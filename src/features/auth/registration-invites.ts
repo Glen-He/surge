@@ -8,7 +8,7 @@ import {
   inviteCodeHash,
 } from "@/features/auth/invite-code-credentials";
 
-export const INVITE_CODE_LENGTH = 6;
+const INVITE_CODE_LENGTH = 6;
 export const INVITE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 export function normalizeInviteCode(value: string): string {

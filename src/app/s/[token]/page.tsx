@@ -9,8 +9,6 @@ import { logger } from "@/infrastructure/logging/logger";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
 import { getOptionalSession } from "@/features/session/session";
 
-export const dynamic = "force-dynamic";
-
 // 分享落地页（无需登录）：
 // - token 无效 / 已过期 → 失效提示页
 // - 有密码且未解锁 → 密码门（客户端组件）
@@ -50,7 +48,11 @@ export default async function SharePage({
     const proof = jar.get(`share_${token}`)?.value;
     if (!verifyUnlockProof(token, proof)) {
       return (
-        <SharePasswordGate token={token} title={found.reportTitle} />
+        <SharePasswordGate
+          token={token}
+          title={found.reportTitle}
+          target="report"
+        />
       );
     }
   }

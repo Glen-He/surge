@@ -34,12 +34,7 @@ export function internalAuthHeaders(
   return result;
 }
 
-/** 兼容 Node Headers 与测试 Response，完整提取多个 Set-Cookie。 */
+/** 完整提取 Better Auth 响应中的多个 Set-Cookie。 */
 export function authSetCookies(headers: Headers): string[] {
-  return (
-    headers.getSetCookie?.() ??
-    (headers
-      .get("set-cookie")
-      ?.split(/,(?=\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+=)/) ?? [])
-  );
+  return headers.getSetCookie();
 }

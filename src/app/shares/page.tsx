@@ -6,8 +6,6 @@ import { listShareBoardsWithItems } from "@/features/sharing/share-board";
 import { ShareBoardsManager } from "@/features/sharing/share-boards-manager";
 import { ShareManagementEmptyState } from "@/features/sharing/share-management-empty-state";
 
-export const dynamic = "force-dynamic";
-
 function fmtDate(d: Date | null): string {
   if (!d) return "—";
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(

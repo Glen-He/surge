@@ -9,8 +9,6 @@ import {
   verifySharePassword,
 } from "@/features/sharing/report-share";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ token: string }> },

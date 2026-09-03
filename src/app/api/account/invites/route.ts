@@ -10,8 +10,6 @@ import {
   mutateAccountInvitation,
 } from "@/features/account/manage-invitation";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });

@@ -6,8 +6,6 @@ import { getGuestExpiry } from "@/features/guest/guest-sandbox";
 import { requireSession } from "@/features/session/session";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
-
 export default async function HomePage() {
   // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页（见 features/session/session.ts）
   const session = await requireSession();

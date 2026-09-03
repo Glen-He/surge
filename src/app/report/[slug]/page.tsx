@@ -10,8 +10,6 @@ import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { getGuestExpiry } from "@/features/guest/guest-sandbox";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
 
-export const dynamic = "force-dynamic";
-
 // 报告查看器（登录态）：只负责系统头（标题/分享/返回）+ 签发 capability。
 // 报告本体经 /r/<cap>/ 虚拟目录原样输出（capability 即 iframe 及其子资源
 // 的访问凭证，见 features/reports/report-capability.ts），在 sandbox iframe

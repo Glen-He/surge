@@ -8,8 +8,6 @@ import { updateReportMeta } from "@/features/reports/upload/update-report-meta";
 import { readUploadForm } from "@/features/reports/upload/upload-request";
 import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 
-export const dynamic = "force-dynamic";
-
 // ── 开放 API：替换/更新已上传的报告 ──
 // 认证与限速同 POST /api/v1/reports
 // 请求：multipart 表单；file 可选（不传只改元信息）

@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { db } from "@/infrastructure/database/client";
 
+type ChangeTokenType = "email_change" | "password_change";
+
 /* ================================================================
  * 一次性安全 token（email_change_token / password_change_token）
  * 短时有效 / 一次性 / 绑定 userId / 绑定 purpose
@@ -8,8 +10,7 @@ import { db } from "@/infrastructure/database/client";
 
 export async function createChangeToken(opts: {
   userId: string;
-  type: "email_change" | "password_change";
-  target?: string;
+  type: ChangeTokenType;
   payload?: Record<string, unknown>;
   ttlMinutes?: number;
 }): Promise<string> {
@@ -29,9 +30,15 @@ export async function createChangeToken(opts: {
       [opts.userId, opts.type],
     );
     await client.query(
-      `INSERT INTO account_changes (id, user_id, type, target, payload, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, opts.userId, opts.type, opts.target ?? null, JSON.stringify(opts.payload ?? {}), expiresAt],
+      `INSERT INTO account_changes (id, user_id, type, payload, expires_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        id,
+        opts.userId,
+        opts.type,
+        JSON.stringify(opts.payload ?? {}),
+        expiresAt,
+      ],
     );
     await client.query("COMMIT");
   } catch (error) {
@@ -46,22 +53,20 @@ export async function createChangeToken(opts: {
 export async function getChangeToken(
   token: string,
   userId: string,
-  type: string,
+  type: ChangeTokenType,
 ): Promise<{
   id: string;
-  type: string;
-  target: string | null;
+  type: ChangeTokenType;
   payload: Record<string, unknown>;
   expires_at: Date;
 } | null> {
   const r = await db.query<{
     id: string;
-    type: string;
-    target: string | null;
+    type: ChangeTokenType;
     payload: Record<string, unknown>;
     expires_at: Date;
   }>(
-    `SELECT id, type, target, payload, expires_at FROM account_changes
+    `SELECT id, type, payload, expires_at FROM account_changes
      WHERE id = $1 AND user_id = $2 AND type = $3 AND consumed = FALSE AND expires_at > NOW()
      LIMIT 1`,
     [token, userId, type],
@@ -69,15 +74,6 @@ export async function getChangeToken(
   const row = r.rows[0];
   if (!row) return null;
   return row;
-}
-
-export async function consumeChangeToken(token: string, userId: string): Promise<boolean> {
-  const result = await db.query(
-    `UPDATE account_changes SET consumed = TRUE
-     WHERE id = $1 AND user_id = $2 AND consumed = FALSE AND expires_at > NOW()`,
-    [token, userId],
-  );
-  return result.rowCount === 1;
 }
 
 /**
