@@ -2,17 +2,15 @@ import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { tmpdir } from "node:os";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
 import { logger } from "@/infrastructure/logging/logger";
 
-// 运行时报告数据必须与代码和只读模板分离。所有环境都显式配置，避免开发
-// 环境悄悄写回 checkout，继而把代码目录误当成正式数据卷。
-const configuredReportDataDir = process.env.REPORTS_DATA_DIR?.trim();
-if (!configuredReportDataDir) {
-  throw new Error("REPORTS_DATA_DIR is required");
-}
+// 运行时报告数据必须与代码和只读模板分离。所有环境都显式配置（always
+// 必需，缺失由 serverEnv 抛错），避免开发环境悄悄写回 checkout，
+// 继而把代码目录误当成正式数据卷。
 export const REPORT_DATA_DIR = path.resolve(
-  /* turbopackIgnore: true */ configuredReportDataDir,
+  /* turbopackIgnore: true */ serverEnv.REPORTS_DATA_DIR,
 );
 const REPORT_TRASH_DIR = path.join(REPORT_DATA_DIR, ".trash");
 export const REPORT_DEMO_TEMPLATES_DIR = path.join(
@@ -299,20 +297,13 @@ export async function purgeTrash(): Promise<void> {
   }
 }
 
-function positiveEnvMs(name: string, fallbackMinutes: number): number {
-  const minutes = Number(process.env[name] ?? fallbackMinutes);
-  return Number.isFinite(minutes) && minutes > 0
-    ? minutes * 60 * 1000
-    : fallbackMinutes * 60 * 1000;
-}
-
 function orphanGraceMs(): number {
-  return positiveEnvMs("STORAGE_ORPHAN_GRACE_MINUTES", 60);
+  // int 项：缺省回落 60 分钟，非法值在启动校验即拒绝
+  return serverEnv.STORAGE_ORPHAN_GRACE_MINUTES * 60 * 1000;
 }
 
 function recoveryRetentionMs(): number {
-  const hours = Number(process.env.STORAGE_RECOVERY_RETENTION_HOURS ?? 168);
-  return (Number.isFinite(hours) && hours > 0 ? hours : 168) * 60 * 60 * 1000;
+  return serverEnv.STORAGE_RECOVERY_RETENTION_HOURS * 60 * 60 * 1000;
 }
 
 async function isOlderThan(full: string, ageMs: number): Promise<boolean> {

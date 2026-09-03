@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { frameworkEnv, serverEnv } from "@/infrastructure/environment/server";
 
 function hostname(value: string | undefined): string | null {
   if (!value?.trim()) return null;
@@ -119,13 +120,15 @@ export function mainContentSecurityPolicy(
  * 平台公共库）。主站与内容域相同的本地开发环境不会启用此分支。
  */
 export function proxy(request: NextRequest) {
-  const appHost = hostname(process.env.BETTER_AUTH_URL);
-  const reportsHost = hostname(process.env.REPORTS_ORIGIN);
-  const configuredAppOrigin = process.env.BETTER_AUTH_URL
-    ? new URL(process.env.BETTER_AUTH_URL).origin
+  const appUrl = serverEnv.BETTER_AUTH_URL;
+  const reportsUrl = serverEnv.REPORTS_ORIGIN;
+  const appHost = hostname(appUrl);
+  const reportsHost = hostname(reportsUrl);
+  const configuredAppOrigin = appUrl
+    ? new URL(appUrl).origin
     : request.nextUrl.origin;
-  const configuredReportsOrigin = process.env.REPORTS_ORIGIN
-    ? new URL(process.env.REPORTS_ORIGIN).origin
+  const configuredReportsOrigin = reportsUrl
+    ? new URL(reportsUrl).origin
     : configuredAppOrigin;
 
   // Next 在反向代理或 next start --hostname 0.0.0.0 下可能用内部监听地址
@@ -179,7 +182,7 @@ export function proxy(request: NextRequest) {
   const csp = mainContentSecurityPolicy(
     nonce,
     configuredReportsOrigin,
-    process.env.NODE_ENV !== "production",
+    frameworkEnv.NODE_ENV !== "production",
     new URL(configuredAppOrigin).protocol === "https:",
   );
   const requestHeaders = new Headers(request.headers);

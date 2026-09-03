@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
 import { logger } from "@/infrastructure/logging/logger";
 
 const LEASE_SECONDS = 10 * 60;
 const RENEW_MS = 2 * 60 * 1000;
 
-const UPLOAD_MAX_CONCURRENCY = Number(
-  process.env.UPLOAD_MAX_CONCURRENCY ?? 2,
-);
+const UPLOAD_MAX_CONCURRENCY = serverEnv.UPLOAD_MAX_CONCURRENCY;
 
 export function validateUploadGateSettings(): void {
   if (

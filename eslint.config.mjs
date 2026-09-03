@@ -30,6 +30,24 @@ const eslintConfig = defineConfig([
     // 页面或弹窗初始渲染不得默认高亮交互元素。
     rules: { "jsx-a11y/no-autofocus": "error" },
   },
+  // 环境变量唯一入口：业务源码禁止直接访问 process.env（否则绕过
+  // schema 契约，重新制造"本地能跑、CI/生产漏配"的隐式依赖）。
+  // 豁免：environment 模块本身（唯一合法读取点）与测试文件（注入桩）。
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/infrastructure/environment/**", "src/**/*.test.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message:
+            "禁止直接访问 process.env：先在 src/infrastructure/environment/schema.ts 注册，再经 serverEnv / frameworkEnv 读取",
+        },
+      ],
+    },
+  },
   // src 根（proxy.ts / instrumentation.ts）：只防旧路径回归。
   {
     files: ["src/*.ts"],

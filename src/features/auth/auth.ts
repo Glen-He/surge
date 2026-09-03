@@ -25,21 +25,20 @@ import {
 } from "@/features/auth/registration-policy";
 import { db } from "@/infrastructure/database/client";
 import { verifyInternalAuthProof } from "@/infrastructure/security/internal-auth-proof";
-import { OTP_CODE_LENGTH } from "@/features/auth/otp-code";
+import { serverEnv } from "@/infrastructure/environment/server";
+import { OTP_CODE_LENGTH } from "./otp-code";
 
-const AUTH_DB_QUERY_TIMEOUT_MS = Number(
-  process.env.AUTH_DB_QUERY_TIMEOUT_MS ?? 15_000,
-);
+const AUTH_DB_QUERY_TIMEOUT_MS = serverEnv.AUTH_DB_QUERY_TIMEOUT_MS;
 
 export const auth = betterAuth({
   // 官方建议：生产环境显式配置 baseURL（读 BETTER_AUTH_URL），
   // 不依赖请求头推断，避免反代场景下 origin/cookie 属性误判
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: serverEnv.BETTER_AUTH_URL,
 
   database: new Pool({
-    connectionString: process.env.DATABASE_URL!,
-    // 与 lib/db.ts 同款超时兜底，防止认证请求在数据库抖动时挂死
-    max: Number(process.env.DB_POOL_MAX ?? 10),
+    connectionString: serverEnv.DATABASE_URL,
+    // 与业务连接池同款超时兜底，防止认证请求在数据库抖动时挂死
+    max: serverEnv.DB_POOL_MAX,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
     query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
@@ -64,7 +63,7 @@ export const auth = betterAuth({
       await recordOtpSent(user.email, "OTP_SENT_FORGET_PASSWORD");
       const tpl = renderResetPasswordEmail({ url });
       await transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: serverEnv.SMTP_USER,
         to: user.email,
         subject: tpl.subject,
         text: tpl.text,
@@ -89,7 +88,7 @@ export const auth = betterAuth({
       // better-auth 遇多段头会直接放弃解析 -> 全站共享同一个限流桶，
       // 「同 IP 5 次/10 分钟」实际从未按 IP 生效。配置后从 XFF 末段
       // 往前取第一个非代理 IP（即真实客户端 IP，与 lib/client-ip 同语义）。
-      trustedProxies: (process.env.TRUSTED_PROXIES ?? "127.0.0.1,::1")
+      trustedProxies: (serverEnv.TRUSTED_PROXIES ?? "127.0.0.1,::1")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
@@ -120,7 +119,7 @@ export const auth = betterAuth({
         // 修改邮箱只走自建流程；better-auth OTP 统一使用登录验证码模板。
         const tpl = renderOtpEmail("login", { code: otp });
         await transporter.sendMail({
-          from: process.env.SMTP_USER,
+          from: serverEnv.SMTP_USER,
           to: email,
           subject: tpl.subject,
           text: tpl.text,

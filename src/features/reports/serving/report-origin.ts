@@ -1,3 +1,5 @@
+import { serverEnv } from "@/infrastructure/environment/server";
+
 function httpOrigin(raw: string, name: string): string {
   let url: URL;
   try {
@@ -15,9 +17,10 @@ function httpOrigin(raw: string, name: string): string {
 }
 
 export function applicationOrigin(): string {
+  // serverEnv 读取时已 trim；两个 origin 均为可选，未配置时回退本地开发地址
   const configured =
-    process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL;
-  return httpOrigin(configured?.trim() || "http://localhost:3000", "BETTER_AUTH_URL");
+    serverEnv.BETTER_AUTH_URL ?? serverEnv.NEXT_PUBLIC_APP_URL;
+  return httpOrigin(configured || "http://localhost:3000", "BETTER_AUTH_URL");
 }
 
 /**
@@ -25,7 +28,7 @@ export function applicationOrigin(): string {
  * 回退到主站 origin，避免要求开发机额外配置 DNS/反向代理。
  */
 export function reportsOrigin(): string {
-  const configured = process.env.REPORTS_ORIGIN?.trim();
+  const configured = serverEnv.REPORTS_ORIGIN;
   return configured
     ? httpOrigin(configured, "REPORTS_ORIGIN")
     : applicationOrigin();

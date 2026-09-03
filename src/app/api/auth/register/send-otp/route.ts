@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { auth } from "@/features/auth/auth";
 import { toChineseError } from "@/features/auth/auth-errors";
 import { clientIp } from "@/infrastructure/security/client-ip";
@@ -17,7 +18,7 @@ import { registrationErrorCopy } from "@/features/auth/registration-errors";
 export const dynamic = "force-dynamic";
 
 function authEndpointUrl(req: Request): string {
-  const configured = process.env.BETTER_AUTH_URL?.replace(/\/+$/, "");
+  const configured = serverEnv.BETTER_AUTH_URL?.replace(/\/+$/, "");
   return `${configured ?? new URL(req.url).origin}/api/auth/email-otp/send-verification-otp`;
 }
 

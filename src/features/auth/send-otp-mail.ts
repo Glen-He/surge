@@ -1,4 +1,5 @@
 import { transporter } from "@/infrastructure/email/client";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
 import type { MailInlineAttachment } from "@/infrastructure/email/templates";
 
@@ -17,7 +18,7 @@ export async function sendOtpMail(opts: {
 }) {
   if (isGuestEmail(opts.to)) return;
   await transporter.sendMail({
-    from: process.env.SMTP_USER,
+    from: serverEnv.SMTP_USER,
     to: opts.to,
     subject: opts.subject,
     text: opts.text,

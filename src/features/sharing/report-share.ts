@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "node:util";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
 import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
 import {
@@ -90,11 +91,8 @@ export async function verifySharePassword(
 // 分享凭证密钥。
 // HMAC 伪造解锁凭证，绕过所有受密码保护的分享。
 function shareSecret(): string {
-  const secret = process.env.SHARE_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("SHARE_SECRET is required to sign share unlock credentials");
-  }
-  return secret;
+  // always 必需：缺失或过短由 serverEnv 校验抛错
+  return serverEnv.SHARE_SECRET;
 }
 
 export function unlockProof(token: string): string {
