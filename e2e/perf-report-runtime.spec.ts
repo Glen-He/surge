@@ -1,7 +1,5 @@
 import { expect, test, type BrowserContext, type FrameLocator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { auth } from "@/features/auth/auth";
 import { db } from "@/infrastructure/database/client";
 import { reportArtifactDir } from "@/features/reports/storage/report-storage";
@@ -10,13 +8,17 @@ import {
   shareTokenHash,
 } from "@/features/sharing/share-credentials";
 import { generateShareToken } from "@/features/sharing/report-share";
+import {
+  copyReportFixture,
+  PLATFORM_REPORT_FIXTURES,
+} from "./support/report-fixtures";
 
 // ── 报告运行时性能测量专用（PERF_RUN=1 才运行）──
 //
 // 场景与用户验收清单对齐：
-//   A 冷缓存第一次打开 report-02（图表 + data.js + 3Dmol）
-//   B 同会话打开第二份 ECharts 报告（2026-08-17/report-01）
-//   C 返回 report-02
+//   A 冷缓存第一次打开报告 A（图表 + data.js + 3Dmol）
+//   B 同会话打开报告 B（ECharts + data.js）
+//   C 返回报告 A
 //   D 图表就绪后不滚动，3Dmol 请求计数
 //   E 滚动到 3D 区域后的 3Dmol 请求计数
 // 仅测量当前架构（defer 平台脚本 + data.js defer + 3Dmol 懒加载）；
@@ -52,41 +54,13 @@ const fixture = {
   } satisfies PerfFixture,
 };
 
-// upload.md 打包口径：zip 不含 echarts.min.js（平台内置）、source/、.DS_Store
-async function copyReportFiles(
-  sourceDir: string,
-  targetDir: string,
-): Promise<number> {
-  await fs.mkdir(targetDir, { recursive: true });
-  let total = 0;
-  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (
-      entry.name === "echarts.min.js" ||
-      entry.name === ".DS_Store" ||
-      entry.name === "source"
-    ) {
-      continue;
-    }
-    const from = path.join(sourceDir, entry.name);
-    const to = path.join(targetDir, entry.name);
-    if (entry.isDirectory()) {
-      total += await copyReportFiles(from, to);
-    } else {
-      await fs.copyFile(from, to);
-      total += (await fs.stat(from)).size;
-    }
-  }
-  return total;
-}
-
 async function installReport(
   report: PerfFixture,
   sourceDir: string,
   title: string,
 ): Promise<void> {
   const targetDir = reportArtifactDir(fixture.userId, report.storageKey);
-  const sizeBytes = await copyReportFiles(sourceDir, targetDir);
+  const sizeBytes = await copyReportFixture(sourceDir, targetDir);
 
   await db.query(
     `INSERT INTO reports
@@ -132,15 +106,14 @@ test.beforeAll(async ({ browser }) => {
   );
   fixture.userId = user.id;
 
-  const checkout = process.cwd();
   await installReport(
     fixture.reportA,
-    path.join(checkout, "reports_local", "2026-08-28", "report-02"),
+    PLATFORM_REPORT_FIXTURES.reportA,
     fixture.reportA.title,
   );
   await installReport(
     fixture.reportB,
-    path.join(checkout, "reports_local", "2026-08-17", "report-01"),
+    PLATFORM_REPORT_FIXTURES.reportB,
     fixture.reportB.title,
   );
 
@@ -296,7 +269,7 @@ test("场景 A-E：报告运行时性能测量", async () => {
   const page = await fixture.context!.newPage();
   const urls = trackRequests(page);
 
-  // ── 场景 A：冷缓存第一次打开 report-02 ──
+  // ── 场景 A：冷缓存第一次打开报告 A ──
   const reportA = await openReport(page, fixture.reportA.token, fixture.reportA.title);
   await waitCharts(reportA, 4);
   await page.waitForLoadState("load");
@@ -359,7 +332,7 @@ test("场景 A-E：报告运行时性能测量", async () => {
   await pageB.close();
   results.B = metricsB;
 
-  // ── 场景 C：返回 report-02（同会话第三页）──
+  // ── 场景 C：返回报告 A（同会话第三页）──
   const pageC = await fixture.context!.newPage();
   const reportC = await openReport(pageC, fixture.reportA.token, fixture.reportA.title);
   await waitCharts(reportC, 4);
