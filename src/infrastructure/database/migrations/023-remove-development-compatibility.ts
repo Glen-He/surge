@@ -1,5 +1,4 @@
-import type { Migration } from "./index";
-
+import type { Migration } from "./migration";
 
 // ── v23：移除开发期历史兼容并收紧当前数据模型──
 // 旧软撤销记录和无法恢复提取码的 hash-only 分享直接删除；当前分享要求

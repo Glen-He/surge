@@ -1,6 +1,6 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { cancelDeletion } from "@/features/account/account-deletion";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 
 export const dynamic = "force-dynamic";
 

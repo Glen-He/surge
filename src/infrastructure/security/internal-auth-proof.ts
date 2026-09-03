@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
 
 function secret(): string {
-  // BETTER_AUTH_SECRET 为 always 必需：缺失或过短在此直接抛错
+  // BETTER_AUTH_SECRET 始终必需：缺失或过短在此直接抛错。
   return serverEnv.BETTER_AUTH_SECRET;
 }
 

@@ -5,9 +5,9 @@ import {
   isSecurityRateLimited,
   recordSecurityFailure,
 } from "@/infrastructure/database/rate-limit";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { logger } from "@/infrastructure/logging/logger";
-import { decryptApiToken, encryptApiToken } from "@/features/account/api-token-store";
+import { decryptApiToken, encryptApiToken } from "@/features/account/api-token-credentials";
 
 // ── 个人 API 访问令牌（PAT）──
 // 用于程序化上传（/api/v1/*）：脚本/AI 无法走浏览器会话，

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateApiToken, parseApiBearerToken } from "@/features/account/api-tokens";
-import { decryptApiToken, encryptApiToken } from "@/features/account/api-token-store";
+import { decryptApiToken, encryptApiToken } from "@/features/account/api-token-credentials";
 
 describe("API Bearer token 解析", () => {
   afterEach(() => vi.unstubAllEnvs());

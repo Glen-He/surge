@@ -12,7 +12,7 @@ vi.mock("nodemailer", () => ({
 }));
 
 import { sendOtpMail } from "@/features/auth/send-otp-mail";
-import { renderOtpEmail } from "@/infrastructure/email/templates";
+import { loginOtpEmail } from "@/features/auth/auth-emails";
 
 describe("sendOtpMail：CID inline 附件透传到 nodemailer payload", () => {
   beforeEach(() => {
@@ -20,7 +20,7 @@ describe("sendOtpMail：CID inline 附件透传到 nodemailer payload", () => {
   });
 
   it("OTP 邮件：payload 携带与 HTML cid 一一对应的 inline 附件", async () => {
-    const tpl = renderOtpEmail("login", { code: "123456" });
+    const tpl = loginOtpEmail("123456");
     await sendOtpMail({
       to: "user@example.test",
       subject: tpl.subject,

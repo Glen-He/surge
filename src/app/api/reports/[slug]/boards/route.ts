@@ -1,4 +1,4 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { listShareBoardsForReport } from "@/features/sharing/share-board";
 
 export const dynamic = "force-dynamic";

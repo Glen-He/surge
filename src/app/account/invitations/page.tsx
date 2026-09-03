@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CardHead } from "@/shared/ui/card-head";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { getRegistrationInvite } from "@/features/auth/registration-invites";
-import { requireSession } from "@/features/auth/session";
+import { requireSession } from "@/features/session/session";
 
 export const dynamic = "force-dynamic";
 

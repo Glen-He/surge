@@ -1,8 +1,8 @@
 import { auth } from "@/features/auth/auth";
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { passwordPolicyError } from "@/features/auth/password-policy";
 import { completePasswordChange } from "@/features/account/change-tokens";
-import { logSecurity } from "@/features/account/security-log";
+import { logSecurity } from "@/features/security-audit/security-log";
 
 export const dynamic = "force-dynamic";
 

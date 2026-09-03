@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v9：多实例共享的安全失败限流 ──

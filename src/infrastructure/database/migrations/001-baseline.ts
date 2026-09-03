@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 export const BASELINE: Migration = {
@@ -20,7 +20,7 @@ export const BASELINE: Migration = {
     )`,
     // 卡片手动排序（拖拽调序）；旧数据按日期倒序回填
     `ALTER TABLE reports ADD COLUMN IF NOT EXISTS sort_order INTEGER`,
-    // 标签颜色（7 色板之一，见 lib/tag-colors.ts；旧行为空时前端按标签哈希兜底）
+    // 标签颜色（7 色板之一，见 features/reports/tag-colors.ts；旧行为空时前端按标签哈希兜底）
     `ALTER TABLE reports ADD COLUMN IF NOT EXISTS tag_color TEXT`,
     `UPDATE reports SET sort_order = sub.rn
       FROM (

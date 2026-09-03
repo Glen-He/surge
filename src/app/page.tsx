@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AuthPageClient } from "@/features/auth/auth-page-client";
 import { auth } from "@/features/auth/auth";
-import { expireGuestIfNeeded } from "@/features/auth/guest/guest-sandbox";
+import { expireGuestIfNeeded } from "@/features/guest/guest-sandbox";
 import { getRegistrationPolicy } from "@/features/auth/registration-policy";
 
 export const dynamic = "force-dynamic";

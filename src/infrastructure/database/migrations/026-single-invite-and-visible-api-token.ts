@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v26：用户级单邀请码与可回显 API 令牌──

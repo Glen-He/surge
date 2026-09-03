@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v21：每条报告必须且只能有一种内容来源──

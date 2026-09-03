@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 export const SHARE_CREDENTIAL_HARDENING: Migration = {

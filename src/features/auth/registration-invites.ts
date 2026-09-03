@@ -6,7 +6,7 @@ import {
   decryptInviteCode,
   encryptInviteCode,
   inviteCodeHash,
-} from "@/features/auth/invite-code-store";
+} from "@/features/auth/invite-code-credentials";
 
 export const INVITE_CODE_LENGTH = 6;
 export const INVITE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";

@@ -1,4 +1,4 @@
-import type { Migration } from "./index";
+import type { Migration } from "./migration";
 
 
 // ── v14：不可变报告版本 + 跨实例上传租约──

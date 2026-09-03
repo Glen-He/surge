@@ -9,7 +9,7 @@ import {
 import {
   decryptInviteCode,
   encryptInviteCode,
-} from "@/features/auth/invite-code-store";
+} from "@/features/auth/invite-code-credentials";
 import {
   inviteCodeFromFragment,
   inviteLinkFragment,

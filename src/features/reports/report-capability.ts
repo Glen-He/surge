@@ -39,7 +39,7 @@ let derivedKey: Buffer | null = null;
 
 function capKey(): Buffer {
   if (derivedKey) return derivedKey;
-  // always 必需：缺失或过短由 serverEnv 校验抛错，绝不落入固定开发密钥
+  // 该配置始终必需：缺失或过短由 serverEnv 校验抛错，绝不落入固定开发密钥。
   derivedKey = Buffer.from(
     hkdfSync(
       "sha256",

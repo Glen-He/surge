@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Toolbar, ReportList } from "@/features/reports/board/report-center";
+import { Toolbar, ReportList } from "@/features/report-management/report-center";
 import { EmptyState } from "@/features/reports/board/empty-state";
 import type { ReportCardView } from "@/features/reports/data/report-cards";
 

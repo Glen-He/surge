@@ -1,7 +1,7 @@
 import { transporter } from "@/infrastructure/email/client";
 import { serverEnv } from "@/infrastructure/environment/server";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
-import type { MailInlineAttachment } from "@/infrastructure/email/templates";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
+import type { MailInlineAttachment } from "@/infrastructure/email/render-email";
 
 /**
  * 自建流程的统一 OTP 邮件出口（注册验证 + 账户变更验证）。

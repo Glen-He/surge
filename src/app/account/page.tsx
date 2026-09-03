@@ -2,8 +2,9 @@ import Link from "next/link";
 import { AccountForm } from "@/features/account/ui/account-form";
 import { GuestSessionWatcher } from "@/features/auth/guest/guest-toasts";
 import { hasAdminRole } from "@/features/administration/admin";
-import { getGuestExpiry, isGuestEmail } from "@/features/auth/guest/guest-sandbox";
-import { requireSession } from "@/features/auth/session";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
+import { getGuestExpiry } from "@/features/guest/guest-sandbox";
+import { requireSession } from "@/features/session/session";
 import { getDeletionRequestedAt } from "@/features/account/account-deletion";
 import { listActiveAccountSessions } from "@/features/account/account-sessions";
 

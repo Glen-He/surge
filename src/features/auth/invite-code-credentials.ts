@@ -8,11 +8,12 @@ import {
 import { serverEnv } from "@/infrastructure/environment/server";
 
 function rootSecret(): string {
-  // always 必需：缺失或过短由 serverEnv 校验抛错
+  // 该配置始终必需：缺失或过短由 serverEnv 校验抛错。
   return serverEnv.INVITE_CODE_SECRET;
 }
 
 function deriveKey(purpose: string): Buffer {
+  // HKDF context 已参与线上密文派生，属于持久化加密协议，不随文件重命名。
   return Buffer.from(
     hkdfSync("sha256", rootSecret(), "surge-invite-code-store", purpose, 32),
   );

@@ -54,7 +54,7 @@ const ICON_INVITE = (
 
 /**
  * 登录/注册页。本组件只负责表单 UI 与输入校验，
- * 密码登录由 Server Action 原子完成；注册与游客流程仍由 auth-flow 封装。
+ * 密码登录在一次 Server Action 中完成；注册与游客流程仍由 auth-flow 封装。
  */
 export function AuthPageClient({
   registrationOpen,
@@ -198,7 +198,7 @@ export function AuthPageClient({
     }
   }
 
-  // 注册：验证码通过 → 服务端原子完成建号 + 登录 + 初始密码
+  // 注册：验证码通过 → 服务端串行完成建号、登录与初始密码，失败时补偿清理。
   async function verifyOtp(otp: string) {
     if (!isOtpCode(otp) || otpVerificationPendingRef.current) return;
     otpVerificationPendingRef.current = true;

@@ -11,8 +11,11 @@ import {
 import {
   decryptSharePasscode,
   decryptShareToken,
+  encryptSharePasscode,
+  encryptShareToken,
   shareTokenHash,
 } from "@/features/sharing/share-credentials";
+import { ReportShareError } from "@/features/sharing/report-share-errors";
 
 // ── 分享链接工具 ──
 // token 用 22 位 base62（≈131bit 熵），不可枚举；
@@ -88,10 +91,9 @@ export async function verifySharePassword(
 
 // 解锁 cookie 值：HMAC(token, SECRET)。
 // 必须使用独立 SHARE_SECRET，避免轮换数据库口令时意外轮换
-// 分享凭证密钥。
-// HMAC 伪造解锁凭证，绕过所有受密码保护的分享。
+// 分享凭证密钥；密钥泄漏会允许攻击者伪造解锁凭证，绕过密码保护。
 function shareSecret(): string {
-  // always 必需：缺失或过短由 serverEnv 校验抛错
+  // 该配置始终必需：缺失或过短由 serverEnv 校验抛错。
   return serverEnv.SHARE_SECRET;
 }
 
@@ -115,6 +117,140 @@ export function verifyUnlockProof(
 
 export function unlockCookieName(token: string): string {
   return `share_${token}`;
+}
+
+const SHARE_EXPIRY_DAYS = [0, 1, 7, 30] as const;
+const MAX_SHARES_PER_REPORT = 5;
+
+export type ManagedShare = {
+  id: string;
+  token: string;
+  hasPassword: boolean;
+  passcode: string | null;
+  expiresAt: Date | null;
+  viewCount: number;
+  createdAt: Date;
+};
+
+/** 原子创建属主侧分享链接，并在同一事务内执行归属和数量上限检查。 */
+export async function createReportShare(input: {
+  userId: string;
+  slug: string;
+  requestedPasscode?: unknown;
+  passwordProtected: boolean;
+  expiresInDays?: unknown;
+}): Promise<ManagedShare> {
+  const requestedPasscode =
+    typeof input.requestedPasscode === "string" && input.requestedPasscode.trim()
+      ? input.requestedPasscode.trim().toUpperCase()
+      : null;
+  if (requestedPasscode && !isValidSharePasscode(requestedPasscode)) {
+    throw new ReportShareError("SHARE_PASSCODE_INVALID");
+  }
+  const expiresInDays = Number(input.expiresInDays ?? 0);
+  if (!SHARE_EXPIRY_DAYS.includes(expiresInDays as (typeof SHARE_EXPIRY_DAYS)[number])) {
+    throw new ReportShareError("SHARE_EXPIRY_INVALID");
+  }
+  const passcode =
+    requestedPasscode ?? (input.passwordProtected ? generateSharePasscode() : null);
+  const expiresAt =
+    expiresInDays > 0
+      ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+
+  // scrypt 在事务外完成，避免昂贵计算长期占用连接或报告行锁。
+  const passwordHash = passcode ? await hashSharePassword(passcode) : null;
+  const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
+  const id = generateShareId();
+  const token = generateShareToken();
+  const createdAt = new Date();
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const report = await client.query<{ id: string }>(
+      `SELECT id FROM reports
+       WHERE user_id = $1 AND slug = $2
+       LIMIT 1 FOR UPDATE`,
+      [input.userId, input.slug],
+    );
+    const reportId = report.rows[0]?.id;
+    if (!reportId) throw new ReportShareError("SHARE_REPORT_NOT_FOUND");
+
+    const count = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM report_shares WHERE report_id = $1`,
+      [reportId],
+    );
+    if (Number(count.rows[0]?.count ?? 0) >= MAX_SHARES_PER_REPORT) {
+      throw new ReportShareError("SHARE_LIMIT_REACHED", {
+        max: MAX_SHARES_PER_REPORT,
+      });
+    }
+
+    await client.query(
+      `INSERT INTO report_shares
+         (id, report_id, token_hash, token_enc, password_hash, password_enc, expires_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        reportId,
+        shareTokenHash(token),
+        encryptShareToken(token),
+        passwordHash,
+        passwordEnc,
+        expiresAt,
+        createdAt,
+      ],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return {
+    id,
+    token,
+    hasPassword: passcode !== null,
+    passcode,
+    expiresAt,
+    viewCount: 0,
+    createdAt,
+  };
+}
+
+/** 撤销属主分享并递增 capability_epoch，使已签发访问能力立即失效。 */
+export async function revokeReportShare(userId: string, shareId: string): Promise<void> {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const deleted = await client.query<{ report_id: string }>(
+      `DELETE FROM report_shares s
+       USING reports r
+       WHERE r.id = s.report_id
+         AND r.user_id = $1
+         AND s.id = $2
+       RETURNING s.report_id`,
+      [userId, shareId],
+    );
+    const reportId = deleted.rows[0]?.report_id;
+    if (!reportId) throw new ReportShareError("SHARE_NOT_FOUND");
+    const updated = await client.query(
+      `UPDATE reports SET capability_epoch = capability_epoch + 1 WHERE id = $1`,
+      [reportId],
+    );
+    if (updated.rowCount !== 1) {
+      throw new Error("report disappeared while revoking share");
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // ── 查询 ──

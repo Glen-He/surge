@@ -1,4 +1,4 @@
-import { getApiSession } from "@/features/auth/api-session";
+import { getApiSession } from "@/features/session/api-session";
 import { createReport } from "@/features/reports/upload/upload-report";
 import { metaFromForm } from "@/features/reports/upload/validate-report-meta";
 import { readUploadForm } from "@/features/reports/upload/upload-request";
@@ -7,7 +7,7 @@ import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 export const dynamic = "force-dynamic";
 
 // 上传新报告：multipart 表单（title/date/tag/description/keywords/file[zip]）
-// 业务实现（校验/配额/锁/转正）在 lib/report-upload.ts，与开放 API 共用
+// 业务实现（校验/配额/锁/转正）在 features/reports/upload/，与开放 API 共用
 export async function POST(req: Request) {
   const session = await getApiSession();
   if (!session) {

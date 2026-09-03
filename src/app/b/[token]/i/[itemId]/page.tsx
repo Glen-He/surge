@@ -5,7 +5,7 @@ import { ShareBoardPasswordGate } from "@/features/sharing/share-board-password-
 import { boardUnlockCookieName, findPublicBoardReport, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
 import { issueCapability, reportBridgeToken } from "@/features/reports/report-capability";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
-import { getOptionalSession } from "@/features/auth/session";
+import { getOptionalSession } from "@/features/session/session";
 
 export const dynamic = "force-dynamic";
 

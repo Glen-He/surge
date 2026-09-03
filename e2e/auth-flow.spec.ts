@@ -5,7 +5,7 @@ import { auth } from "@/features/auth/auth";
 import { db } from "@/infrastructure/database/client";
 import { decryptSharePasscode, decryptShareToken } from "@/features/sharing/share-credentials";
 import { reportArtifactDir, userReportsDir } from "@/features/reports/storage/report-storage";
-import { isGuestEmail } from "@/features/auth/guest/guest-sandbox";
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 
 const fixture = {
   userId: "",
