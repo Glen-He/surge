@@ -7,8 +7,6 @@ import { updateReportMeta } from "@/features/reports/upload/update-report-meta";
 import { readUploadForm } from "@/features/reports/upload/upload-request";
 import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 
-export const dynamic = "force-dynamic";
-
 // 更新项目信息；FormData 可选携带 file（新 ZIP），不传则保留原报告文件
 // 业务实现（校验/配额/锁/原子替换）在 features/reports/upload/，与开放 API 共用
 export async function PATCH(

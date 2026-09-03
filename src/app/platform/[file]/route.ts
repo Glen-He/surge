@@ -7,8 +7,6 @@ import {
 } from "@/features/reports/serving/platform-assets";
 import { isReportOriginRequest } from "@/features/reports/serving/report-origin";
 
-export const dynamic = "force-dynamic";
-
 // ── 平台公共资源运行时（/platform/<file>）──
 //
 // 与 /r/<cap>/ 的 capability 命名空间分离：只输出 reports/_shared 内

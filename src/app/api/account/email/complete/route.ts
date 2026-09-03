@@ -6,8 +6,6 @@ import { verifyStoredOtp } from "@/features/account/otp";
 import { isOtpCode } from "@/features/auth/otp-code";
 import { NEW_EMAIL_OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";
 
-export const dynamic = "force-dynamic";
-
 // 完成修改邮箱：验证新邮箱验证码 → 多设备并发安全 UPDATE → 撤销其他会话
 export async function POST(req: Request) {
   const session = await getApiSession();

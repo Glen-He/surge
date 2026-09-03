@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { ReportFrame } from "@/features/reports/viewer/report-frame";
-import { ShareBoardPasswordGate } from "@/features/sharing/share-board-password-gate";
+import { SharePasswordGate } from "@/features/sharing/share-password-gate";
 import { boardUnlockCookieName, findPublicBoardReport, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
 import { issueCapability, reportBridgeToken } from "@/features/reports/report-capability";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
 import { getOptionalSession } from "@/features/session/session";
-
-export const dynamic = "force-dynamic";
 
 export default async function ShareBoardReportPage({
   params,
@@ -32,7 +30,11 @@ export default async function ShareBoardReportPage({
     const proof = (await cookies()).get(boardUnlockCookieName(token))?.value;
     if (!verifyBoardUnlockProof(token, found.boardAccessEpoch, proof)) {
       return (
-        <ShareBoardPasswordGate token={token} title={found.boardTitle} />
+        <SharePasswordGate
+          token={token}
+          title={found.boardTitle}
+          target="board"
+        />
       );
     }
   }

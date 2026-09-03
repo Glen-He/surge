@@ -19,8 +19,6 @@ import { REPORT_PDF_DOWNLOAD_PARAM } from "@/features/reports/viewer/report-pdf"
 import { parseByteRange } from "@/features/reports/serving/parse-byte-range";
 import { REPORT_PERMISSIONS_POLICY } from "@/features/reports/serving/report-security";
 
-export const dynamic = "force-dynamic";
-
 // ── 报告虚拟目录运行时（/r/<cap>/<path...>）──
 //
 // <cap> 是 capability（HMAC 签名的 reportId+revision+epoch+expires，见

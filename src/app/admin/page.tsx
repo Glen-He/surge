@@ -3,8 +3,6 @@ import { AdminConsole } from "@/features/administration/ui/admin-console";
 import { requireAdminSession } from "@/features/administration/admin";
 import { getRegistrationPolicy } from "@/features/auth/registration-policy";
 
-export const dynamic = "force-dynamic";
-
 export default async function AdminPage() {
   await requireAdminSession();
   const policy = await getRegistrationPolicy();

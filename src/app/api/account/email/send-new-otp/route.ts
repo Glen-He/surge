@@ -5,8 +5,6 @@ import {
 } from "@/features/account/account-otp-errors";
 import { sendNewEmailOtp } from "@/features/account/send-account-otp";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: Request) {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });

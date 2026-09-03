@@ -6,8 +6,6 @@ import {
 } from "@/features/auth/registration-policy";
 import { logSecurity } from "@/features/security-audit/security-log";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   if (!(await getAdminApiSession())) {
     return NextResponse.json({ error: "无权访问管理后台" }, { status: 403 });

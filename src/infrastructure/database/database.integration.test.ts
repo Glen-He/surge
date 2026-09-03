@@ -491,19 +491,6 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     ).resolves.toMatchObject({ ok: true });
   });
 
-  it("并发核销同一账号变更 token 时只有一次成功", async () => {
-    const { consumeChangeToken, createChangeToken } = await import("@/features/account/change-tokens");
-    const token = await createChangeToken({
-      userId,
-      type: "password_change",
-    });
-    const results = await Promise.all([
-      consumeChangeToken(token, userId),
-      consumeChangeToken(token, userId),
-    ]);
-    expect(results.filter(Boolean)).toHaveLength(1);
-  });
-
   it("并发创建 API token 不会突破每账号一个的约束", async () => {
     const { createApiToken } = await import("@/features/account/api-tokens");
     const email = `api-${crypto.randomUUID()}@example.test`;

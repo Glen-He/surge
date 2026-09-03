@@ -33,11 +33,6 @@ export function isProductionServer(): boolean {
   return process.env.NODE_ENV === "production" && !isBuildPhase();
 }
 
-/** Node.js 运行时（instrumentation 在 edge runtime 不执行）。 */
-export function isNodejsRuntime(): boolean {
-  return process.env.NEXT_RUNTIME === "nodejs";
-}
-
 /** 框架控制变量：不属于应用配置，原样透传（不校验、不入 schema 契约）。 */
 export const frameworkEnv = {
   NODE_ENV: process.env.NODE_ENV,

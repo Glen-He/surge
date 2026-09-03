@@ -6,8 +6,6 @@ import {
 } from "@/features/sharing/share-board-errors";
 import { updateShareBoardSettings } from "@/features/sharing/update-share-board-settings";
 
-export const dynamic = "force-dynamic";
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
