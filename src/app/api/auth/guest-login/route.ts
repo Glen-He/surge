@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { auth } from "@/features/auth/auth";
 import { clientIp } from "@/infrastructure/security/client-ip";
 import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
@@ -15,7 +16,7 @@ import { logger } from "@/infrastructure/logging/logger";
 export const dynamic = "force-dynamic";
 
 function authEndpointUrl(req: Request): string {
-  const configured = process.env.BETTER_AUTH_URL?.replace(/\/+$/, "");
+  const configured = serverEnv.BETTER_AUTH_URL?.replace(/\/+$/, "");
   return `${configured ?? new URL(req.url).origin}/api/auth/sign-in/anonymous`;
 }
 

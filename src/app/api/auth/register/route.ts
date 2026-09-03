@@ -1,5 +1,6 @@
 import { headers as nextHeaders } from "next/headers";
 import { NextResponse } from "next/server";
+import { serverEnv } from "@/infrastructure/environment/server";
 import { auth } from "@/features/auth/auth";
 import { toChineseError } from "@/features/auth/auth-errors";
 import { clientIp } from "@/infrastructure/security/client-ip";
@@ -27,8 +28,8 @@ export const dynamic = "force-dynamic";
 function baseUrl(hs: Headers): string {
   // 优先使用部署配置的固定地址（与 auth.baseURL 同源），
   // 避免内部调用 URL 的 host 取自客户端可控的转发头
-  if (process.env.BETTER_AUTH_URL) {
-    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
+  if (serverEnv.BETTER_AUTH_URL) {
+    return serverEnv.BETTER_AUTH_URL.replace(/\/+$/, "");
   }
   const host = hs.get("x-forwarded-host") ?? hs.get("host") ?? "localhost:3000";
   const proto = hs.get("x-forwarded-proto") ?? "http";

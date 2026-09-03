@@ -1,4 +1,5 @@
 import { createHmac, hkdfSync } from "node:crypto";
+import { serverEnv, frameworkEnv } from "@/infrastructure/environment/server";
 
 // 轻量结构化日志（服务端）：单行 JSON 输出，带时间/级别/模块/上下文。
 // 不引入外部依赖；生产用 LOG_LEVEL=debug|info|warn|error 控制输出级别。
@@ -19,18 +20,15 @@ type Level = "debug" | "info" | "warn" | "error";
 const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
 function minLevel(): number {
-  const raw = process.env.LOG_LEVEL;
+  const raw = serverEnv.LOG_LEVEL;
   if (raw && raw in ORDER) return ORDER[raw as Level];
-  return process.env.NODE_ENV === "production" ? ORDER.info : ORDER.debug;
+  return frameworkEnv.NODE_ENV === "production" ? ORDER.info : ORDER.debug;
 }
 
 const isErr = (x: unknown): x is Error => x instanceof Error;
 
 function fingerprint(value: string): string {
-  const root = process.env.LOG_REDACTION_SECRET ?? process.env.BETTER_AUTH_SECRET;
-  if (!root || root.length < 32) {
-    throw new Error("LOG_REDACTION_SECRET or BETTER_AUTH_SECRET is required");
-  }
+  const root = serverEnv.LOG_REDACTION_SECRET ?? serverEnv.BETTER_AUTH_SECRET;
   const key = Buffer.from(
     hkdfSync("sha256", root, "surge-log-redaction", "v1", 32),
   );
@@ -90,7 +88,7 @@ function emit(level: Level, scope: string, msg: string, a?: unknown, b?: unknown
   if (ctx && typeof ctx === "object") Object.assign(line, sanitizeValue("context", ctx));
   if (err) {
     line.error = sanitizeText(err.message);
-    if (process.env.NODE_ENV !== "production" || minLevel() <= ORDER.debug) {
+    if (frameworkEnv.NODE_ENV !== "production" || minLevel() <= ORDER.debug) {
       line.stack = err.stack ? sanitizeText(err.stack) : undefined;
     }
   }

@@ -12,27 +12,91 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# 各 job 独立状态：任何一个失败都不掩盖其余 job 的结论。
+# 业务逻辑全部留在 package.json scripts，workflow 只做编排：
+# 环境契约 → lint / typecheck / unit-test / integration-test / build / e2e。
 jobs:
-  verify:
+  # 契约门：schema ←→ .env.example ←→ .github/ci.env 三方同步 +
+  # 必需变量全覆盖，新增 XXX_SECRET 漏配在这里 1 秒内失败，
+  # 而不是等到第 200 个测试或生产启动。
+  environment:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/surge_test
-      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters-long
-      BETTER_AUTH_URL: http://127.0.0.1:3000
-      SHARE_SECRET: ci-only-share-secret-at-least-32-characters
-      SHARE_TOKEN_ENCRYPTION_KEY: ci-only-share-token-encryption-key-at-least-32-characters
-      MAINTENANCE_SECRET: ci-only-maintenance-secret-at-least-32-characters
-      SMTP_HOST: localhost
-      SMTP_PORT: 465
-      SMTP_USER: ci@example.test
-      SMTP_PASS: ci-only-password
-      REPORTS_DATA_DIR: /tmp/surge-report-data
-      SURGE_DB_INTEGRATION: "1"
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 把 CI 假环境加载进进程环境
+        run: grep -v -e '^#' -e '^$' .github/ci.env >> "$GITHUB_ENV"
+      - run: pnpm env:check:ci
+
+  lint:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check:imports
+
+  typecheck:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  unit-test:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 把 CI 假环境加载进进程环境
+        run: grep -v -e '^#' -e '^$' .github/ci.env >> "$GITHUB_ENV"
+      - run: pnpm test:unit
+
+  # PostgreSQL 18 与生产目标大版本一致，避免无价值的环境差异。
+  integration-test:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: surge_test
         ports:
@@ -52,10 +116,62 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm check:imports
-      - run: pnpm typecheck
-      - run: pnpm test
+      - name: 把 CI 假环境加载进进程环境
+        run: grep -v -e '^#' -e '^$' .github/ci.env >> "$GITHUB_ENV"
+      - run: pnpm test:integration
+
+  # 构建不做运行时校验（Next 16 在 build 阶段不执行 instrumentation），
+  # 但模块作用域代码仍会读取部分变量，因此加载同一份假环境。
+  build:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 把 CI 假环境加载进进程环境
+        run: grep -v -e '^#' -e '^$' .github/ci.env >> "$GITHUB_ENV"
+      - run: pnpm build
+
+  # E2E 与 production 构建使用同一产物：本 job 内先 build 再启动
+  # next start（playwright webServer），并使用独立的 PG18 实例。
+  e2e:
+    needs: environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: surge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d surge_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 把 CI 假环境加载进进程环境
+        run: grep -v -e '^#' -e '^$' .github/ci.env >> "$GITHUB_ENV"
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:e2e

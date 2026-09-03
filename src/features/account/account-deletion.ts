@@ -1,3 +1,4 @@
+import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
 import { withStorageLocks } from "@/infrastructure/database/client";
 import { logger } from "@/infrastructure/logging/logger";
@@ -162,11 +163,8 @@ export async function deleteUserPermanently(
 
 /** 清理短期凭证，并按保留策略裁剪包含个人信息的审计数据。 */
 export async function purgeExpiredPersonalSecurityData(): Promise<void> {
-  const retentionDays = Number(process.env.SECURITY_LOG_RETENTION_DAYS ?? 90);
-  const days =
-    Number.isSafeInteger(retentionDays) && retentionDays >= 1
-      ? retentionDays
-      : 90;
+  // int 项：缺省回落 90，非法值（非整数/越界）在启动校验即拒绝
+  const days = serverEnv.SECURITY_LOG_RETENTION_DAYS;
   const client = await db.connect();
   try {
     await client.query("BEGIN");

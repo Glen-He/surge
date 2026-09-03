@@ -5,13 +5,11 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 
 function encryptionRoot(): string {
-  const root = process.env.SHARE_TOKEN_ENCRYPTION_KEY;
-  if (!root || root.length < 32) {
-    throw new Error("SHARE_TOKEN_ENCRYPTION_KEY is missing or too short");
-  }
-  return root;
+  // always 必需：缺失或过短由 serverEnv 校验抛错
+  return serverEnv.SHARE_TOKEN_ENCRYPTION_KEY;
 }
 
 function key(): Buffer {

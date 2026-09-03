@@ -4,13 +4,11 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
+import { serverEnv } from "@/infrastructure/environment/server";
 
 function encryptionRoot(): string {
-  const root = process.env.API_TOKEN_ENCRYPTION_KEY?.trim() ?? "";
-  if (root.length < 32) {
-    throw new Error("API_TOKEN_ENCRYPTION_KEY is missing or too short");
-  }
-  return root;
+  // always 必需：缺失或过短由 serverEnv 校验抛错
+  return serverEnv.API_TOKEN_ENCRYPTION_KEY;
 }
 
 function encryptionKey(): Buffer {
