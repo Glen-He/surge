@@ -311,8 +311,8 @@ zip -X -q -r report.zip report.html data.js assets -x '.*' -x '__MACOSX*' -x '*.
 - **把报告当新项目上传时，一律用 `POST /api/v1/reports`**，响应返回新 slug（`{"ok":true,"slug":"r_xxxxxxxx"}`）。
 - **`PATCH /api/v1/reports/{slug}` 只用于更新"同一个报告"的内容**。PATCH 会整体替换该 slug 的文件与元信息，**没有任何确认机制**。
 - **上传前必须核对 slug 归属**：`.local/deploy.env` 里的 `GLENHE_REPORT_SLUG` 属于 report-01（MMP 报告），**绝不能**用它上传 report-02 或任何其他报告——patch 错 slug = 直接覆盖线上另一个项目（2026-08-28 事故：P15 的 zip 被 PATCH 到 MMP 的 slug 上，把 MMP 报告覆盖了）。
-- 当前 slug 登记表（上传前对照）：
-- 以后新增项目先 POST 拿到新 slug，并**把 slug 登记回本表**，同时更新该日期目录 `.local/deploy.env`（`GLENHE_REPORT_SLUG` 改成对应项目的 slug，谁部署谁改，不留共享的"当前 slug"歧义）。
+- 当前线上 slug、路径归属与完整元数据以 [`upload.md`](./upload.md) 的“线上报告注册表”为唯一状态源；本规范不重复保存项目状态。
+- 以后新增项目先 POST 拿到新 slug，并**把 slug 登记回该注册表**，同时更新该日期目录 `.local/deploy.env`（`GLENHE_REPORT_SLUG` 改成对应项目的 slug，谁部署谁改，不留共享的"当前 slug"歧义）。
 
 ### 11.2 元数据必须一次填全（六个字段）
 
