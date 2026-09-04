@@ -186,7 +186,7 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
                 type="button"
                 onClick={() => void mutate("PATCH")}
                 disabled={busy}
-                className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-action btn-action--reserved disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {busy ? "处理中…" : "更换"}
               </button>
@@ -196,7 +196,7 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
               type="button"
               disabled={isGuest || busy}
               onClick={() => void mutate(invite ? "PATCH" : "POST")}
-              className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-action btn-action--reserved disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "生成中…" : invite ? "重新生成" : "生成邀请码"}
             </button>

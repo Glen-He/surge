@@ -198,10 +198,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                 type="button"
                 onClick={() => void mutate("PATCH")}
                 disabled={busy}
-                // pr = 箭头占位（14px 图标 + 2px 间距）：.btn-action 的 padding 在非 layer 规则里，
-                // Tailwind 工具类会被覆盖，必须内联（同 .btn-secondary 的坑）
-                style={{ paddingRight: "16px" }}
-                className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-action btn-action--reserved disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {busy ? "处理中…" : "更换"}
               </button>
@@ -211,9 +208,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
               type="button"
               disabled={isGuest || busy}
               onClick={() => void mutate("POST")}
-              // 同上：箭头占位，保证「新建令牌」四字与「修改密码」四字位置一致
-              style={{ paddingRight: "16px" }}
-              className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-action btn-action--reserved disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "创建中…" : "新建令牌"}
             </button>

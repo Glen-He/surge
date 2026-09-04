@@ -277,6 +277,11 @@ button {
   transition: color 0.15s ease;
 }
 
+/* 不显示尾部箭头时保留相同宽度，保证同组操作的位置稳定 */
+.btn-action--reserved {
+  padding-right: 16px;
+}
+
 .btn-action:hover {
   color: #0062c4;
 }
@@ -441,4 +446,3 @@ button {
 .animate-step {
   animation: step-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-

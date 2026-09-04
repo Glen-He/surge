@@ -202,37 +202,3 @@
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 }
-
-@media (max-width: 768px) {
-  .project-grid {
-    grid-template-columns: 1fr;
-    grid-auto-rows: 1fr;
-    gap: 16px;
-  }
-
-  .project-card {
-    min-height: 280px;
-    padding: 20px 22px;
-  }
-
-  .page-actions {
-    flex-wrap: wrap;
-  }
-
-  .page-actions-error {
-    margin-right: 0;
-    width: 100%;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .page-actions button,
-  .page-actions a {
-    width: 100%;
-  }
-}
