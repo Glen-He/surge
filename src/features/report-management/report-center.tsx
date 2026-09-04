@@ -285,7 +285,7 @@ function ReportCard({
   const hoverEnabled = !activeSession && !suppressHover;
   return (
     <div
-      className={`${hoverEnabled ? "group/report-card" : ""} relative transition-transform duration-200 motion-reduce:transition-none ${
+      className={`${hoverEnabled ? "group/report-card" : ""} report-card-touch-shell relative transition-transform duration-200 motion-reduce:transition-none ${
         hoverEnabled ? "hover:-translate-y-0.5" : ""
       }`}
     >

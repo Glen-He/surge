@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { auth } from "@/features/auth/auth";
@@ -728,6 +728,240 @@ test("首页卡片可流畅跨间隙和跨日期排序", async ({ page }) => {
   expect(signOut).toBe(200);
 });
 
+test("手机 Safari 可区分页面滑动与整卡长按拖动", async ({ browser }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "webkit",
+    "手机触摸回归只需在 WebKit 执行一次",
+  );
+
+  const context = await browser.newContext({
+    ...devices["iPhone 13"],
+    baseURL: String(testInfo.project.use.baseURL),
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.goto("/");
+    await expect(page.getByTestId("auth-form")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+    );
+    await page.getByLabel("邮箱").fill(fixture.email);
+    await page.getByLabel("密码", { exact: true }).fill(fixture.password);
+    await page
+      .locator("form")
+      .getByRole("button", { name: "登录", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/home$/);
+
+    const sourceSlug = fixture.dragReports[0].slug;
+    const sourceSelector = `[data-report-dnd-slug="${sourceSlug}"]`;
+    const source = page.locator(sourceSelector).first();
+    const cardShell = source.locator(":scope > div").first();
+    const cardSurface = source.locator(":scope > div > a").first();
+    const sourceBox = await source.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    await expect(cardSurface).toHaveClass(/\breport-card-touch-activator\b/);
+    const restingAppearance = await cardShell.evaluate((element) => {
+      const style = getComputedStyle(element, "::before");
+      return {
+        top: style.top,
+        right: style.right,
+        bottom: style.bottom,
+        left: style.left,
+        borderColor: style.borderColor,
+        boxShadow: style.boxShadow,
+      };
+    });
+
+    const start = {
+      x: sourceBox!.x + sourceBox!.width / 2,
+      y: sourceBox!.y + sourceBox!.height / 2,
+    };
+    async function dispatchTouch(
+      type: "touchstart" | "touchmove" | "touchend",
+      point: { x: number; y: number },
+    ) {
+      await page.evaluate(
+        ({ selector, eventType, position }) => {
+          const target = document.querySelector<HTMLElement>(selector);
+          if (!target) throw new Error("touch target is missing");
+          const touch = {
+            identifier: 7,
+            target,
+            clientX: position.x,
+            clientY: position.y,
+            pageX: position.x + window.scrollX,
+            pageY: position.y + window.scrollY,
+            screenX: position.x,
+            screenY: position.y,
+          } as unknown as Touch;
+          const touchList = (items: Touch[]) => {
+            const list = items as Touch[] & {
+              item(index: number): Touch | null;
+            };
+            list.item = (index) => list[index] ?? null;
+            return list as unknown as TouchList;
+          };
+          const ended = eventType === "touchend";
+          const touchEvent = new Event(eventType, {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+          });
+          Object.defineProperties(touchEvent, {
+            touches: { value: touchList(ended ? [] : [touch]) },
+            targetTouches: { value: touchList(ended ? [] : [touch]) },
+            changedTouches: { value: touchList([touch]) },
+          });
+          target.dispatchEvent(touchEvent);
+        },
+        { selector: `${sourceSelector} > div > a`, eventType: type, position: point },
+      );
+    }
+
+    // 长按成立前的明显移动应取消拖拽，让真实设备继续执行页面滚动。
+    await dispatchTouch("touchstart", start);
+    await expect(source).toHaveAttribute("data-report-touch-state", "pressing");
+    const pressingAppearance = await cardShell.evaluate(async (element) => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      const surfaceStyle = getComputedStyle(element, "::before");
+      const contentStyle = getComputedStyle(
+        element.querySelector("a")!,
+      );
+      return {
+        top: Number.parseFloat(surfaceStyle.top),
+        right: Number.parseFloat(surfaceStyle.right),
+        bottom: Number.parseFloat(surfaceStyle.bottom),
+        left: Number.parseFloat(surfaceStyle.left),
+        borderColor: surfaceStyle.borderColor,
+        boxShadow: surfaceStyle.boxShadow,
+        transform: contentStyle.transform,
+      };
+    });
+    expect(pressingAppearance.transform).toBe("none");
+    expect(pressingAppearance.top).toBeLessThan(0);
+    expect(pressingAppearance.right).toBeLessThan(0);
+    expect(pressingAppearance.bottom).toBeLessThan(0);
+    expect(pressingAppearance.left).toBeLessThan(0);
+    expect(pressingAppearance.borderColor).toBe(restingAppearance.borderColor);
+    expect(pressingAppearance.boxShadow).not.toBe(
+      restingAppearance.boxShadow,
+    );
+    await dispatchTouch("touchmove", { x: start.x, y: start.y + 20 });
+    await expect(source).not.toHaveAttribute("data-report-touch-state");
+    await page.waitForTimeout(300);
+    await expect(page.locator(`${sourceSelector}[data-dnd-dragging]`)).toHaveCount(0);
+    await dispatchTouch("touchend", { x: start.x, y: start.y + 20 });
+
+    // 稳定长按后进入拖拽，表面保持同一放大终态，内容不做位图缩放。
+    await dispatchTouch("touchstart", start);
+    await page.waitForTimeout(300);
+    const dragging = page.locator(`${sourceSelector}[data-dnd-dragging]`);
+    await expect(dragging).toBeVisible();
+    await expect(dragging).toHaveAttribute("data-report-touch-state", "dragging");
+    await expect(cardSurface).toHaveCSS("transform", "none");
+    const draggingAppearance = await cardShell.evaluate((element) => {
+      const style = getComputedStyle(element, "::before");
+      return {
+        top: style.top,
+        right: style.right,
+        bottom: style.bottom,
+        left: style.left,
+        borderColor: style.borderColor,
+        boxShadow: style.boxShadow,
+      };
+    });
+    expect(draggingAppearance).toEqual(expect.objectContaining({
+      top: "-3px",
+      right: "-3px",
+      bottom: "-3px",
+      left: "-3px",
+      borderColor: restingAppearance.borderColor,
+    }));
+    expect(draggingAppearance.boxShadow).not.toBe(
+      restingAppearance.boxShadow,
+    );
+    const draggingBox = await dragging.boundingBox();
+    expect(draggingBox).not.toBeNull();
+    expect(Math.abs(draggingBox!.width - sourceBox!.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(draggingBox!.height - sourceBox!.height)).toBeLessThanOrEqual(1);
+    await dispatchTouch("touchmove", { x: start.x + 20, y: start.y });
+    await page.evaluate((selector) => {
+      const trace: Array<{
+        phase: "dragging" | "dropping" | "settled";
+        left: number;
+        surfaceTop: number;
+        surfaceShadow: string;
+      }> = [];
+      (window as typeof window & { __reportTouchDropTrace?: typeof trace })
+        .__reportTouchDropTrace = trace;
+      const startedAt = performance.now();
+      const sample = () => {
+        const moving = document.querySelector<HTMLElement>(
+          `${selector}[data-dnd-dragging], ${selector}[data-dnd-dropping]`,
+        );
+        const settled = [...document.querySelectorAll<HTMLElement>(selector)]
+          .find((element) => !element.hasAttribute("data-dnd-placeholder"));
+        const element = moving ?? settled;
+        const shell = element?.querySelector<HTMLElement>(
+          ".report-card-touch-shell",
+        );
+        if (element && shell) {
+          trace.push({
+            phase: element.hasAttribute("data-dnd-dropping")
+              ? "dropping"
+              : element.hasAttribute("data-dnd-dragging")
+                ? "dragging"
+                : "settled",
+            left: element.getBoundingClientRect().left,
+            surfaceTop: Number.parseFloat(
+              getComputedStyle(shell, "::before").top,
+            ),
+            surfaceShadow: getComputedStyle(shell, "::before").boxShadow,
+          });
+        }
+        if (performance.now() - startedAt < 420) {
+          requestAnimationFrame(sample);
+        }
+      };
+      requestAnimationFrame(sample);
+    }, sourceSelector);
+    await dispatchTouch("touchend", { x: start.x + 20, y: start.y });
+    await expect(dragging).toHaveCount(0);
+    await page.waitForTimeout(450);
+    const dropTrace = await page.evaluate(() =>
+      (window as typeof window & {
+        __reportTouchDropTrace?: Array<{
+          phase: "dragging" | "dropping" | "settled";
+          left: number;
+          surfaceTop: number;
+          surfaceShadow: string;
+        }>;
+      }).__reportTouchDropTrace ?? []
+    );
+    const settledSample = dropTrace.findLast(
+      (sample) => sample.phase === "settled",
+    );
+    expect(settledSample).toBeDefined();
+    expect(settledSample!.surfaceTop).toBe(0);
+    expect(settledSample!.surfaceShadow).toBe(restingAppearance.boxShadow);
+    const simultaneousLanding = dropTrace.find(
+      (sample) =>
+        sample.phase === "dropping" &&
+        sample.surfaceTop > -2.8 &&
+        Math.abs(sample.left - settledSample!.left) > 1,
+    );
+    expect(simultaneousLanding).toBeDefined();
+    expect(simultaneousLanding!.surfaceShadow).not.toBe(
+      draggingAppearance.boxShadow,
+    );
+    await expect(page).toHaveURL(/\/home$/);
+  } finally {
+    await context.close();
+  }
+});
+
 test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page, browser }) => {
   const bypassAttempt = await page.request.post("/api/auth/sign-in/email-otp", {
     data: {
@@ -1149,6 +1383,35 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   expect(boardSizeAgain).toEqual(boardSize);
 
   await page.goto("/shares");
+  await expect(page.locator("table")).toHaveCount(0);
+  const shareLinksGrid = page.locator("[data-share-links-grid]");
+  await expect(shareLinksGrid).toBeVisible();
+  expect(
+    await shareLinksGrid.evaluate(
+      (element) => getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    ),
+  ).toBe(2);
+  const managedShareLink = page
+    .locator("[data-share-link-card]")
+    .filter({ hasText: fixture.reportTitle })
+    .first();
+  await expect(managedShareLink).toBeVisible();
+  const copyShareLink = managedShareLink.locator(
+    '[data-copy-variant="pill"]',
+  );
+  const revokeShareLink = managedShareLink.getByRole("button", {
+    name: "撤销",
+  });
+  const [copyShareBox, revokeShareBox] = await Promise.all([
+    copyShareLink.boundingBox(),
+    revokeShareLink.boundingBox(),
+  ]);
+  expect(copyShareBox).not.toBeNull();
+  expect(revokeShareBox).not.toBeNull();
+  expect(copyShareBox!.width).toBe(revokeShareBox!.width);
+  expect(copyShareBox!.height).toBe(revokeShareBox!.height);
+  expect(revokeShareBox!.x - (copyShareBox!.x + copyShareBox!.width)).toBe(12);
+
   const managedBoard = page.locator("article").filter({ hasText: "带密码的测试面板" });
   const copyBoardLink = managedBoard.locator('[data-copy-variant="pill"]');
   await expect(copyBoardLink).toHaveAccessibleName("复制链接");
@@ -1167,6 +1430,55 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(copyBoardLink).toHaveCSS("background-color", "rgb(52, 199, 89)");
   await expect(copyBoardLink).toHaveCSS("color", "rgb(255, 255, 255)");
   expect(await copyBoardLink.boundingBox()).toEqual(copyBox);
+
+  const mobileContext = await browser.newContext({
+    ...devices["iPhone 13"],
+    baseURL: new URL(page.url()).origin,
+    storageState: await page.context().storageState(),
+  });
+  const mobilePage = await mobileContext.newPage();
+  try {
+    await mobilePage.goto("/shares");
+    const mobileShareLinksGrid = mobilePage.locator("[data-share-links-grid]");
+    expect(
+      await mobileShareLinksGrid.evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      ),
+    ).toBe(1);
+    const mobileShareCard = mobilePage
+      .locator("[data-share-link-card]")
+      .first();
+    const mobileShareCardBox = await mobileShareCard.boundingBox();
+    expect(mobileShareCardBox).not.toBeNull();
+    expect(mobileShareCardBox!.x).toBeGreaterThanOrEqual(16);
+    expect(mobileShareCardBox!.width).toBeLessThanOrEqual(358);
+
+    await mobilePage.goto("/new-report");
+    const projectGrid = mobilePage.locator(".project-grid");
+    const projectCards = projectGrid.locator(".project-card");
+    await expect(projectCards).toHaveCount(4);
+    expect(
+      await projectGrid.evaluate(
+        (element) => getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      ),
+    ).toBe(1);
+    const projectCardBoxes = await projectCards.evaluateAll((cards) =>
+      cards.map((card) => {
+        const box = card.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width };
+      }),
+    );
+    for (let index = 1; index < projectCardBoxes.length; index += 1) {
+      expect(projectCardBoxes[index].x).toBe(projectCardBoxes[0].x);
+      expect(projectCardBoxes[index].width).toBe(projectCardBoxes[0].width);
+      expect(projectCardBoxes[index].y).toBeGreaterThan(
+        projectCardBoxes[index - 1].y,
+      );
+    }
+  } finally {
+    await mobileContext.close();
+  }
 
   // 已登录的属主打开自己的受保护分享时直接进入，不计作外部访客。
   await page.goto(`/b/${boardToken}`);
