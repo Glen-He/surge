@@ -33,6 +33,7 @@ import {
   sameReportOrder,
   type ReportOrderItem,
 } from "@/features/reports/board/report-drag-layout";
+import { ReportTouchSensor } from "@/features/reports/board/report-touch-sensor";
 import type { ReportCardView as Report } from "@/features/reports/data/report-cards";
 
 const REPORT_REORDER_ERROR_KEY = "surge:report-reorder-error";
@@ -300,6 +301,10 @@ export function SortableReportList({
   const sensors = useMemo(
     () => [
       PointerSensor.configure({
+        preventActivation(event, source) {
+          if (event.pointerType === "touch") return true;
+          return PointerSensor.defaults.preventActivation?.(event, source) ?? false;
+        },
         activationConstraints(event) {
           return event.pointerType === "touch"
             ? [
@@ -311,6 +316,7 @@ export function SortableReportList({
             : [new PointerActivationConstraints.Distance({ value: 7 })];
         },
       }),
+      ReportTouchSensor.configure({ delay: 250, tolerance: 8 }),
       KeyboardSensor.configure({
         keyboardCodes: {
           start: ["Space"],

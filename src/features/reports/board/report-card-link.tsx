@@ -22,7 +22,9 @@ export function ReportCardLink({
       role={draggable ? "link" : undefined}
       aria-roledescription={draggable ? "可排序项目" : undefined}
       className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-[box-shadow] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover/report-card:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
-        draggable ? "cursor-grab active:cursor-grabbing" : ""
+        draggable
+          ? "report-card-touch-activator cursor-grab active:cursor-grabbing"
+          : ""
       }`}
     >
       <div>

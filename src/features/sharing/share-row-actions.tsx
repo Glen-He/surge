@@ -32,22 +32,22 @@ export function ShareRowActions({
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {/* 与弹窗内按钮同一尺寸规则：统一 min-w + 居中，文字切换时宽度不变 */}
+    <span className="inline-flex items-center gap-3">
+      {/* 与分享面板卡片同一尺寸，文字切换时宽度不变。 */}
       <CopyPillButton
         text={() =>
           shareClipboardText(`${location.origin}/s/${token}`, passcode)
         }
         label="复制链接"
         disabled={!active}
-        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
+        className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[#f2f2f7] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#e8e8ed] disabled:text-[#86868b] disabled:opacity-60"
       />
       {active && (
         <button
           type="button"
           onClick={revoke}
           disabled={revoking}
-          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(255,59,48,0.35)] text-[12px] font-medium text-[#ff3b30] transition-colors hover:bg-[rgba(255,59,48,0.06)] disabled:opacity-40"
+          className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[rgba(255,59,48,0.08)] text-[12px] font-medium text-[#ff3b30] transition-colors hover:bg-[rgba(255,59,48,0.12)] disabled:opacity-40"
         >
           {revoking ? "撤销中…" : "撤销"}
         </button>
