@@ -602,6 +602,14 @@ test("首页卡片可流畅跨间隙和跨日期排序", async ({ page }) => {
         "true",
       );
       await expect(cardGroup).toHaveClass(/\bgroup\b/);
+      // 重排后的卡片位置可能与原始 drop point 不再重合，移动到落地卡片
+      // 的真实中心后再验证 hover，避免把布局时序误判成样式回归。
+      const settledSourceBox = await source.boundingBox();
+      expect(settledSourceBox).not.toBeNull();
+      await page.mouse.move(
+        settledSourceBox!.x + settledSourceBox!.width / 2,
+        settledSourceBox!.y + settledSourceBox!.height / 2,
+      );
       await expect(reportAction).toHaveCSS("opacity", "1");
       await expect(editAction).toHaveCSS("opacity", "1");
     }
@@ -958,6 +966,15 @@ test("手机 Safari 可区分页面滑动与整卡长按拖动", async ({ browse
     );
     await expect(page).toHaveURL(/\/home$/);
   } finally {
+    // 关闭 context 不会撤销服务端 session；主动退出，避免污染后续用例
+    // 对当前用户会话数量的断言。
+    if (!page.isClosed()) {
+      await page
+        .evaluate(async () => {
+          await fetch("/api/auth/end-session", { method: "POST" });
+        })
+        .catch(() => undefined);
+    }
     await context.close();
   }
 });
