@@ -48,7 +48,7 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-[19px] w-[19px] -translate-y-1/2 text-[#86868b]"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-[19px] w-[19px] -translate-y-1/2 text-[var(--icon-muted)]"
           >
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4.3-4.3" />
@@ -62,14 +62,14 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
               if (e.key === "Enter") submit();
             }}
             autoComplete="off"
-            className="h-[50px] w-full rounded-full border border-[rgba(0,0,0,0.08)] bg-white pl-10 pr-10 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+            className="h-[50px] w-full rounded-full border border-[var(--border)] bg-[var(--surface)] pl-10 pr-10 text-[14px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
           />
           {draft !== "" && (
             <button
               type="button"
               aria-label="清除搜索"
               onClick={clear}
-              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f]"
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--icon-muted)] transition-colors hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -99,7 +99,7 @@ function NewProjectButton() {
       <Link
         href="/new-report"
         aria-label="新建项目"
-        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[#1d1d1f] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.16)] active:scale-[0.96]"
+        className="flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full bg-[var(--text-primary)] text-[var(--text-on-fill)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:shadow-[0_6px_16px_rgba(0,0,0,0.16)] active:scale-[0.96]"
       >
         <svg
           viewBox="0 0 24 24"
@@ -112,7 +112,7 @@ function NewProjectButton() {
           <path d="M12 5v14M5 12h14" />
         </svg>
       </Link>
-      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1 text-[12px] font-medium text-[#1d1d1f] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[60ms]">
+      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[12px] font-medium text-[var(--text-primary)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[60ms]">
         新建项目
       </span>
     </div>
@@ -129,7 +129,7 @@ function ShareIcon({ r }: { r: Report }) {
         onClick={() => setOpen(true)}
         aria-label={`分享 ${r.title}`}
         title="分享项目"
-        className="absolute right-14 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute right-14 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -194,7 +194,7 @@ function DeleteIcon({ r }: { r: Report }) {
         onClick={showModal}
         aria-label={`删除 ${r.title}`}
         title="删除项目"
-        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(255,59,48,0.08)] hover:text-[#ff3b30] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--danger-soft)] hover:text-[var(--danger-text)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"
@@ -214,13 +214,13 @@ function DeleteIcon({ r }: { r: Report }) {
         busy={deleting}
         plainHeader
       >
-        <p className="text-[14px] leading-[1.6] text-[#1d1d1f]">
+        <p className="text-[14px] leading-[1.6] text-[var(--text-primary)]">
           即将删除 <span className="font-semibold">{r.title}</span>{" "}
           及其全部报告文件，面板入口和分享链接同时失效。此操作不可恢复。
         </p>
-        <p className="mt-4 text-[13px] leading-[1.7] text-[#6e6e73]">
+        <p className="mt-4 text-[13px] leading-[1.7] text-[var(--text-secondary)]">
           请输入验证码{" "}
-          <span className="font-semibold text-[#1d1d1f]">
+          <span className="font-semibold text-[var(--text-primary)]">
             {code}
             <CopyIconButton
               text={code}
@@ -240,10 +240,10 @@ function DeleteIcon({ r }: { r: Report }) {
           placeholder={code}
           autoComplete="off"
           aria-label="删除项目验证码"
-          className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] tracking-[0.2em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+          className="mt-2 h-[42px] w-full rounded-[10px] border border-[var(--border-control)] bg-[var(--surface)] px-3 text-[14px] tracking-[0.2em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}
-        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
+        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{error}</p>
         <div className="mt-3 flex justify-end gap-2.5">
           <button
             type="button"
@@ -291,7 +291,7 @@ function ReportCard({
     >
       <ReportCardLink
         report={r}
-        href={`/report/${r.slug}`}
+        href={`/view/${r.slug}`}
         draggable={canDrag}
         dragActivatorRef={dragActivatorRef}
       />
@@ -303,7 +303,7 @@ function ReportCard({
         draggable={false}
         aria-label={`编辑 ${r.title}`}
         title="编辑项目"
-        className="absolute bottom-4 right-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[#86868b] opacity-0 transition-all hover:bg-[rgba(0,0,0,0.06)] hover:text-[#1d1d1f] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
+        className="absolute bottom-4 right-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
           viewBox="0 0 24 24"

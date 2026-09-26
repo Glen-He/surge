@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
       {
         // 分享页禁止索引（与 robots.txt 双保险：robots 只约束守规矩的爬虫，
         // X-Robots-Tag 对收到链接的爬虫也生效）
-        source: "/s/:token*",
+        source: "/share/:token*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
           { key: "Referrer-Policy", value: "no-referrer" },
@@ -55,7 +55,7 @@ const nextConfig: NextConfig = {
       },
       {
         // 分享面板及面板内报告同样是持有链接才可访问的内容。
-        source: "/b/:path*",
+        source: "/board/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
           { key: "Referrer-Policy", value: "no-referrer" },
@@ -66,7 +66,7 @@ const nextConfig: NextConfig = {
         // capability URL 属于持有即凭证（bearer credential），禁止被索引，
         // 也不能经 Referer 头泄露。路由处理器会重复这些头，
         // 保证该不变量在本 Next.js 配置之外同样成立。
-        source: "/r/:path*",
+        source: "/report/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
           { key: "Referrer-Policy", value: "no-referrer" },

@@ -4,9 +4,9 @@
   /* 相对弹窗容器（= 可见视口，键盘弹出时被 visualViewport 缩小），
      而非 100dvh（iOS 上 dvh 不响应键盘），保证键盘弹出时内容可完整滚读 */
   max-height: calc(100% - 32px);
-  background: #fff;
+  background: var(--surface);
   border-radius: 20px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border);
   box-shadow:
     0 24px 70px rgba(0, 0, 0, 0.16),
     0 2px 8px rgba(0, 0, 0, 0.05);
@@ -25,7 +25,7 @@
   min-height: 520px;
   overflow: hidden;
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .report-pdf-preview {
@@ -33,7 +33,7 @@
   width: 100%;
   height: 100%;
   border: 0;
-  background: #fff;
+  background: var(--surface);
   opacity: 0;
 }
 
@@ -49,8 +49,8 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #fff;
-  color: #1d1d1f;
+  background: var(--surface);
+  color: var(--text-primary);
   text-align: center;
 }
 
@@ -62,15 +62,15 @@
 
 .report-pdf-loading span:not(.report-pdf-spinner) {
   margin-top: 6px;
-  color: #6e6e73;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .report-pdf-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(0, 113, 227, 0.18);
-  border-top-color: #0071e3;
+  border: 3px solid var(--accent-border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
 }
@@ -88,13 +88,13 @@
   min-height: 68px;
   padding: 0 24px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .security-modal-title {
   font-size: 20px;
   font-weight: 650;
-  color: #1d1d1f;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -111,8 +111,8 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #f5f5f7;
-  color: #6e6e73;
+  background: var(--control-bg);
+  color: var(--text-secondary);
   border: none;
   transition:
     background-color 0.15s ease,
@@ -120,8 +120,8 @@
 }
 
 .security-modal-close:hover {
-  background: #ebebed;
-  color: #1d1d1f;
+  background: var(--control-hover);
+  color: var(--text-primary);
 }
 
 .security-modal-body {
@@ -196,12 +196,12 @@
 .step-dot-current,
 .step-dot-done {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-fill);
 }
 
 .step-dot-todo {
-  background: #f0f0f2;
-  color: #6e6e73;
+  background: var(--control-bg);
+  color: var(--text-secondary);
 }
 
 .step-label {
@@ -211,7 +211,7 @@
 }
 
 .step-label-current {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .step-label-done {
@@ -219,18 +219,18 @@
 }
 
 .step-label-todo {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .step-line {
   flex: 1 0 10px;
   min-width: 10px;
   height: 1px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--border-control);
 }
 
 .step-line-done {
-  background: rgba(0, 113, 227, 0.35);
+  background: var(--accent-border);
 }
 
 /* 当前绑定邮箱等轻量信息行 */
@@ -240,7 +240,7 @@
   gap: 10px;
   padding: 14px;
   border-radius: 12px;
-  background: #f7f7f9;
+  background: var(--surface-sunken);
 }
 
 .info-card-icon {
@@ -250,8 +250,8 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #fff;
-  color: #1d1d1f;
+  background: var(--surface);
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
@@ -272,13 +272,13 @@
   width: 24px;
   height: 3px;
   border-radius: 2px;
-  background: #e5e5ea;
+  background: var(--control-hover);
   transition: background-color 0.2s ease;
 }
 
 .pw-strength-label {
   font-size: 12px;
-  color: #6e6e73;
+  color: var(--text-secondary);
 }
 
 .pw-strength-hidden {
@@ -299,8 +299,8 @@
   min-height: 116px;
   padding: 16px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  background: #fff;
+  border: 1px solid var(--border-control);
+  background: var(--surface);
   text-align: left;
   transition:
     background-color 0.15s ease,
@@ -308,8 +308,8 @@
 }
 
 .verify-method:hover {
-  background: rgba(0, 113, 227, 0.035);
-  border-color: rgba(0, 113, 227, 0.25);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
 }
 
 .verify-method-icon {
@@ -319,8 +319,8 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #f5f5f7;
-  color: #1d1d1f;
+  background: var(--surface-sunken);
+  color: var(--text-primary);
   margin-bottom: 10px;
   flex-shrink: 0;
 }
@@ -339,7 +339,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 14px;
   font-weight: 500;
   transition: color 0.15s ease;

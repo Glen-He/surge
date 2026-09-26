@@ -1,3 +1,4 @@
+import type { DisplayMode } from "@/features/reports/display-mode";
 import type { PoolClient } from "pg";
 import { db } from "@/infrastructure/database/client";
 import type { TagColor } from "@/features/reports/tag-colors";
@@ -35,6 +36,7 @@ export type ShareBoardSummary = {
 };
 
 export type ShareBoardItemView = {
+  displayMode: DisplayMode;
   id: string;
   slug: string;
   date: string;
@@ -46,7 +48,7 @@ export type ShareBoardItemView = {
 };
 
 export type ShareBoardManageView = ShareBoardSummary & {
-  items: Pick<ShareBoardItemView, "slug" | "date" | "title">[];
+  items: Pick<ShareBoardItemView, "slug" | "date" | "title" | "displayMode">[];
 };
 
 export type BoardRow = {
@@ -127,12 +129,13 @@ export async function listShareBoardsWithItems(userId: string): Promise<ShareBoa
   const boards = await listShareBoards(userId);
   if (boards.length === 0) return [];
   const result = await db.query<{
+    display_mode: DisplayMode;
     board_id: string;
     slug: string;
     date: string;
     title: string;
   }>(
-    `SELECT i.board_id, r.slug, r.date, r.title
+    `SELECT i.board_id, r.slug, r.date, r.title, r.display_mode
        FROM share_board_items i
        JOIN share_boards b ON b.id = i.board_id
        JOIN reports r ON r.id = i.report_id
@@ -140,10 +143,10 @@ export async function listShareBoardsWithItems(userId: string): Promise<ShareBoa
       ORDER BY r.date DESC, r.sort_order ASC NULLS LAST, r.created_at DESC`,
     [userId],
   );
-  const byBoard = new Map<string, Pick<ShareBoardItemView, "slug" | "date" | "title">[]>();
+  const byBoard = new Map<string, Pick<ShareBoardItemView, "slug" | "date" | "title" | "displayMode">[]>();
   for (const row of result.rows) {
     const items = byBoard.get(row.board_id) ?? [];
-    items.push({ slug: row.slug, date: row.date, title: row.title });
+    items.push({ slug: row.slug, date: row.date, title: row.title, displayMode: row.display_mode });
     byBoard.set(row.board_id, items);
   }
   return boards.map((board) => ({ ...board, items: byBoard.get(board.id) ?? [] }));
@@ -222,10 +225,7 @@ export async function createShareBoard(
       ],
     );
     if (reportId) {
-      await client.query(
-        `INSERT INTO share_board_items (id, board_id, report_id) VALUES ($1, $2, $3)`,
-        [generateShareId(), id, reportId],
-      );
+      await insertBoardItem(client, id, reportId);
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -248,6 +248,25 @@ export async function createShareBoard(
     updatedAt: now,
     expiresAt,
   };
+}
+
+// 调用方已锁定面板或刚创建面板；同一报告重复加入时保留原短码。
+async function insertBoardItem(client: PoolClient, boardId: string, reportId: string) {
+  const existing = await client.query(
+    `SELECT id FROM share_board_items WHERE board_id = $1 AND report_id = $2`,
+    [boardId, reportId],
+  );
+  if (existing.rows.length > 0) return;
+
+  // 短码只负责面板内定位；联合主键防止碰撞，失败后重新抽样。
+  for (;;) {
+    const inserted = await client.query(
+      `INSERT INTO share_board_items (id, board_id, report_id)
+       VALUES ($1, $2, $3) ON CONFLICT (board_id, id) DO NOTHING RETURNING id`,
+      [generateShareToken(4), boardId, reportId],
+    );
+    if (inserted.rows.length > 0) return;
+  }
 }
 
 async function lockOwnedBoard(client: PoolClient, userId: string, boardId: string) {
@@ -295,11 +314,7 @@ export async function setBoardMembership(
           max: MAX_BOARD_ITEMS,
         });
       }
-      await client.query(
-        `INSERT INTO share_board_items (id, board_id, report_id)
-         VALUES ($1, $2, $3) ON CONFLICT (board_id, report_id) DO NOTHING`,
-        [generateShareId(), boardId, reportId],
-      );
+      await insertBoardItem(client, boardId, reportId);
     } else {
       const removed = await client.query(
         `DELETE FROM share_board_items WHERE board_id = $1 AND report_id = $2`,

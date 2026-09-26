@@ -16,7 +16,6 @@ SURGE 是自托管的工作汇报平台：用户可上传单个 HTML 或包含 `
 corepack enable
 pnpm install --frozen-lockfile
 cp .env.example .env.local
-pnpm dev
 ```
 
 在环境变量中至少配置 `DATABASE_URL`、`BETTER_AUTH_SECRET`、`API_TOKEN_ENCRYPTION_KEY`、`INVITE_CODE_SECRET`、`SHARE_SECRET`、`SHARE_TOKEN_ENCRYPTION_KEY` 和 `REPORTS_DATA_DIR`。报告数据目录在所有环境都必须显式指定，并使用当前 checkout 之外的专用目录。所有变量的唯一契约见 `src/infrastructure/environment/schema.ts`（新增变量必须先在此注册，`pnpm env:check` 会校验 `.env.local` 与 `.env.example` 的同步）。
@@ -29,6 +28,8 @@ pnpm test:integration   # PostgreSQL 集成测试（需要 DATABASE_URL）
 pnpm build
 pnpm verify             # 一次执行全部本地检查（不含 e2e）
 ```
+
+集成测试、生产构建和浏览器验证须使用临时 PostgreSQL 数据库与临时报告目录。单元及集成测试可通过 `SURGE_TEST_REPORTS_DATA_DIR` 指定隔离目录；浏览器测试使用 `E2E_REPORTS_DATA_DIR`，在生产构建后手动运行 `pnpm test:e2e`。验证后清理临时数据，不使用或删除 `reports_local/`。只有需要浏览器交互验收时才临时启动 `pnpm dev`，验收结束立即关闭；项目长期运行环境仅为云服务器。
 
 ## 配置
 
@@ -86,7 +87,7 @@ pnpm start
 
 - 反向代理应是应用的唯一入口，应用端口必须由防火墙限制为仅本机/内网代理可访问。代理覆盖（不是追加客户端传入的）`Host`、`X-Forwarded-Host`、`X-Forwarded-Proto` 与 `X-Forwarded-For`，只允许 HTTPS，把单请求体上限设为 `51 MiB`，并保留 `Content-Length`。上传缺少该头时返回 `411`，超限时在解析 multipart 前返回 `413`。
 
-- 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/r/*` 与 `/platform/*`（平台内置公共库的版本化 URL）；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
+- 内容域（如 `reports.example.com`）可复用同一应用进程，但反向代理只应开放 `/report/*` 与 `/platform/*`（平台内置公共库的版本化 URL）；应用本身也会拒绝内容域上的其他路径和主站 origin 上的报告资源。
 
 - readiness probe 指向 `GET /api/health`：数据库、报告卷可写且剩余空间高于保护线时返回 `200`，否则返回 `503`。
 
@@ -96,17 +97,32 @@ pnpm start
 
 - 使用系统 cron 每 15 分钟调用一次 `POST /api/internal/maintenance`，请求头为 `Authorization: Bearer $MAINTENANCE_SECRET`。进程内调度仍作为兜底，但外部 cron 能覆盖应用重启或长时间无请求场景；`GET /api/health` 会返回最近一次完整维护时间和错误。
 
-- OpenResty/1Panel 访问日志不得记录 `/s/*`、`/b/*`、`/r/*` 的完整 URI；将这些路径统一写成脱敏标签。应用 stdout/stderr 日志也必须配置轮换和有限保留期（建议 30 天以内），不要永久保留容器日志。
+- OpenResty/1Panel 访问日志不得记录 `/share/*`、`/board/*`、`/report/*` 的完整 URI；将这些路径统一写成脱敏标签。应用 stdout/stderr 日志也必须配置轮换和有限保留期（建议 30 天以内），不要永久保留容器日志。
 
 上传限制：ZIP/HTML 50 MiB，解压后单项目 100 MiB / 50 文件 / 5 层目录，单用户总量 2 GiB，站点总量硬上限 20 GiB。上传先取得 PostgreSQL 中的短租约，因此多实例也不会同时产生过多临时文件；系统临时卷和报告卷都通过剩余空间保护线后才写入。
 
-每次创建或替换都会发布一个新的不可变文件版本，再用单条数据库更新切换 `revision + storage_key`。每条报告必须且只能具有 `template_key` 或 `storage_key` 之一，私有 artifact 必须记录正数 `size_bytes`。旧分享链接的 URL 形式不变，未被数据库引用的版本、上传临时目录、已删除账号目录和系统临时上传会在安全等待期后回收。
+每次创建或替换都会发布一个新的不可变文件版本，再用单条数据库更新切换 `revision + storage_key`。每条报告必须且只能具有 `template_key` 或 `storage_key` 之一，私有 artifact 必须记录正数 `size_bytes`。未被数据库引用的版本、上传临时目录、已删除账号目录和系统临时上传会在安全等待期后回收。
 
 账号物理删除会在同一事务中删除该账号的 OTP、Better Auth 验证记录以及含邮箱/IP/浏览器信息的安全日志，再级联删除会话、令牌、分享和报告。其余过期验证码和验证记录会周期清理，安全日志按配置的保留期滚动删除。
 
 应用无法替云厂商删除数据库快照和数据卷快照。生产备份必须另外配置有限保留期（建议 30 天或更短）、加密和到期自动删除；恢复旧备份后应立即运行应用维护任务。不要创建“永久保留”快照，否则账号删除无法覆盖备份副本。
 
 游客登录使用一次服务端编排：匿名账号、60 分钟绝对租约和五张示例卡片全部创建成功后才下发会话 Cookie。示例报告引用代码镜像内的共享只读模板，每位游客仍有独立的报告 ID、元数据、排序和 revision；只有在替换文件时才写时复制为私有目录。退出会先销毁数据再清除 Cookie，页面/API 每次授权都校验绝对到期时间，后台每分钟兜底回收闲置会话。
+
+## 展示模式与访问路径
+
+上传和编辑项目时可选择“汇报展示”（`frame`，默认）或“网页发布”（`bare`）。存量报告由迁移保留为 `frame`。网页发布保留上传 HTML 原文，不剥离网页自身头部、不注入平台菜单、PDF 桥接或滚动条样式；在全屏隔离 iframe 中展示，平台列表通过新标签页打开，并带 `noopener noreferrer`。汇报展示保持原有系统头与操作方式。
+
+- 登录查看：`/view/[slug]`；分享管理：`/account/shared`。
+- 分享落地页：`/share/[token]`；面板：`/board/[token]`；面板汇报内页：`/board/[token]/item/[itemId]`。
+- 面板网页链接：`/share/[token]?item=[itemId]`，其中 token 属于面板。沿用面板密码、有效期、停用和成员关系校验，不额外创建独立分享；面板解锁 Cookie 在主站 `/` 下使用，证明仍绑定该面板 token 和访问纪元。
+- 内容域资源：`/report/[cap]/[...path]`，仍使用 capability、sandbox 和 CSP 隔离。
+
+面板条目 `itemId` 固定为 4 位小写字母或数字，只在同一个面板内唯一。数据库通过 `(board_id, id)` 联合主键保证唯一性，创建时碰撞会重新生成；不同面板允许使用相同短码。迁移会直接替换存量条目的 32 位标识，旧条目链接失效，不保留兼容或重定向。短码仅用于定位，访问仍必须通过面板 token、密码及有效期等校验，内容资源仍由 capability 授权。
+
+分享与面板 token 统一为 8 位小写字母或数字。旧路径不保留且不重定向，旧 22 位 token 无效；已有分享需重新创建，面板可更换链接。发布时须同步调整反向代理内容域路径和访问日志脱敏配置。
+
+网页发布与汇报展示使用相同的上传结构校验、容量配额、分享权限及删除流程。上传 API 的 `displayMode` 字段接受 `frame` / `bare`：新建省略时默认 `frame`，更新省略时保留现有模式；显式非法值返回 400。模式更改会使先前签发的 capability 失效。
 
 ## 报告网页能力
 
@@ -130,4 +146,16 @@ pnpm start
 
 - 自定义浏览器写接口统一验证 Origin/Fetch Metadata，密码登录与重新认证使用 PostgreSQL 跨实例失败限流。
 
-CI 会对每个 PR 执行 lint、TypeScript、Vitest 和生产构建。
+所有 lint、类型检查、测试和构建均由开发者在本地手动运行；项目不配置 GitHub Actions 工作流或自动依赖更新。
+
+
+## 平台颜色约定
+
+`src/shared/ui/design-system.css` 是平台 UI 的颜色来源。新界面先判断元素用途，再引用对应变量，不在页面中新增近似色值：
+
+- **背景**：页面用 `--page-bg`，卡片和弹窗用 `--surface`，内嵌内容用 `--surface-sunken`；浅色控件与悬停分别用 `--control-bg`、`--control-hover`。
+- **文字与图标**：标题、正文用 `--text-primary`，说明、日期、占位提示用 `--text-secondary`；`--icon-muted` 仅用于图标，`--text-disabled` 仅用于不可用内容，实色按钮文字用 `--text-on-fill`。
+- **边框**：卡片轻边缘用 `--border-subtle`，普通容器用 `--border`，输入控件用 `--border-control`，悬停用 `--border-hover`。不新增分割线。
+- **操作与状态**：蓝色 `--accent-*` 表示操作、链接、选中和焦点；绿色 `--success-*` 表示成功，橙色 `--warning-*` 表示提醒，红色 `--danger-*` 表示错误与危险操作。状态实色用于图标或填充，`*-text` 用于文字，`*-soft` 用于浅色背景，不用警示色作普通装饰。
+
+复制成功的绿色及认证自动填充的浅蓝保留既定色值。报告系统头通过现有桥接取得父页颜色，仅作用于自身 Shadow DOM，不向上传网页正文注入主题。项目分类色板由 `src/features/reports/tag-colors.ts` 独立管理；汇报正文遵循 `reports_local/README.md`。根错误页必须在全局样式失效时仍可读，邮件必须兼容邮件客户端，两者使用与上述角色一致的内联色值。阴影与遮罩表示空间和遮挡关系，不参与内容背景的灰阶合并。

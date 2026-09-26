@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CopyPillButton } from "@/shared/ui/copy-feedback-button";
 import { Modal } from "@/shared/ui/modal/modal";
-import { SelectMenu } from "@/features/sharing/select-menu";
+import { SelectMenu } from "@/shared/ui/select-menu";
 import { SharePasscodeControl } from "@/features/sharing/share-passcode-control";
 import { shareClipboardText } from "@/features/sharing/share-copy";
 
@@ -40,9 +40,9 @@ function fmtDate(s: string | null): string {
 
 function statusOf(s: ShareView): { label: string; cls: string } {
   if (s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) {
-    return { label: "已过期", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
+    return { label: "已过期", cls: "bg-[var(--control-bg)] text-[var(--text-secondary)]" };
   }
-  return { label: "生效中", cls: "bg-[#e9fbe9] text-[#166534]" };
+  return { label: "生效中", cls: "bg-[var(--success-soft)] text-[var(--success-text)]" };
 }
 
 // 单报告分享链接上限：撤销（物理删除）后可释放名额重新创建
@@ -247,12 +247,12 @@ function ShareDialog({
       <div
         role="tablist"
         aria-label="分享方式"
-        className="relative mb-5 grid h-[42px] grid-cols-2 rounded-full bg-[#f2f2f7] p-1"
+        className="relative mb-5 grid h-[42px] grid-cols-2 rounded-full bg-[var(--control-bg)] p-1"
       >
         <span
           aria-hidden
           data-testid="share-tab-indicator"
-          className="absolute bottom-1 left-1 top-1 rounded-full bg-white"
+          className="absolute bottom-1 left-1 top-1 rounded-full bg-[var(--surface)]"
           style={{
             width: "calc((100% - 8px) / 2)",
             transform: tab === "boards" ? "translateX(0)" : "translateX(100%)",
@@ -269,7 +269,7 @@ function ShareDialog({
           aria-controls="share-panel-boards"
           onClick={() => setTab("boards")}
           className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
-            tab === "boards" ? "text-[#1d1d1f]" : "text-[#6e6e73]"
+            tab === "boards" ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
           分享面板
@@ -282,7 +282,7 @@ function ShareDialog({
           aria-controls="share-panel-links"
           onClick={() => setTab("links")}
           className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
-            tab === "links" ? "text-[#1d1d1f]" : "text-[#6e6e73]"
+            tab === "links" ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
           分享链接
@@ -298,11 +298,11 @@ function ShareDialog({
           aria-labelledby="share-tab-boards"
           className="flex h-full flex-col gap-5"
         >
-          <div className="shrink-0 rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
-            <p className="text-[13px] font-semibold text-[#1d1d1f]">新建面板并加入当前汇报</p>
+          <div className="shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--surface-sunken)] p-4">
+            <p className="text-[13px] font-semibold text-[var(--text-primary)]">新建面板并加入当前汇报</p>
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
-                <label htmlFor="new-share-board-name" className="mb-1 block text-[12px] text-[#6e6e73]">
+                <label htmlFor="new-share-board-name" className="mb-1 block text-[12px] text-[var(--text-secondary)]">
                   面板名称
                 </label>
                 <input
@@ -316,7 +316,7 @@ function ShareDialog({
                   onKeyDown={(event) => event.key === "Enter" && void createBoard()}
                   maxLength={40}
                   placeholder="例如：课题组周会"
-                  className="h-[38px] w-full rounded-[10px] border border-black/12 bg-white px-3 text-[14px] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+                  className="h-[38px] w-full rounded-[10px] border border-[var(--border-control)] bg-[var(--surface)] px-3 text-[14px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
                 />
               </div>
               <SharePasscodeControl
@@ -328,7 +328,7 @@ function ShareDialog({
                 disabled={creatingBoard}
               />
             </div>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{boardError}</p>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{boardError}</p>
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
@@ -342,33 +342,33 @@ function ShareDialog({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <p className="mb-2 text-[13px] font-semibold text-[#1d1d1f]">
+            <p className="mb-2 text-[13px] font-semibold text-[var(--text-primary)]">
               已有面板 {boards.length > 0 && `（${boards.length}）`}
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {boardsLoading ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">加载中…</div>
+                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">加载中…</div>
               ) : boards.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">还没有分享面板，先新建一个</div>
+                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">还没有分享面板，先新建一个</div>
               ) : (
                 <ul className="space-y-2">
                   {boards.map((board) => {
                     const boardStatus = board.disabled
-                      ? { label: "已停用", cls: "bg-[#f2f2f7] text-[#6e6e73]" }
+                      ? { label: "已停用", cls: "bg-[var(--control-bg)] text-[var(--text-secondary)]" }
                       : board.included
-                        ? { label: "已加入", cls: "bg-[#e9fbe9] text-[#166534]" }
-                        : { label: "未加入", cls: "bg-[#f2f2f7] text-[#6e6e73]" };
+                        ? { label: "已加入", cls: "bg-[var(--success-soft)] text-[var(--success-text)]" }
+                        : { label: "未加入", cls: "bg-[var(--control-bg)] text-[var(--text-secondary)]" };
                     return (
                       <li
                         key={board.id}
-                        className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-black/8 bg-white px-3.5 py-2.5"
+                        className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
                       >
                         <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${boardStatus.cls}`}>
                           {boardStatus.label}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12px] font-semibold text-[#1d1d1f]">{board.title}</span>
-                          <span className="block text-[11px] text-[#6e6e73]">
+                          <span className="block truncate text-[12px] font-semibold text-[var(--text-primary)]">{board.title}</span>
+                          <span className="block text-[11px] text-[var(--text-secondary)]">
                             {board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.itemCount} 份汇报
                           </span>
                         </span>
@@ -376,13 +376,13 @@ function ShareDialog({
                           <CopyPillButton
                             text={() =>
                               shareClipboardText(
-                                `${location.origin}/b/${board.token}`,
+                                `${location.origin}/board/${board.token}`,
                                 board.passcode,
                               )
                             }
                             label="复制链接"
                             disabled={board.disabled}
-                            className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
+                            className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                           />
                           <button
                             type="button"
@@ -390,8 +390,8 @@ function ShareDialog({
                             disabled={board.disabled || changingBoardId === board.id}
                             className={`inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border text-[12px] font-medium transition-colors disabled:opacity-40 ${
                               board.included
-                                ? "border-[rgba(255,59,48,0.35)] text-[#ff3b30] hover:bg-[rgba(255,59,48,0.06)]"
-                                : "border-[rgba(0,113,227,0.3)] text-[#0071e3] hover:bg-[rgba(0,113,227,0.06)]"
+                                ? "border-[var(--danger-border)] text-[var(--danger-text)] hover:bg-[var(--danger-soft)]"
+                                : "border-[var(--accent-border)] text-[var(--accent-text)] hover:bg-[var(--accent-soft)]"
                             }`}
                           >
                             {changingBoardId === board.id
@@ -417,11 +417,11 @@ function ShareDialog({
         className="flex h-full flex-col gap-5"
       >
         {/* 创建区 */}
-        <div className="shrink-0 rounded-[14px] border border-black/8 bg-[#f9f9fb] p-4">
-          <p className="text-[13px] font-semibold text-[#1d1d1f]">创建分享链接</p>
+        <div className="shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--surface-sunken)] p-4">
+          <p className="text-[13px] font-semibold text-[var(--text-primary)]">创建分享链接</p>
           <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>
-              <label htmlFor="share-link-expiry" className="mb-1 block text-[12px] text-[#6e6e73]">
+              <label htmlFor="share-link-expiry" className="mb-1 block text-[12px] text-[var(--text-secondary)]">
                 有效期
               </label>
               <SelectMenu
@@ -449,7 +449,7 @@ function ShareDialog({
           {/* 提示行固定占位 18px：错误（红）/ 达到上限说明（灰）都不改变弹窗高度 */}
           <p
             className={`mt-2 h-[18px] text-[13px] leading-[18px] ${
-              limitReached && !error ? "text-[#6e6e73]" : "text-[#ff3b30]"
+              limitReached && !error ? "text-[var(--text-secondary)]" : "text-[var(--danger-text)]"
             }`}
           >
             {error ||
@@ -473,7 +473,7 @@ function ShareDialog({
         {/* 列表占用固定面板的剩余空间；内容增加时仅列表内部滚动，
             不改变弹窗尺寸。隐藏原生滚动条，滚轮、触控板和触摸滑动仍可用。 */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <p className="mb-2 text-[13px] font-semibold text-[#1d1d1f]">
+          <p className="mb-2 text-[13px] font-semibold text-[var(--text-primary)]">
             已有链接 {shares.length > 0 && `（${shares.length}）`}
           </p>
           <div
@@ -481,11 +481,11 @@ function ShareDialog({
             className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {loading ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">
+              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">
                 加载中…
               </div>
             ) : shares.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-black/10 text-[13px] text-[#6e6e73]">
+              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">
                 还没有分享链接，先生成一个
               </div>
             ) : (
@@ -496,12 +496,12 @@ function ShareDialog({
                 return (
                   <li
                     key={s.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-black/8 bg-white px-3.5 py-2.5"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
                   >
                     <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${st.cls}`}>
                       {st.label}
                     </span>
-                    <span className="text-[12px] text-[#6e6e73]">
+                    <span className="text-[12px] text-[var(--text-secondary)]">
                       {s.passcode ? `提取码 ${s.passcode}` : "公开"}
                       {" · "}
                       {s.expiresAt ? `至 ${fmtDate(s.expiresAt)}` : "永久"}
@@ -513,20 +513,20 @@ function ShareDialog({
                       <CopyPillButton
                         text={() =>
                           shareClipboardText(
-                            `${location.origin}/s/${s.token}`,
+                            `${location.origin}/share/${s.token}`,
                             s.passcode,
                           )
                         }
                         label="复制链接"
                         disabled={!active}
-                        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#ededf2] disabled:opacity-40"
+                        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                       />
                       {active && (
                         <button
                           type="button"
                           onClick={() => revoke(s.id)}
                           disabled={revokingId === s.id}
-                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[rgba(255,59,48,0.35)] text-[12px] font-medium text-[#ff3b30] transition-colors hover:bg-[rgba(255,59,48,0.06)] disabled:opacity-40"
+                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--danger-border)] text-[12px] font-medium text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-soft)] disabled:opacity-40"
                         >
                           {revokingId === s.id ? "撤销中…" : "撤销"}
                         </button>

@@ -1,11 +1,12 @@
 // 报告文档渲染（登录态查看页与分享页共用）。
 //
-// 架构：报告文件通过 /r/<cap>/ 虚拟目录原样输出（capability 即访问凭证，
+// 架构：报告文件通过 /report/<cap>/ 虚拟目录原样输出（capability 即访问凭证，
 // 见 features/reports/report-capability.ts），浏览器按文档 URL 原生解析一切相对引用；
 // 平台公共库（echarts 等）由报告 HTML 直接以 /platform/<文件名> 引用
 //（见 features/reports/serving/platform-assets.ts）。平台不改写用户资源路径。本模块的后处理
-// 与路径无关：剥离模板自带报告头、注入 PDF 桥接与滚动条样式。
+// 与路径无关：汇报展示剥离模板自带报告头、注入 PDF 桥接与滚动条样式；网页发布保持原文。
 
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { REPORT_SANDBOX_TOKENS } from "@/features/reports/serving/report-security";
 
 // 报告文档统一 CSP：
@@ -17,7 +18,7 @@ import { REPORT_SANDBOX_TOKENS } from "@/features/reports/serving/report-securit
 // - 表单提交、插件对象与 base URL 改写始终禁止。
 //   注意一：sandbox 使文档成为 opaque origin，CSP 的 'self' 永不匹配，
 //   必须显式 origin。注意二：host source 支持路径前缀（以 / 结尾），
-//   收紧到 /r/<cap>/ 而非整个主站 origin——服务端授权与浏览器 CSP
+//   收紧到 /report/<cap>/ 而非整个主站 origin——服务端授权与浏览器 CSP
 //   限制在同一个 capability namespace，主站其他路径（如 /api/*）
 //   即使被写进 <img>/<script> 也会被 CSP 拦截
 export function reportDocCsp(
@@ -68,11 +69,11 @@ function reportHeaderBridgeScript(bridgeToken: string): string {
   var root=host.attachShadow({mode:"open"});
   var configured=false;
   var style=document.createElement("style");
-  style.textContent=":host{display:block;width:100%;height:82px;min-height:82px;max-height:82px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif}*{box-sizing:border-box}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%;max-width:1280px;height:82px;margin:0 auto;padding:32px 0 10px}.title{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:32px;font-weight:700;line-height:1.15;letter-spacing:-.02em;color:#1d1d1f}.actions{display:flex;flex:0 0 auto;align-items:center;gap:10px;height:40px}.action{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 16px;border:1px solid rgba(0,0,0,.06);border-radius:999px;background:rgba(255,255,255,.72);color:#6e6e73;font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;white-space:nowrap;cursor:pointer}.action:hover{background:#ededf2;color:#1d1d1f}.action:focus-visible{outline:2px solid #0071e3;outline-offset:2px}.action svg{width:15px;height:15px}.meta{display:flex;height:40px;align-items:center;color:#6e6e73;font-size:13px;white-space:nowrap}";
+  style.textContent=":host{display:block;width:100%;height:82px;min-height:82px;max-height:82px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif}*{box-sizing:border-box}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%;max-width:1280px;height:82px;margin:0 auto;padding:32px 0 10px}.title{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:32px;font-weight:700;line-height:1.15;letter-spacing:-.02em;color:var(--surge-text-primary)}.actions{display:flex;flex:0 0 auto;align-items:center;gap:10px;height:40px}.action{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 16px;border:1px solid var(--surge-border-subtle);border-radius:999px;background:var(--surge-surface);color:var(--surge-text-secondary);font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;white-space:nowrap;cursor:pointer}.action:hover{background:var(--surge-control-hover);color:var(--surge-text-primary)}.action:focus-visible{outline:2px solid var(--surge-accent);outline-offset:2px}.action svg{width:15px;height:15px}.meta{display:flex;height:40px;align-items:center;color:var(--surge-text-secondary);font-size:13px;white-space:nowrap}";
   root.appendChild(style);
   function icon(kind){var box=document.createElementNS("http://www.w3.org/2000/svg","svg");box.setAttribute("viewBox","0 0 24 24");box.setAttribute("fill","none");box.setAttribute("stroke","currentColor");box.setAttribute("stroke-width","2");box.setAttribute("aria-hidden","true");box.innerHTML=kind==="share"?'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>':'<path d="M15 18l-6-6 6-6"/>';return box}
   function action(kind,label){var button=document.createElement("button");button.type="button";button.className="action";button.appendChild(icon(kind));button.appendChild(document.createTextNode(label));button.addEventListener("click",function(event){if(!event.isTrusted)return;post({__surgeReportHeaderAction:{bridgeToken:bridgeToken,action:kind}},"*")});return button}
-  function render(config){if(!config||typeof config!=="object")return;var title=typeof config.title==="string"?config.title.slice(0,160):"";var meta=typeof config.meta==="string"?config.meta.slice(0,160):"";var back=typeof config.backLabel==="string"?config.backLabel.slice(0,24):"";var head=document.createElement("header");head.className="head";var heading=document.createElement("h1");heading.className="title";heading.textContent=title;head.appendChild(heading);var actions=document.createElement("div");actions.className="actions";if(config.share===true)actions.appendChild(action("share","分享"));if(back)actions.appendChild(action("back",back));if(!config.share&&!back&&meta){var info=document.createElement("span");info.className="meta";info.textContent=meta;actions.appendChild(info)}head.appendChild(actions);while(root.childNodes.length>1)root.removeChild(root.lastChild);root.appendChild(head);configured=true}
+  function render(config){if(!config||typeof config!=="object")return;var title=typeof config.title==="string"?config.title.slice(0,160):"";var meta=typeof config.meta==="string"?config.meta.slice(0,160):"";var back=typeof config.backLabel==="string"?config.backLabel.slice(0,24):"";var head=document.createElement("header");head.className="head";if(config.colors&&typeof config.colors==="object")["surface","control-hover","text-primary","text-secondary","accent","border-subtle"].forEach(function(name){var value=config.colors[name];if(typeof value==="string"&&CSS.supports("color",value))head.style.setProperty("--surge-"+name,value)});var heading=document.createElement("h1");heading.className="title";heading.textContent=title;head.appendChild(heading);var actions=document.createElement("div");actions.className="actions";if(config.share===true)actions.appendChild(action("share","分享"));if(back)actions.appendChild(action("back",back));if(!config.share&&!back&&meta){var info=document.createElement("span");info.className="meta";info.textContent=meta;actions.appendChild(info)}head.appendChild(actions);while(root.childNodes.length>1)root.removeChild(root.lastChild);root.appendChild(head);configured=true}
   window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;render(data&&data.__surgeReportHeaderConfig)});
   function ready(){if(!configured)post({__surgeReportHeaderReady:bridgeToken},"*")}
   ready();window.addEventListener("load",ready);setTimeout(ready,250);setTimeout(ready,1000)
@@ -87,7 +88,9 @@ const reportHeaderSpacer =
  * 1. 剥离模板自带的报告头（标题 + 返回按钮）：页面统一在上方渲染系统头；
  * 2. 注入 PDF/系统头安全桥接、文档流系统头与滚动条隐藏样式。
  */
-export function renderReportDoc(html: string, bridgeToken: string): string {
+export function renderReportDoc(html: string, bridgeToken: string, displayMode: DisplayMode = "frame"): string {
+  // 网页发布保留上传文档的全部结构和样式；安全隔离仍由响应 CSP 与 iframe 提供。
+  if (displayMode === "bare") return html;
   if (!/^[A-Za-z0-9_-]{43}$/.test(bridgeToken)) {
     throw new Error("report bridge token is invalid");
   }

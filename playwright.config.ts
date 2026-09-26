@@ -34,8 +34,8 @@ process.env.SMTP_PASS = "e2e-only-password";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
-  retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  retries: 0,
+  reporter: "list",
   use: {
     baseURL,
     trace: "retain-on-failure",

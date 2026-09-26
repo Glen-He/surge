@@ -62,7 +62,7 @@ export async function POST(
     httpOnly: true,
     secure: new URL(serverEnv.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
-    path: `/s/${token}`,
+    path: `/share/${token}`,
     // 会话级：不设 maxAge，关浏览器即失；重新打开需再次输入密码
   });
   return Response.json({ ok: true });

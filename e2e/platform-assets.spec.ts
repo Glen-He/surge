@@ -24,7 +24,7 @@ import {
 // 边界、CSP script-src 与 sandbox 语义。
 // 报告 A/B 使用仓库内最小确定性夹具，分别覆盖 ECharts + data.js +
 // 3Dmol 懒加载及 ECharts + data.js；模板 T 使用 tpl-01。E2E 不依赖
-// 被 gitignore 排除的 reports_local，确保本地与 CI 使用完全相同的输入。
+// 被 gitignore 排除的 reports_local，确保每次运行都使用相同的输入。
 
 const ECHARTS_URL_FILE = "echarts.42f8329d989b6f65.min.js";
 
@@ -172,10 +172,10 @@ async function openSharedReport(
   token: string,
   title: string,
 ): Promise<{ report: FrameLocator; frameSrc: string }> {
-  await page.goto(`/s/${token}`);
+  await page.goto(`/share/${token}`);
   const frame = page.locator(`iframe[title="${title}"]`);
   await expect(frame).toBeVisible();
-  await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/r\//);
+  await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/report\//);
   // sandbox 属性必须与平台常量完全一致（本任务不得改变沙箱语义）
   await expect(frame).toHaveAttribute("sandbox", REPORT_SANDBOX_TOKENS);
   const frameSrc = (await frame.getAttribute("src"))!;
@@ -223,7 +223,7 @@ test("报告 A：平台 URL 直接引用、图表渲染、3Dmol 不随首屏加�
   // 资源路径改写）+ CSP 携带 /platform/ 前缀源
   const frameUrl = new URL(frameSrc);
   const cap = frameUrl.pathname.split("/")[2];
-  const capBase = `${frameUrl.origin}/r/${cap}`;
+  const capBase = `${frameUrl.origin}/report/${cap}`;
   const docResponse = await page.request.get(frameSrc);
   expect(docResponse.status()).toBe(200);
   const docBody = await docResponse.text();
@@ -249,7 +249,7 @@ test("报告 A：平台 URL 直接引用、图表渲染、3Dmol 不随首屏加�
     expect(timingA[0].transferSize).toBeGreaterThan(0);
   }
   // data.js 走 capability 命名空间（200）
-  expect(requestsFor(/\/r\/[^/]+\/data\.js/).length).toBeGreaterThanOrEqual(1);
+  expect(requestsFor(/\/report\/[^/]+\/data\.js/).length).toBeGreaterThanOrEqual(1);
 
   // 图表就绪且未滚动：3Dmol 必须保持零请求
   await page.waitForTimeout(1_500);
@@ -287,7 +287,7 @@ test("第二份 ECharts 报告与模板报告：平台缓存命中", async ({
   // 计数不能当命中信号；WebKit 在 sandbox iframe 中 ResourceTiming
   // 尺寸恒 0，传输语义仅在 chromium 断言，WebKit 由图表渲染 +
   // 无 fallback 覆盖
-  expect(requestsFor(/\/r\/[^/]+\/echarts\.min\.js/)).toHaveLength(0);
+  expect(requestsFor(/\/report\/[^/]+\/echarts\.min\.js/)).toHaveLength(0);
   const timingB = await platformEchartsTiming(reportB);
   expect(timingB).toHaveLength(1);
   expect(timingB[0].transferSize).toBe(0);
@@ -321,7 +321,7 @@ test("返回报告 A：平台缓存仍命中且 3Dmol 仍未请求", async () =>
   expect(timing).toHaveLength(1);
   expect(timing[0].transferSize).toBe(0);
   // 未回退加载 capability 内任何副本（WebKit ResourceTiming 恒 0，此为兜底信号）
-  expect(requestsFor(/\/r\/[^/]+\/echarts\.min\.js/)).toHaveLength(0);
+  expect(requestsFor(/\/report\/[^/]+\/echarts\.min\.js/)).toHaveLength(0);
   await page.waitForTimeout(1_000);
   expect(requestsFor(/3Dmol-min\.js/)).toHaveLength(0);
   await page.close();
@@ -407,7 +407,7 @@ test("平台资源与 capability 安全边界", async () => {
   // 主站 origin 拿到 capability 也不输出报告（内容域边界不变）
   expect(
     (
-      await fixture.context!.request.get(`${mainOrigin}/r/${cap}/report.html`)
+      await fixture.context!.request.get(`${mainOrigin}/report/${cap}/report.html`)
     ).status(),
   ).toBe(404);
 
@@ -415,19 +415,19 @@ test("平台资源与 capability 安全边界", async () => {
   expect(
     (
       await fixture.context!.request.get(
-        `${reportsOrigin}/r/${cap}/report.html`,
+        `${reportsOrigin}/report/${cap}/report.html`,
       )
     ).status(),
   ).toBe(200);
   expect(
     (
       await fixture.context!.request.get(
-        `${reportsOrigin}/r/badcap/report.html`,
+        `${reportsOrigin}/report/badcap/report.html`,
       )
     ).status(),
   ).toBe(404);
   expect(
-    (await fixture.context!.request.get(`${reportsOrigin}/r/${cap}/data.js`))
+    (await fixture.context!.request.get(`${reportsOrigin}/report/${cap}/data.js`))
       .status(),
   ).toBe(200);
 });

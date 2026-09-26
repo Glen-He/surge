@@ -47,7 +47,7 @@ function sanitizeText(value: string): string {
       /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
       (address) => `fp:${fingerprint(address)}`,
     )
-    .replace(/\/(?:s|b|r)\/[^\s/?#]+/g, (match) => `${match.slice(0, 3)}[redacted]`);
+    .replace(/\/(share|board|report)\/[^\s/?#]+/g, "/$1/[redacted]");
 }
 
 function sanitizeValue(key: string, value: unknown): unknown {

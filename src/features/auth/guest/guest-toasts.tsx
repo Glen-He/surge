@@ -43,7 +43,7 @@ function Card({ variant }: { variant: Variant }) {
         style={{
           fontSize: 14,
           fontWeight: 600,
-          color: "#1d1d1f",
+          color: "var(--text-primary)",
           letterSpacing: "-0.01em",
           whiteSpace: "nowrap",
         }}
@@ -69,7 +69,7 @@ function PersonIcon() {
     <svg
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#0071E3"
+      stroke="var(--accent)"
       strokeWidth={1.8}
       className="h-5 w-5 shrink-0"
       aria-hidden="true"
@@ -85,7 +85,7 @@ function ClockIcon() {
     <svg
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#FF9500"
+      stroke="var(--warning)"
       strokeWidth={1.8}
       className="h-5 w-5 shrink-0"
       aria-hidden="true"
@@ -242,7 +242,7 @@ export function GuestToasts() {
           icon: <PersonIcon />,
           title: "游客登录成功",
           sub: `会话 ${welcomeTtl} 分钟`,
-          subColor: "#0071E3",
+          subColor: "var(--accent-text)",
         }}
       />
     );
@@ -254,7 +254,7 @@ export function GuestToasts() {
           icon: <ClockIcon />,
           title: "游客体验已结束",
           sub: "注册账号可长期保存汇报",
-          subColor: "#6e6e73",
+          subColor: "var(--text-secondary)",
         }}
       />
     );
@@ -266,7 +266,7 @@ export function GuestToasts() {
           icon: <ClockIcon />,
           title: "游客会话即将结束",
           sub: "5 分钟后自动退出",
-          subColor: "#ff3b30",
+          subColor: "var(--warning-text)",
         }}
       />
     );

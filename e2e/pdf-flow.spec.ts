@@ -34,7 +34,7 @@ test.beforeAll(async () => {
   const dir = reportArtifactDir(user.id, fixture.storageKey);
   await fs.mkdir(dir, { recursive: true });
   const appOrigin = process.env.BETTER_AUTH_URL!;
-  const html = `<!doctype html><html><head><title>PDF E2E</title></head><body>
+  const html = `<!doctype html><html><head><title>PDF E2E</title></head><body style="color:rgb(91,33,182)">
     <button id="preview">preview pdf</button>
     <button id="modal">native modal</button>
     <a id="download" href="./paper.pdf" download>download pdf</a>
@@ -99,11 +99,11 @@ test.afterAll(async () => {
 });
 
 test("独立内容域报告保留视口、PDF 与外链能力", async ({ page }) => {
-  await page.goto(`/s/${fixture.token}`);
+  await page.goto(`/share/${fixture.token}`);
   const frame = page.locator(`iframe[title="${fixture.title}"]`);
   const report = page.frameLocator(`iframe[title="${fixture.title}"]`);
   await expect(frame).toBeVisible();
-  await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/r\//);
+  await expect(frame).toHaveAttribute("src", /^http:\/\/localhost:\d+\/report\//);
   const reportSrc = await frame.getAttribute("src");
   const reportResponse = await page.request.get(reportSrc!);
   expect(reportResponse.headers()["x-frame-options"]).toBeUndefined();
@@ -127,6 +127,9 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
       ),
     )
     .toBe(fixture.title);
+  // 系统头从父页取得主题色，报告正文继续使用自己的配色。
+  await expect(reportHeader.getByRole("heading")).toHaveCSS("color", "rgb(29, 29, 31)");
+  await expect(report.locator("body")).toHaveCSS("color", "rgb(91, 33, 182)");
   const initialHeaderBox = await reportHeader.boundingBox();
   await report.locator("body").evaluate(() => window.scrollTo(0, 140));
   const scrolledHeaderBox = await reportHeader.boundingBox();
@@ -202,7 +205,7 @@ test("独立内容域报告保留视口、PDF 与外链能力", async ({ page })
   await expect(pdfModal).toBeFocused();
   await expect(pdfModalClose).not.toBeFocused();
   await expect(pdfModalClose).toHaveCSS("outline-style", "none");
-  await expect(preview).toHaveAttribute("src", /\/r\/[^/]+\/paper\.pdf$/);
+  await expect(preview).toHaveAttribute("src", /\/report\/[^/]+\/paper\.pdf$/);
   await expect(page.getByRole("status")).toContainText("正在加载 PDF");
   await page.waitForTimeout(4_300);
   await expect(page.getByRole("status")).toBeHidden();

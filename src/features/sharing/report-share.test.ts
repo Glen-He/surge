@@ -24,13 +24,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("generateShareToken", () => {
-  it("生成长度 22 的 base62 token", () => {
+  it("生成长度 8 的小写字母数字 token", () => {
     const t = generateShareToken();
-    expect(t).toMatch(/^[A-Za-z0-9]{22}$/);
+    expect(t).toMatch(/^[a-z0-9]{8}$/);
   });
 
   it("支持自定义长度", () => {
-    expect(generateShareToken(8)).toMatch(/^[A-Za-z0-9]{8}$/);
+    expect(generateShareToken(10)).toMatch(/^[a-z0-9]{10}$/);
   });
 
   it("大量生成不重复", () => {
@@ -38,8 +38,11 @@ describe("generateShareToken", () => {
     expect(set.size).toBe(2000);
   });
 
-  it("公开入口只接受当前版本的 22 位 base62 token", () => {
-    expect(isValidShareToken("A1b2C3d4E5f6G7h8I9j0K1")).toBe(true);
+  it("公开入口仅接受八位小写字母数字，旧 token 一律无效", () => {
+    expect(isValidShareToken("a1b2c3d4")).toBe(true);
+    expect(isValidShareToken("a".repeat(22))).toBe(false);
+    expect(isValidShareToken("A1b2c3d4")).toBe(false);
+    expect(isValidShareToken("a1b2c3d_")).toBe(false);
     expect(isValidShareToken("short")).toBe(false);
     expect(isValidShareToken("A1b2C3d4E5f6G7h8I9j0K_")).toBe(false);
     expect(isValidShareToken("A".repeat(10_000))).toBe(false);
@@ -67,17 +70,17 @@ describe("4 位分享提取码", () => {
   });
 
   it("复制内容的链接自带提取码，同时保留独立提取码文案", () => {
-    expect(shareClipboardText("https://example.test/s/token", "A7B2")).toBe(
-      "链接：https://example.test/s/token#pwd=A7B2\n提取码：A7B2",
+    expect(shareClipboardText("https://example.test/share/token", "A7B2")).toBe(
+      "链接：https://example.test/share/token#pwd=A7B2\n提取码：A7B2",
     );
-    expect(shareClipboardText("https://example.test/s/token", null)).toBe(
-      "https://example.test/s/token",
+    expect(shareClipboardText("https://example.test/share/token", null)).toBe(
+      "https://example.test/share/token",
     );
   });
 
   it("提取码使用不会发送到服务端的 URL fragment，并能严格解析", () => {
-    expect(shareUrlWithPasscode("https://example.test/b/token", "A7B2")).toBe(
-      "https://example.test/b/token#pwd=A7B2",
+    expect(shareUrlWithPasscode("https://example.test/board/token", "A7B2")).toBe(
+      "https://example.test/board/token#pwd=A7B2",
     );
     expect(sharePasscodeFromHash("#pwd=a7b2")).toBe("A7B2");
     expect(sharePasscodeFromHash("#pwd=TOO-LONG")).toBeNull();

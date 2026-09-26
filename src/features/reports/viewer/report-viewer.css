@@ -57,7 +57,7 @@
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
-  color: #1d1d1f;
+  color: var(--text-primary);
 }
 /* 与 .btn-light 同款视觉（页级导航胶囊）：字号/字重必须显式设置，
    按钮元素不继承页面字号，缺失时落回浏览器默认 13.33px */
@@ -69,10 +69,10 @@
   flex: 0 0 auto;
   height: 40px;
   padding: 0 16px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #6e6e73;
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -83,12 +83,12 @@
     border-color 0.15s ease;
 }
 .rpt-sys-head .rpt-sys-back:hover {
-  background: #ededf2;
-  color: #1d1d1f;
+  background: var(--control-hover);
+  color: var(--text-primary);
 }
 .rpt-sys-head .rpt-sys-back:focus {
   outline: none;
-  border-color: #0071e3;
+  border-color: var(--accent);
 }
 .rpt-sys-head .rpt-sys-back svg {
   width: 15px;
@@ -96,8 +96,8 @@
 }
 
 @theme inline {
-  --color-background: #f5f5f7;
-  --color-foreground: #1d1d1f;
+  --color-background: var(--page-bg);
+  --color-foreground: var(--text-primary);
   --font-sans:
     -apple-system,
     BlinkMacSystemFont,

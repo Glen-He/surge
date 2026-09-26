@@ -1,6 +1,9 @@
 import { db, withStorageLocks } from "@/infrastructure/database/client";
 
+import type { DisplayMode } from "@/features/reports/display-mode";
+
 export type DbReport = {
+  display_mode: DisplayMode;
   id: string;
   user_id: string;
   slug: string;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { CopyPillButton } from "@/shared/ui/copy-feedback-button";
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
 import { Modal } from "@/shared/ui/modal/modal";
@@ -20,7 +21,7 @@ export type ManagedBoard = {
   viewCount: number;
   itemCount: number;
   expiresAt: string | null;
-  items: { slug: string; date: string; title: string }[];
+  items: { slug: string; date: string; title: string; displayMode: DisplayMode }[];
 };
 
 export function ShareBoardsManager({
@@ -180,13 +181,13 @@ export function ShareBoardsManager({
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[21px] font-semibold tracking-[-0.01em]">分享面板</h2>
-          <p className="mt-1 text-[13px] text-[#6e6e73]">按查看对象创建不同面板，同一汇报可加入多个面板。</p>
+          <p className="mt-1 text-[13px] text-[var(--text-secondary)]">按查看对象创建不同面板，同一汇报可加入多个面板。</p>
         </div>
         <div className="group/new-board relative shrink-0">
           <button
             type="button"
             aria-label="新建面板"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0071e3] text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:bg-[#0077ed] hover:shadow-[0_6px_16px_rgba(0,113,227,0.2)] active:scale-[0.96]"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--text-on-fill)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[transform,background-color,box-shadow] duration-200 ease-out hover:scale-[1.03] hover:bg-[var(--accent-hover)] hover:shadow-[0_6px_16px_rgba(0,113,227,0.2)] active:scale-[0.96]"
             onClick={() => setNewOpen(true)}
           >
             <svg
@@ -201,7 +202,7 @@ export function ShareBoardsManager({
               <path d="M12 5v14M5 12h14" />
             </svg>
           </button>
-          <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[rgba(0,0,0,0.08)] bg-white px-3 py-1 text-[12px] font-medium text-[#1d1d1f] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new-board:opacity-100 group-hover/new-board:delay-[60ms]">
+          <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[12px] font-medium text-[var(--text-primary)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new-board:opacity-100 group-hover/new-board:delay-[60ms]">
             新建面板
           </span>
         </div>
@@ -215,33 +216,36 @@ export function ShareBoardsManager({
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {boards.map((board) => (
-            <article key={board.id} className="flex min-h-[250px] flex-col rounded-[20px] bg-white p-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)]">
+            <article key={board.id} className="flex min-h-[250px] flex-col rounded-[20px] bg-[var(--surface)] p-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)]">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-[17px] font-semibold">{board.title}</h3>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${board.disabled ? "bg-[#f2f2f7] text-[#6e6e73]" : "bg-[#e9fbe9] text-[#166534]"}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${board.disabled ? "bg-[var(--control-bg)] text-[var(--text-secondary)]" : "bg-[var(--success-soft)] text-[var(--success-text)]"}`}>
                       {board.disabled ? "已停用" : "生效中"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12px] text-[#6e6e73]">{board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.expiresAt ? `${board.expiresAt.slice(0, 10)} 到期` : "长期有效"} · {board.itemCount} 份汇报 · {board.viewCount} 次访问</p>
                 </div>
-                <button type="button" onClick={() => openSettings(board)} className="h-8 rounded-full bg-[#f2f2f7] px-3 text-[12px] font-medium hover:bg-[#e8e8ed]">设置</button>
+                <button type="button" onClick={() => openSettings(board)} className="h-8 rounded-full bg-[var(--control-bg)] px-3 text-[12px] font-medium hover:bg-[var(--control-hover)]">设置</button>
               </div>
 
               <div className="mt-4 max-h-[118px] flex-1 space-y-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {board.items.length === 0 ? (
-                  <p className="rounded-[10px] bg-[#f9f9fb] px-3 py-3 text-[12px] text-[#6e6e73]">暂无汇报，请从汇报的分享弹窗加入</p>
+                  <p className="rounded-[10px] bg-[var(--surface-sunken)] px-3 py-3 text-[12px] text-[var(--text-secondary)]">暂无汇报，请从汇报的分享弹窗加入</p>
                 ) : board.items.map((report) => (
-                  <div key={report.slug} className="flex items-center gap-2 rounded-[10px] bg-[#f9f9fb] px-3 py-2">
-                    <Link href={`/report/${report.slug}`} className="min-w-0 flex-1 truncate text-[12px] font-medium hover:text-[#0071e3]">{report.title}</Link>
-                    <span className="shrink-0 text-[11px] text-[#86868b]">{report.date}</span>
+                  <div key={report.slug} className="flex items-center gap-2 rounded-[10px] bg-[var(--surface-sunken)] px-3 py-2">
+                    <Link href={`/view/${report.slug}`} target={report.displayMode === "bare" ? "_blank" : undefined} rel={report.displayMode === "bare" ? "noopener noreferrer" : undefined} className="min-w-0 flex-1 truncate text-[12px] font-medium hover:text-[var(--accent-text)]">{report.title}</Link>
+                    {report.displayMode === "bare" && (
+                      <span className="shrink-0 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent-text)]">网页</span>
+                    )}
+                    <span className="shrink-0 text-[11px] text-[var(--text-secondary)]">{report.date}</span>
                     <button
                       type="button"
                       aria-label={`从面板移除 ${report.title}`}
                       onClick={() => removeItem(board, report.slug)}
                       disabled={busyId === `${board.id}:${report.slug}`}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#86868b] hover:bg-[rgba(255,59,48,0.08)] hover:text-[#ff3b30] disabled:opacity-40"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--icon-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger-text)] disabled:opacity-40"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5"><path d="M6 6l12 12M18 6 6 18" /></svg>
                     </button>
@@ -253,20 +257,20 @@ export function ShareBoardsManager({
                 <CopyPillButton
                   text={() =>
                     shareClipboardText(
-                      `${location.origin}/b/${board.token}`,
+                      `${location.origin}/board/${board.token}`,
                       board.passcode,
                     )
                   }
                   label="复制链接"
                   disabled={board.disabled}
-                  className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[#f2f2f7] text-[12px] font-medium text-[#1d1d1f] transition-colors hover:bg-[#e8e8ed] disabled:text-[#86868b] disabled:opacity-60"
+                  className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[var(--control-bg)] text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:text-[var(--text-disabled)] disabled:opacity-60"
                 />
                 {!board.disabled && (
                   <Link
-                    href={`/b/${board.token}`}
+                    href={`/board/${board.token}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-8 w-[96px] items-center justify-center gap-1 rounded-full bg-[#0071e3] text-[12px] font-semibold text-white transition-colors hover:bg-[#0077ed]"
+                    className="inline-flex h-8 w-[96px] items-center justify-center gap-1 rounded-full bg-[var(--accent)] text-[12px] font-semibold text-[var(--text-on-fill)] transition-colors hover:bg-[var(--accent-hover)]"
                   >
                     打开面板
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3" aria-hidden="true">
@@ -283,7 +287,7 @@ export function ShareBoardsManager({
 
       <Modal open={newOpen} onClose={() => setNewOpen(false)} title="新建分享面板" plainHeader busy={creating} dirty={!!newTitle || newPasswordProtected || !!newExpiresOn}>
         <label className="block text-[13px] font-medium">面板名称</label>
-        <input value={newTitle} onChange={(event) => { setNewTitle(event.target.value); setNewError(""); }} maxLength={40} placeholder="例如：课题组周会" className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
+        <input value={newTitle} onChange={(event) => { setNewTitle(event.target.value); setNewError(""); }} maxLength={40} placeholder="例如：课题组周会" className="mt-2 h-[42px] w-full rounded-[10px] border border-[var(--border-control)] px-3 text-[14px] outline-none focus:border-[var(--accent)]" />
         <div className="mt-4">
           <SharePasscodeControl enabled={newPasswordProtected} onChange={(enabled) => { setNewPasswordProtected(enabled); setNewError(""); }} disabled={creating} />
         </div>
@@ -302,7 +306,7 @@ export function ShareBoardsManager({
             setNewError("");
           }}
         />
-        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{newError}</p>
+        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{newError}</p>
         <div className="mt-4 flex justify-end gap-2.5">
           <button type="button" onClick={() => setNewOpen(false)} className="btn-secondary">取消</button>
           <button type="button" onClick={createBoard} disabled={!newTitle.trim() || creating} className="btn-primary">{creating ? "创建中…" : "创建面板"}</button>
@@ -313,7 +317,7 @@ export function ShareBoardsManager({
         {editing && (
           <>
             <label className="block text-[13px] font-medium">面板名称</label>
-            <input value={editTitle} onChange={(event) => { setEditTitle(event.target.value); setEditError(""); }} maxLength={40} className="mt-2 h-[42px] w-full rounded-[10px] border border-black/12 px-3 text-[14px] outline-none focus:border-[#0071e3]" />
+            <input value={editTitle} onChange={(event) => { setEditTitle(event.target.value); setEditError(""); }} maxLength={40} className="mt-2 h-[42px] w-full rounded-[10px] border border-[var(--border-control)] px-3 text-[14px] outline-none focus:border-[var(--accent)]" />
             <div className="mt-4">
               <SharePasscodeControl
                 enabled={editPasswordProtected}
@@ -324,12 +328,12 @@ export function ShareBoardsManager({
                 }}
                 disabled={saving}
               />
-              <div className="mt-2 flex h-[18px] items-center text-[12px] leading-[18px] text-[#6e6e73]">
+              <div className="mt-2 flex h-[18px] items-center text-[12px] leading-[18px] text-[var(--text-secondary)]">
                 {editPasswordProtected ? (
                   regeneratePassword || !editing.hasPassword ? (
                     <span>保存后自动生成新的 4 位提取码</span>
                   ) : (
-                    <button type="button" onClick={() => setRegeneratePassword(true)} className="font-semibold text-[#0071e3]">
+                    <button type="button" onClick={() => setRegeneratePassword(true)} className="font-semibold text-[var(--accent-text)]">
                       重新生成提取码
                     </button>
                   )
@@ -352,21 +356,21 @@ export function ShareBoardsManager({
               }}
             />
             <div className="mt-3 flex items-center justify-between gap-4">
-              <span className="text-[13px] text-[#6e6e73]">暂停公开访问</span>
+              <span className="text-[13px] text-[var(--text-secondary)]">暂停公开访问</span>
               <ToggleSwitch
                 checked={editDisabled}
                 label="暂停公开访问"
                 onChange={setEditDisabled}
               />
             </div>
-            <div className="mt-4 rounded-[12px] bg-[#f9f9fb] p-3">
-              <p className="text-[12px] leading-[1.55] text-[#6e6e73]">更换链接后，旧链接立即失效，面板内容和设置保持不变。</p>
+            <div className="mt-4 rounded-[12px] bg-[var(--surface-sunken)] p-3">
+              <p className="text-[12px] leading-[1.55] text-[var(--text-secondary)]">更换链接后，旧链接立即失效，面板内容和设置保持不变。</p>
               <div className="mt-3 flex flex-wrap gap-3">
-                <button type="button" onClick={() => rotateToken(editing)} disabled={busyId === editing.id} className="text-[12px] font-semibold text-[#0071e3]">{busyId === editing.id ? "更换中…" : "更换公开链接"}</button>
-                <button type="button" onClick={() => { setEditing(null); setDeleting(editing); }} className="text-[12px] font-semibold text-[#ff3b30]">删除面板</button>
+                <button type="button" onClick={() => rotateToken(editing)} disabled={busyId === editing.id} className="text-[12px] font-semibold text-[var(--accent-text)]">{busyId === editing.id ? "更换中…" : "更换公开链接"}</button>
+                <button type="button" onClick={() => { setEditing(null); setDeleting(editing); }} className="text-[12px] font-semibold text-[var(--danger-text)]">删除面板</button>
               </div>
             </div>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#ff3b30]">{editError}</p>
+            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{editError}</p>
             <div className="mt-4 flex justify-end gap-2.5">
               <button type="button" onClick={() => setEditing(null)} className="btn-secondary">取消</button>
               <button type="button" onClick={saveSettings} disabled={!editTitle.trim() || saving} className="btn-primary">{saving ? "保存中…" : "保存设置"}</button>
@@ -377,7 +381,7 @@ export function ShareBoardsManager({
 
       <Modal open={!!deleting} onClose={() => setDeleting(null)} title="删除分享面板" plainHeader busy={!!deleting && busyId === deleting.id}>
         <p className="text-[14px] leading-[1.6]">删除后，面板链接及已打开的面板汇报会立即失效；原有分享链接不受影响。</p>
-        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[#6e6e73]">{deleting ? `即将删除：${deleting.title}` : ""}</p>
+        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--text-secondary)]">{deleting ? `即将删除：${deleting.title}` : ""}</p>
         <div className="mt-5 flex justify-end gap-2.5">
           <button type="button" onClick={() => setDeleting(null)} className="btn-secondary">取消</button>
           <button type="button" onClick={deleteBoard} disabled={!deleting || busyId === deleting?.id} className="btn-danger">{busyId === deleting?.id ? "删除中…" : "确认删除"}</button>

@@ -112,9 +112,9 @@ export function CopyPillButton({
       style={
         copied
           ? {
-              backgroundColor: "#34c759",
-              borderColor: "#34c759",
-              color: "#fff",
+              backgroundColor: "var(--success)",
+              borderColor: "var(--success)",
+              color: "var(--text-on-fill)",
             }
           : undefined
       }
@@ -143,8 +143,8 @@ export function CopyIconButton({
       title={copied ? copiedLabel : label}
       data-copy-variant="icon"
       data-copy-state={copied ? "copied" : "idle"}
-      className={`ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3] focus-visible:text-[#0071e3] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
-      style={copied ? { color: "#34c759" } : undefined}
+      className={`ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)] focus-visible:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      style={copied ? { color: "var(--success)" } : undefined}
     >
       {copied ? (
         <svg

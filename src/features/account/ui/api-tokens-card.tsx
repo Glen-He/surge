@@ -121,7 +121,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
             <Link
               href="/account/api-usage"
               aria-label="API 使用说明"
-              className="mt-[1px] shrink-0 text-[#86868b] transition-colors hover:text-[#0071e3]"
+              className="mt-[1px] shrink-0 text-[var(--icon-muted)] transition-colors hover:text-[var(--accent-text)]"
             >
               {ICON_INFO}
             </Link>
@@ -131,15 +131,15 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
       {/* 内容区固定高度上限（280 卡高含边框 − padding56 − 头部48 − 间距40 − 操作区51 = 83px） */}
       <div className="card-main shifted max-h-[83px] overflow-y-auto">
         {isGuest ? (
-          <p className="text-[15px] leading-[1.5] text-[#6e6e73]">
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
             游客模式不支持 API 令牌，注册正式账号后可用
           </p>
         ) : !loaded ? (
-          <p className="text-[15px] leading-[1.5] text-[#86868b]">加载中…</p>
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">加载中…</p>
         ) : token ? (
           <div>
             <div className="flex items-center gap-1">
-              <code className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[1.5] text-[#1d1d1f]">
+              <code className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[1.5] text-[var(--text-primary)]">
                 {token.token ? (revealed ? token.token : masked) : "令牌不可读取"}
               </code>
               {token.token && (
@@ -148,7 +148,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                     type="button"
                     aria-label={revealed ? "隐藏令牌" : "显示令牌"}
                     onClick={() => setRevealed((v) => !v)}
-                    className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[#86868b] transition-colors hover:text-[#0071e3]"
+                    className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent-text)]"
                   >
                     {revealed ? ICON_EYE_OFF : ICON_EYE}
                   </button>
@@ -162,19 +162,19 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                 </>
               )}
             </div>
-            <p className="mt-1.5 text-[12px] leading-[1.4] text-[#86868b]">
+            <p className="mt-1.5 text-[12px] leading-[1.4] text-[var(--text-secondary)]">
               {token.token
                 ? "更换或撤销后旧值立即失效"
                 : "更换后会生成新的可查看令牌"}
             </p>
           </div>
         ) : (
-          <p className="text-[15px] leading-[1.5] text-[#6e6e73]">
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
             还没有令牌，创建后可在代码中直接上传汇报
           </p>
         )}
         {/* 常驻错误槽：高度固定，报错出现/消失零位移 */}
-        <p className="mt-3 min-h-[1.375rem] text-[13px] leading-[1.5] text-[#ff3b30]">
+        <p className="mt-3 min-h-[1.375rem] text-[13px] leading-[1.5] text-[var(--danger-text)]">
           {error || null}
         </p>
       </div>
@@ -187,9 +187,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                 onClick={() => void handleRevoke()}
                 disabled={busy}
                 // .btn-action 定义在非 @layer 规则里，红色必须内联覆盖（同 .btn-secondary 的坑）
-                style={{ color: "#ff3b30" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#d70015")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#ff3b30")}
+                style={{ color: "var(--danger-text)" }}
                 className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
               >
                 撤销

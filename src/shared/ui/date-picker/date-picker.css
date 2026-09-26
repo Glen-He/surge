@@ -9,7 +9,7 @@
 }
 
 .date-trigger svg {
-  color: #86868b;
+  color: var(--icon-muted);
   flex-shrink: 0;
 }
 
@@ -25,8 +25,8 @@
   left: 0;
   width: 280px;
   padding: 12px;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.12),
@@ -62,11 +62,11 @@
 }
 
 .date-pop-title:hover {
-  background: #f2f2f4;
+  background: var(--control-hover);
 }
 
 .date-pop-title svg {
-  color: #6e6e73;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -83,14 +83,14 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #6e6e73;
+  color: var(--text-secondary);
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
 }
 
 .date-nav:hover {
-  background: #f2f2f4;
+  background: var(--control-hover);
   color: var(--text-primary);
 }
 
@@ -103,7 +103,7 @@
 .date-week span {
   text-align: center;
   font-size: 12px;
-  color: #6e6e73;
+  color: var(--text-secondary);
 }
 
 .date-grid {
@@ -126,25 +126,25 @@
 }
 
 .date-day:hover {
-  background: #f2f2f4;
+  background: var(--control-hover);
 }
 
 .date-day-disabled,
 .date-day-disabled:hover {
   background: transparent;
-  color: #c7c7cc;
+  color: var(--text-disabled);
   cursor: not-allowed;
 }
 
 .date-day-today {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
 .date-day-sel,
 .date-day-sel:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-fill);
   font-weight: 600;
 }
 
@@ -170,20 +170,20 @@
 }
 
 .date-year:hover {
-  background: #f2f2f4;
+  background: var(--control-hover);
 }
 
 .date-year-disabled,
 .date-year-disabled:hover {
   background: transparent;
-  color: #c7c7cc;
+  color: var(--text-disabled);
   cursor: not-allowed;
 }
 
 .date-year-sel,
 .date-year-sel:hover {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-fill);
   font-weight: 600;
 }
 
@@ -197,7 +197,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border-top-color: var(--text-on-fill);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

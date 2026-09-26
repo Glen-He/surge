@@ -19,15 +19,15 @@ export default async function HomePage() {
   const reports = await getReportCards(session.user.id);
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+    <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
       <div className="account-shell">
         {/* 页头 + 右侧按钮组（与用户中心同一视觉轴） */}
         <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
-            <h1 className="whitespace-nowrap text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
+            <h1 className="whitespace-nowrap text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
               工作汇报系统
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
+            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
               {reports.length > 0 ? `共 ${reports.length} 个项目` : "暂无项目"}
             </p>
           </div>
@@ -40,7 +40,7 @@ export default async function HomePage() {
               </svg>
               制作指南
             </Link>
-            <Link href="/shares" className="btn-light">
+            <Link href="/account/shared" className="btn-light">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[15px] w-[15px]">
                 <circle cx="18" cy="5" r="3" />
                 <circle cx="6" cy="12" r="3" />

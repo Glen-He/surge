@@ -8,7 +8,11 @@ import { DatePicker } from "@/shared/ui/date-picker/date-picker";
 import { LIMITS, charWeight } from "@/features/reports/upload/char-limit";
 import { DEFAULT_TAG_COLOR, TAG_PALETTE, tagSwatchColor, type TagColor } from "@/features/reports/tag-colors";
 
+import { SelectMenu } from "@/shared/ui/select-menu";
+import type { DisplayMode } from "@/features/reports/display-mode";
+
 export type ProjectFormValues = {
+  displayMode: DisplayMode;
   title: string;
   date: string;
   tag: string;
@@ -118,6 +122,7 @@ export function ProjectForm({
     file: File | null,
   ) => Promise<string | null>;
 }) {
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(initial?.displayMode ?? "frame");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [date, setDate] = useState(
     () => initial?.date ?? new Date().toISOString().slice(0, 10),
@@ -180,6 +185,7 @@ export function ProjectForm({
     try {
       const err = await onSubmit(
         {
+          displayMode,
           title: title.trim(),
           date,
           tag: tag.trim(),
@@ -196,15 +202,15 @@ export function ProjectForm({
   }
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+    <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
       <div className="account-shell">
         {/* 页头 + 右侧返回（与账号页 / Home 同一视觉轴） */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
+            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
               {heading}
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
+            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
               {headingDesc}
             </p>
           </div>
@@ -264,20 +270,36 @@ export function ProjectForm({
                 {/* 错误槽常驻：报错出现/消失时下方字段零位移 */}
                 <p className="project-error">{errors.title ?? ""}</p>
               </div>
-              <div className="project-field">
-                <span className="project-label">
-                  日期<span className="project-req">*</span>
-                </span>
-                <DatePicker
-                  value={date}
-                  ariaLabel="日期"
-                  onChange={(v) => {
-                    setDate(v);
-                    if (errors.date) setErrors((p) => ({ ...p, date: undefined }));
-                  }}
-                  error={!!errors.date}
-                />
-                <p className="project-error">{errors.date ?? ""}</p>
+              <div className="project-basics-row">
+                <div className="project-field">
+                  <span className="project-label">
+                    日期<span className="project-req">*</span>
+                  </span>
+                  <DatePicker
+                    value={date}
+                    ariaLabel="日期"
+                    onChange={(v) => {
+                      setDate(v);
+                      if (errors.date) setErrors((p) => ({ ...p, date: undefined }));
+                    }}
+                    error={!!errors.date}
+                  />
+                  <p className="project-error">{errors.date ?? ""}</p>
+                </div>
+                <div className="project-field">
+                  <label className="project-label" htmlFor="np-display-mode">展示模式</label>
+                  <SelectMenu<DisplayMode>
+                    id="np-display-mode"
+                    value={displayMode}
+                    options={[
+                      { value: "frame", label: "汇报展示" },
+                      { value: "bare", label: "网页发布" },
+                    ]}
+                    onChange={setDisplayMode}
+                    disabled={loading}
+                  />
+                  <p className="project-error" />
+                </div>
               </div>
             </section>
 
@@ -311,7 +333,7 @@ export function ProjectForm({
                     aria-expanded={colorOpen}
                     onClick={() => setColorOpen((o) => !o)}
                     style={{ backgroundColor: tagSwatchColor(tagColor) }}
-                    className="absolute right-2.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 cursor-pointer rounded-full border border-[rgba(0,0,0,0.14)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-transform duration-150 hover:scale-110"
+                    className="absolute right-2.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 cursor-pointer rounded-full border border-[var(--border-hover)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] transition-transform duration-150 hover:scale-110"
                   />
                   {colorOpen && (
                     <>
@@ -320,7 +342,7 @@ export function ProjectForm({
                         className="fixed inset-0 z-20"
                         onClick={() => setColorOpen(false)}
                       />
-                      <div className="absolute right-0 top-full z-30 mt-2 flex gap-1.5 rounded-2xl border border-[rgba(0,0,0,0.08)] bg-white p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)]">
+                      <div className="absolute right-0 top-full z-30 mt-2 flex gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)]">
                         {TAG_PALETTE.map((c) => (
                           <button
                             key={c.bg}
@@ -333,13 +355,13 @@ export function ProjectForm({
                               setColorOpen(false);
                             }}
                             style={{ backgroundColor: c.swatch }}
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[9px] border border-[rgba(0,0,0,0.08)] transition-transform duration-150 hover:scale-110"
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[9px] border border-[var(--border)] transition-transform duration-150 hover:scale-110"
                           >
                             {tagColor === c.bg && (
                               <svg
                                 viewBox="0 0 24 24"
                                 fill="none"
-                                stroke="#fff"
+                                stroke="var(--text-on-fill)"
                                 strokeWidth="3"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -449,7 +471,7 @@ export function ProjectForm({
                     }}
                     className={`upload-zone ${drag ? "upload-zone-drag" : ""}`}
                   >
-                    <span className="text-[#86868b]">{ICON_FILE}</span>
+                    <span className="text-[var(--icon-muted)]">{ICON_FILE}</span>
                     <span className="upload-title">选择 ZIP 或 HTML 文件</span>
                     <span className="upload-hint">
                       拖拽到此处 · ZIP 需含 report.html；单个 HTML 可直接上传

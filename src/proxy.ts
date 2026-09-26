@@ -116,7 +116,7 @@ export function mainContentSecurityPolicy(
 
 /**
  * 第二道内容域收口：即便 OpenResty 被误配为整站反代，reports.glenhe.com
- * 也只能访问 /r/*（capability 命名空间）与 /platform/*（manifest 白名单的
+ * 也只能访问 /report/*（capability 命名空间）与 /platform/*（manifest 白名单的
  * 平台公共库）。主站与内容域相同的本地开发环境不会启用此分支。
  */
 export function proxy(request: NextRequest) {
@@ -143,7 +143,7 @@ export function proxy(request: NextRequest) {
       : configuredAppOrigin;
   if (appHost && reportsHost && appHost !== reportsHost && requestHost === reportsHost) {
     if (
-      request.nextUrl.pathname.startsWith("/r/") ||
+      request.nextUrl.pathname.startsWith("/report/") ||
       request.nextUrl.pathname.startsWith("/platform/")
     ) {
       return withTransportSecurity(NextResponse.next(), requestOrigin);
@@ -169,7 +169,7 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const shouldApplyCsp =
     !pathname.startsWith("/api/") &&
-    !pathname.startsWith("/r/") &&
+    !pathname.startsWith("/report/") &&
     // 平台公共资源是公开 immutable 静态库，不套主站 nonce CSP
     !pathname.startsWith("/platform/") &&
     !pathname.startsWith("/_next/") &&

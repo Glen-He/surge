@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-/* ── 依赖方向边界（重构后的架构不变量，违反即 CI 失败）──
+/* ── 依赖方向边界（重构后的架构不变量，违反即检查失败）──
  * 目标方向：app → features → infrastructure / shared；shared 不依赖任何层。
  * 每个层同时禁止回归旧的 lib/ components/ 中央目录。
  */
@@ -31,7 +31,7 @@ const eslintConfig = defineConfig([
     rules: { "jsx-a11y/no-autofocus": "error" },
   },
   // 环境变量唯一入口：业务源码禁止直接访问 process.env（否则绕过
-  // schema 契约，重新制造"本地能跑、CI/生产漏配"的隐式依赖）。
+  // schema 契约，重新制造"本地检查与生产部署环境漏配"的隐式依赖）。
   // 豁免：environment 模块本身（唯一合法读取点）与测试文件（注入桩）。
   {
     files: ["src/**/*.{ts,tsx}"],

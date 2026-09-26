@@ -1,10 +1,12 @@
 import { LIMITS, charWeight } from "@/features/reports/upload/char-limit";
 import { DEFAULT_TAG_COLOR, isTagColor } from "@/features/reports/tag-colors";
 import { uploadFailure, type UploadFailure } from "@/features/reports/upload/upload-errors";
+import { isDisplayMode } from "@/features/reports/display-mode";
 
 // 报告元信息校验：纯函数、无 IO，供上传 / 替换 / 编辑元信息三条流程复用。
 
 export type ReportMeta = {
+  displayMode?: string;
   title: string;
   date: string;
   tag: string;
@@ -15,6 +17,9 @@ export type ReportMeta = {
 
 /** 字段校验（两套端点同一规则）：非法时返回结构化错误。 */
 export function validateReportMeta(meta: ReportMeta): UploadFailure | null {
+  if (meta.displayMode !== undefined && !isDisplayMode(meta.displayMode)) {
+    return uploadFailure("META_DISPLAY_MODE_INVALID");
+  }
   if (!meta.title || !meta.date) {
     return uploadFailure("META_TITLE_DATE_REQUIRED");
   }
@@ -53,6 +58,7 @@ export function validateReportMeta(meta: ReportMeta): UploadFailure | null {
 export function metaFromForm(form: FormData): ReportMeta {
   const tagColorRaw = String(form.get("tagColor") ?? "").trim();
   return {
+    displayMode: form.has("displayMode") ? String(form.get("displayMode")) : undefined,
     title: String(form.get("title") ?? "").trim(),
     date: String(form.get("date") ?? "").trim(),
     tag: String(form.get("tag") ?? "").trim(),

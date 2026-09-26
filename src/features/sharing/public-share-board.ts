@@ -1,3 +1,4 @@
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { db } from "@/infrastructure/database/client";
 import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
 import { requireTagColor } from "@/features/reports/tag-colors";
@@ -27,6 +28,7 @@ export type PublicBoardReport = {
   boardPasswordHash: string | null;
   boardAccessEpoch: number;
   boardExpiresAt: Date | null;
+  displayMode: DisplayMode;
   reportId: string;
   reportTitle: string;
   revisionId: string;
@@ -50,6 +52,7 @@ export function verifyBoardUnlockProof(
 }
 
 function itemFromRow(row: {
+  display_mode: DisplayMode;
   item_id: string;
   slug: string;
   date: string;
@@ -61,6 +64,7 @@ function itemFromRow(row: {
 }): ShareBoardItemView {
   return {
     id: row.item_id,
+    displayMode: row.display_mode,
     slug: row.slug,
     date: row.date,
     tag: row.tag || "其他",
@@ -82,6 +86,7 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
   const row = board.rows[0];
   if (!row) return null;
   const items = await db.query<{
+    display_mode: DisplayMode;
     item_id: string;
     slug: string;
     date: string;
@@ -92,7 +97,7 @@ export async function findPublicShareBoard(token: string): Promise<PublicShareBo
     keywords: string;
   }>(
     `SELECT i.id AS item_id, r.slug, r.date, r.tag, r.tag_color,
-            r.title, r.description, r.keywords
+            r.title, r.description, r.keywords, r.display_mode
        FROM share_board_items i
        JOIN reports r ON r.id = i.report_id
       WHERE i.board_id = $1
@@ -115,6 +120,7 @@ export async function findPublicBoardReport(
   token: string,
   itemId: string,
 ): Promise<PublicBoardReport | null> {
+  if (!isValidShareToken(token) || !/^[a-z0-9]{4}$/.test(itemId)) return null;
   const result = await db.query<{
     board_id: string;
     board_owner_id: string;
@@ -122,6 +128,7 @@ export async function findPublicBoardReport(
     password_hash: string | null;
     access_epoch: number;
     expires_at: Date | null;
+    display_mode: DisplayMode;
     report_id: string;
     report_title: string;
     revision_id: string;
@@ -130,7 +137,7 @@ export async function findPublicBoardReport(
     `SELECT b.id AS board_id, b.user_id AS board_owner_id, b.title AS board_title,
             b.password_hash, b.access_epoch, b.expires_at,
             r.id AS report_id, r.title AS report_title,
-            r.revision_id, r.capability_epoch
+            r.revision_id, r.capability_epoch, r.display_mode
        FROM share_boards b
        JOIN share_board_items i ON i.board_id = b.id
        JOIN reports r ON r.id = i.report_id
@@ -150,6 +157,7 @@ export async function findPublicBoardReport(
     boardAccessEpoch: row.access_epoch,
     boardExpiresAt: row.expires_at,
     reportId: row.report_id,
+    displayMode: row.display_mode,
     reportTitle: row.report_title,
     revisionId: row.revision_id,
     capabilityEpoch: row.capability_epoch,

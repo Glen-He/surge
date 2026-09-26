@@ -8,6 +8,7 @@ export default function NewReportPage() {
 
   async function submit(values: ProjectFormValues, file: File | null) {
     const fd = new FormData();
+    fd.set("displayMode", values.displayMode);
     fd.set("title", values.title);
     fd.set("date", values.date);
     fd.set("tag", values.tag);

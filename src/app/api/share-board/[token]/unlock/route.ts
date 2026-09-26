@@ -52,7 +52,8 @@ export async function POST(
     httpOnly: true,
     secure: new URL(serverEnv.BETTER_AUTH_URL ?? req.url).protocol === "https:",
     sameSite: "lax",
-    path: `/b/${token}`,
+    // 同一面板凭证供 /board/ 与 /share/ 网页落地页使用；HMAC 仍绑定 token 与访问纪元。
+    path: "/",
   });
   return Response.json({ ok: true });
 }

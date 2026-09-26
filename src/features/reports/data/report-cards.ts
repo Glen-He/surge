@@ -1,8 +1,11 @@
 import { getReportsByUser } from "@/features/reports/data/reports-db";
 import { requireTagColor, type TagColor } from "@/features/reports/tag-colors";
 
+import type { DisplayMode } from "@/features/reports/display-mode";
+
 // 卡片视图模型（与旧静态类型对齐，供 ReportCenter 使用）
 export type ReportCardView = {
+  displayMode: DisplayMode;
   slug: string;
   date: string;
   tag: string;
@@ -20,6 +23,7 @@ export async function getReportCards(
     const tag = r.tag || "其他";
     return {
       slug: r.slug,
+      displayMode: r.display_mode,
       date: r.date,
       tag,
       tagColor: requireTagColor(r.tag_color),

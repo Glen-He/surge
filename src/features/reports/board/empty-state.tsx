@@ -47,13 +47,13 @@ export function EmptyState({
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
-        className="mx-auto mb-4 h-[46px] w-[46px] text-[#b0b0b5]"
+        className="mx-auto mb-4 h-[46px] w-[46px] text-[var(--icon-muted)]"
       >
         {ICONS[icon]}
       </svg>
-      <p className="text-[15px] font-medium text-[#1d1d1f]">{title}</p>
+      <p className="text-[15px] font-medium text-[var(--text-primary)]">{title}</p>
       {hint && (
-        <p className="mt-1.5 text-[13px] leading-normal text-[#6e6e73]">{hint}</p>
+        <p className="mt-1.5 text-[13px] leading-normal text-[var(--text-secondary)]">{hint}</p>
       )}
     </div>
   );

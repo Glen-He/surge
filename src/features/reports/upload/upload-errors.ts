@@ -5,6 +5,7 @@ export type UploadErrorParamsByCode = {
   META_TITLE_DATE_REQUIRED: undefined;
   META_DATE_FORMAT: undefined;
   META_DATE_INVALID: undefined;
+  META_DISPLAY_MODE_INVALID: undefined;
   META_TAG_TOO_LONG: { max: number };
   META_TITLE_TOO_LONG: { max: number };
   META_KEYWORDS_TOO_LONG: { max: number };
@@ -62,6 +63,7 @@ const COPY: UploadCopyTable = {
   META_TITLE_DATE_REQUIRED: () => "标题和日期必填",
   META_DATE_FORMAT: () => "日期格式必须为 YYYY-MM-DD",
   META_DATE_INVALID: () => "请填写有效日期",
+  META_DISPLAY_MODE_INVALID: () => "请选择有效的展示模式",
   META_TAG_TOO_LONG: (p) => `标签最长 ${p.max} 字`,
   META_TITLE_TOO_LONG: (p) => `名称最长 ${p.max} 字`,
   META_KEYWORDS_TOO_LONG: (p) => `关键词最长 ${p.max} 字`,
@@ -110,6 +112,7 @@ const STATUS: { [C in UploadErrorCode]: number } = {
   META_TITLE_DATE_REQUIRED: 400,
   META_DATE_FORMAT: 400,
   META_DATE_INVALID: 400,
+  META_DISPLAY_MODE_INVALID: 400,
   META_TAG_TOO_LONG: 400,
   META_TITLE_TOO_LONG: 400,
   META_KEYWORDS_TOO_LONG: 400,

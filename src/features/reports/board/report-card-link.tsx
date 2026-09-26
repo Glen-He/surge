@@ -18,10 +18,12 @@ export function ReportCardLink({
     <Link
       ref={dragActivatorRef}
       href={href}
+      target={report.displayMode === "bare" ? "_blank" : undefined}
+      rel={report.displayMode === "bare" ? "noopener noreferrer" : undefined}
       draggable={false}
       role={draggable ? "link" : undefined}
       aria-roledescription={draggable ? "可排序项目" : undefined}
-      className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-[box-shadow] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover/report-card:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
+      className={`flex h-[208px] flex-col justify-between overflow-hidden rounded-[18px] border border-[var(--border-subtle)] bg-[var(--surface)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] transition-[box-shadow] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover/report-card:shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${
         draggable
           ? "report-card-touch-activator cursor-grab active:cursor-grabbing"
           : ""
@@ -38,19 +40,22 @@ export function ReportCardLink({
           >
             {report.tag}
           </span>
-          <span className="whitespace-nowrap text-xs text-[#6e6e73] tabular-nums">
+          {report.displayMode === "bare" && (
+            <span className="ml-auto rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent-text)]">网页</span>
+          )}
+          <span className="whitespace-nowrap text-xs text-[var(--text-secondary)] tabular-nums">
             {report.date}
           </span>
         </div>
-        <h2 className="mt-2.5 line-clamp-2 text-[18px] font-semibold leading-[1.3] tracking-tight text-[#1d1d1f]">
+        <h2 className="mt-2.5 line-clamp-2 text-[18px] font-semibold leading-[1.3] tracking-tight text-[var(--text-primary)]">
           {report.title}
         </h2>
-        <p className="mt-1.5 line-clamp-3 text-[13px] leading-normal text-[#6e6e73]">
+        <p className="mt-1.5 line-clamp-3 text-[13px] leading-normal text-[var(--text-secondary)]">
           {report.desc}
         </p>
       </div>
-      <div className="mt-2 translate-y-1 text-xs font-semibold text-[#0071e3] opacity-0 transition-all group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100">
-        查看报告
+      <div className="mt-2 translate-y-1 text-xs font-semibold text-[var(--accent-text)] opacity-0 transition-all group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100">
+        {report.displayMode === "bare" ? "查看网页" : "查看报告"}
       </div>
     </Link>
   );

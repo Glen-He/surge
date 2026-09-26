@@ -4,17 +4,14 @@ import { describe, expect, it } from "vitest";
 import {
   environmentSchema,
   documentedEnvKeys,
-  ciRequiredEnvKeys,
   type EnvEntry,
   type EnvVarName,
 } from "@/infrastructure/environment/schema";
 
-/* 环境契约三方同步校验（CI 的 environment job 在 1 秒内运行本文件）：
+/* 环境契约校验：
  *   schema ←→ .env.example（开发者文档不漂移）
- *   schema ←→ .github/ci.env（CI 假环境覆盖全部必需变量且格式合法）
  *   schema ←→ 本地 .env.local（存在时校验始终必需项）
- * 以后新增 XXX_SECRET：未注册 schema / 未写进两份 env 文件，这里直接失败，
- * 而不是等到第 200 个测试或生产启动才炸。
+ * 新增必需密钥时，未注册 schema 或未写进 .env.example 都会在本地检查中失败。
  */
 
 const ROOT = process.cwd();
@@ -88,31 +85,6 @@ describe("环境契约", () => {
     }
   });
 
-  it("CI 假环境覆盖全部必需变量且格式合法", () => {
-    const ciEnvFile = path.join(ROOT, ".github", "ci.env");
-    expect(existsSync(ciEnvFile), ".github/ci.env 不存在").toBe(true);
-    const ciEnv = parseEnvFile(ciEnvFile);
-
-    const required = new Set(ciRequiredEnvKeys);
-    const ciKeys = new Set(Object.keys(ciEnv));
-    const missing = [...required].filter((k) => !ciKeys.has(k) || ciEnv[k] === "");
-    expect(
-      missing,
-      ".github/ci.env 缺少必需变量（新增变量须同步登记）",
-    ).toEqual([]);
-
-    // ci.env 中的每个 schema 变量值都必须合法
-    for (const [key, value] of Object.entries(ciEnv)) {
-      const entry = (environmentSchema as Record<string, EnvEntry | undefined>)[key];
-      if (!entry) continue; // 未知键在下方断言捕获
-      checkValue(key as EnvVarName, entry, value);
-    }
-    const unknown = Object.keys(ciEnv).filter(
-      (k) => !(k in environmentSchema),
-    );
-    expect(unknown, "ci.env 存在未注册 schema 的变量").toEqual([]);
-  });
-
   it(
     "本地 .env.local 满足始终必需项（存在时才校验）",
     { skip: !existsSync(path.join(ROOT, ".env.local")) },
@@ -134,19 +106,4 @@ describe("环境契约", () => {
     },
   );
 
-  it(
-    "CI 运行器实际进程环境覆盖必需变量（防御 env 加载步骤失效）",
-    // 用 GITHUB_ACTIONS 而非 CI：本地 shell（含代理 harness）也可能设置 CI=true
-    { skip: process.env.GITHUB_ACTIONS !== "true" },
-    () => {
-      const required = new Set(ciRequiredEnvKeys);
-      const missing = [...required].filter(
-        (k) => process.env[k] === undefined || process.env[k]?.trim() === "",
-      );
-      expect(
-        missing,
-        ".github/ci.env 已通过 GITHUB_ENV 加载，但进程环境仍缺必需变量",
-      ).toEqual([]);
-    },
-  );
 });

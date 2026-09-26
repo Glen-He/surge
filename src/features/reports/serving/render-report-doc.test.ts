@@ -18,29 +18,29 @@ import { createHmac } from "crypto";
 describe("reportDocCsp", () => {
   it("包含沙箱且只允许 capability 资源、数据、媒体与 Worker", () => {
     const csp = reportDocCsp(
-      "https://reports.example/r/CAP123",
+      "https://reports.example/report/CAP123",
       "https://surge.example",
     );
     expect(csp).toContain(
       "sandbox allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals",
     );
     expect(csp).toContain(
-      "connect-src https://reports.example/r/CAP123/",
+      "connect-src https://reports.example/report/CAP123/",
     );
     expect(csp).toContain(
-      "media-src https://reports.example/r/CAP123/ data: blob:",
+      "media-src https://reports.example/report/CAP123/ data: blob:",
     );
     expect(csp).toContain("base-uri 'none'");
     expect(csp).toContain(
-      "worker-src https://reports.example/r/CAP123/ blob:",
+      "worker-src https://reports.example/report/CAP123/ blob:",
     );
     expect(csp).toContain(
-      "script-src 'unsafe-inline' 'unsafe-eval' https://reports.example/r/CAP123/",
+      "script-src 'unsafe-inline' 'unsafe-eval' https://reports.example/report/CAP123/",
     );
-    // 不允许整站 origin（收紧到 /r/<cap>/ 命名空间）
+    // 不允许整站 origin（收紧到 /report/<cap>/ 命名空间）
     expect(csp).not.toContain("img-src https://reports.example ");
-    expect(csp).toContain("img-src https://reports.example/r/CAP123/ data: blob:");
-    expect(csp).toContain("frame-src https://reports.example/r/CAP123/");
+    expect(csp).toContain("img-src https://reports.example/report/CAP123/ data: blob:");
+    expect(csp).toContain("frame-src https://reports.example/report/CAP123/");
     expect(csp).toContain("frame-ancestors https://surge.example");
     expect(csp).toContain("form-action 'none'");
     expect(csp).not.toMatch(/(?:^|[ ;])https:(?:[ ;]|$)/);
@@ -72,7 +72,7 @@ describe("报告内容域", () => {
     expect(applicationOrigin()).toBe("https://surge.example");
     expect(reportsOrigin()).toBe("https://reports.example");
     expect(reportDocumentUrl("CAP.123")).toBe(
-      "https://reports.example/r/CAP.123/report.html",
+      "https://reports.example/report/CAP.123/report.html",
     );
   });
 
@@ -204,6 +204,11 @@ describe("renderReportDoc", () => {
     expect(out).toContain(`src="data.js"`);
     expect(out).toContain(`src="images/a.png"`);
     expect(out).toContain(`href="style.css"`);
+  });
+
+  it("网页发布完整保留原始 HTML，不注入系统头、样式或 PDF 桥接", () => {
+    const html = base.replace("%s", '<style>body{margin:0}</style><script>window.site=true</script>');
+    expect(renderReportDoc(html, bridgeToken, "bare")).toBe(html);
   });
 
   it("剥离 rpt-head 头部", () => {

@@ -38,7 +38,6 @@ export const frameworkEnv = {
   NODE_ENV: process.env.NODE_ENV,
   NEXT_RUNTIME: process.env.NEXT_RUNTIME,
   NEXT_PHASE: process.env.NEXT_PHASE,
-  CI: process.env.CI,
 } as const;
 
 function mustValidate(entry: EnvEntry): boolean {

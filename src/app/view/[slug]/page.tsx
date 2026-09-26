@@ -11,7 +11,7 @@ import { getGuestExpiry } from "@/features/guest/guest-sandbox";
 import { reportDocumentUrl } from "@/features/reports/serving/report-origin";
 
 // 报告查看器（登录态）：只负责系统头（标题/分享/返回）+ 签发 capability。
-// 报告本体经 /r/<cap>/ 虚拟目录原样输出（capability 即 iframe 及其子资源
+// 报告本体经 /report/<cap>/ 虚拟目录原样输出（capability 即 iframe 及其子资源
 // 的访问凭证，见 features/reports/report-capability.ts），在 sandbox iframe
 // （opaque origin）内渲染——用户 HTML 绝不进入主站 DOM。
 export default async function ReportPage({
@@ -44,7 +44,7 @@ export default async function ReportPage({
     <>
       <main className="report-viewer-shell">
         {/* 系统级报告头：所有报告页统一提供标题 + 返回，不依赖提交的 HTML */}
-        <header className="rpt-sys-head">
+        {report.display_mode === "frame" && <header className="rpt-sys-head">
           <h1 className="rpt-sys-title">{report.title}</h1>
           <div className="flex shrink-0 items-center gap-2.5">
             <ReportShareButton slug={slug} title={report.title} />
@@ -55,7 +55,7 @@ export default async function ReportPage({
               返回
             </Link>
           </div>
-        </header>
+        </header>}
         {/*
           sandbox 允许脚本、下载和用户触发的新标签页，但不带 allow-same-origin：
           报告脚本可执行（图表正常渲染），但运行于 opaque origin——
@@ -65,6 +65,7 @@ export default async function ReportPage({
           分享弹窗和返回路由仍由可信父页代理，fixed/sticky/vh 语义保持不变。
         */}
         <ReportFrame
+          displayMode={report.display_mode}
           src={reportDocumentUrl(capability)}
           title={report.title}
           bridgeToken={reportBridgeToken(capability)}

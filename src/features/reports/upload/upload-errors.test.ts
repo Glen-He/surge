@@ -12,10 +12,18 @@ function verifyUploadErrorTypes() {
   uploadFailure("ZIP_DEPTH_EXCEEDED", { max: 5 });
   // @ts-expect-error FORM_INVALID 不接受 params。
   uploadFailure("FORM_INVALID", { max: 5 });
+  // @ts-expect-error 展示模式错误不接受额外参数。
+  uploadFailure("META_DISPLAY_MODE_INVALID", { mode: "unknown" });
 }
 void verifyUploadErrorTypes;
 
 describe("上传错误契约", () => {
+  it("展示模式错误由响应边界生成中文和 400 状态", async () => {
+    const response = uploadFailureResponse(uploadFailure("META_DISPLAY_MODE_INVALID"));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "请选择有效的展示模式" });
+  });
+
   it("仅在响应边界生成中文文案和固定 HTTP 状态", async () => {
     const failure = uploadFailure("ZIP_DEPTH_EXCEEDED", {
       max: 5,

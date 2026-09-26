@@ -87,8 +87,6 @@ export function validateRuntimeEnvironment(): void {
     const enforce =
       entry.required === "always" ||
       (entry.required === "production" && isProductionServer());
-    // optional + harness 注入（REPORTS_ORIGIN）交给下方复合规则裁决
-    if (entry.required === "optional" && entry.providedByHarness) continue;
     validateEntry(name, entry, enforce);
   }
 
