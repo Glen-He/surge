@@ -6,6 +6,10 @@
 
 本文件只规范 SURGE 平台源码、平台 UI、接口、数据与部署，不作为汇报 HTML 的设计规范。生成、修改、检查或打包 `reports_local/**` 下的汇报时，必须先完整阅读并以 `reports_local/README.md` 为唯一汇报制作规范；上传记录再遵循 `reports_local/upload.md`。若两处存在表述差异，汇报 HTML 以 `reports_local/README.md` 为准，平台源码以本文件为准。不得把平台 UI 偏好机械套进汇报内容，也不得把单份汇报的设计选择写回本文件。
 
+# 自动化与 CI 边界
+
+本项目不使用 GitHub 平台上的任何自动化执行：禁止新增 GitHub Actions 工作流（`.github/workflows/*.yml`，包括 CI 测试流水线）与依赖自动更新配置（如 `.github/dependabot.yml`）。所有质量检查（lint、类型检查、测试、构建）一律在本地手动运行；相关配置已从仓库及历史中移除，不得以任何理由重新引入。
+
 # 架构与代码组织
 
 1. **所有权优先于目录整齐**：先读完整文件、重要 callers、dependencies 与相关测试，再判断 keep / rename / move / split / merge。不得按行数、文件名或预设模板机械拆分，不追求目录对称和“文件越多越专业”。
