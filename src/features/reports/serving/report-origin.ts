@@ -36,7 +36,7 @@ export function reportsOrigin(): string {
 
 export function reportDocumentUrl(capability: string): string {
   return new URL(
-    `/r/${encodeURIComponent(capability)}/report.html`,
+    `/report/${encodeURIComponent(capability)}/report.html`,
     reportsOrigin(),
   ).href;
 }

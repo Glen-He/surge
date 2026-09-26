@@ -9,10 +9,10 @@ import { getOptionalSession } from "@/features/session/session";
 
 function InvalidBoard() {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-[#f5f5f7] px-6">
-      <div className="w-full max-w-[400px] rounded-[20px] bg-white p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
+    <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
+      <div className="w-full max-w-[400px] rounded-[20px] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
         <h1 className="text-[17px] font-semibold">分享面板无效或已停用</h1>
-        <p className="mt-2 text-[13px] leading-[1.55] text-[#6e6e73]">请联系分享者确认面板状态或获取新链接。</p>
+        <p className="mt-2 text-[13px] leading-[1.55] text-[var(--text-secondary)]">请联系分享者确认面板状态或获取新链接。</p>
       </div>
     </main>
   );

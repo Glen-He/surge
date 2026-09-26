@@ -212,9 +212,9 @@ function ReportDayBoundary({
       data-report-day={date}
       className="col-span-full mb-5 flex h-1 items-center justify-center gap-3"
     >
-      <span className="h-px w-16 bg-[rgba(0,0,0,0.06)]" />
-      <span className="h-1 w-1 rounded-full bg-[#c7c7cc]" />
-      <span className="h-px w-16 bg-[rgba(0,0,0,0.06)]" />
+      <span className="h-px w-16 bg-[var(--border-subtle)]" />
+      <span className="h-1 w-1 rounded-full bg-[var(--control-off)]" />
+      <span className="h-px w-16 bg-[var(--border-subtle)]" />
     </div>
   );
 }
@@ -534,19 +534,19 @@ export function SortableReportList({
           {groups.flatMap((month, monthIndex) => [
             <h3
               key={`month:${month.key}`}
-              className={`col-span-full mb-10 flex items-center gap-3 text-[15px] font-medium text-[#6e6e73] ${
+              className={`col-span-full mb-10 flex items-center gap-3 text-[15px] font-medium text-[var(--text-secondary)] ${
                 monthIndex > 0 ? "mt-5" : ""
               }`}
             >
               {monthLabel(month.key)}
-              <span className="text-[13px] font-medium text-[#a1a1a6]">
+              <span className="text-[13px] font-medium text-[var(--text-secondary)]">
                 {month.days.reduce(
                   (count, day) => count + day.items.length,
                   0,
                 )}{" "}
                 份
               </span>
-              <span className="h-px flex-1 bg-[rgba(0,0,0,0.08)]" />
+              <span className="h-px flex-1 bg-[var(--border)]" />
             </h3>,
             ...month.days.flatMap((day, dayIndex) => [
               <ReportDayBoundary

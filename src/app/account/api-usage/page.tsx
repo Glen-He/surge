@@ -37,15 +37,15 @@ export default async function ApiUsagePage() {
   -F "file=@report-new.zip"`;
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+    <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
       <div className="account-shell">
         {/* 页头 + 右侧返回（与指南页同一视觉轴） */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
+            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
               API 上传使用说明
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
+            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
               在命令行、脚本或 AI 工具中直接上传汇报文件。
             </p>
           </div>
@@ -56,8 +56,8 @@ export default async function ApiUsagePage() {
         </div>
 
         {/* 1 快速开始 */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
-          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[#1d1d1f]">
+        <section className="mb-7 rounded-[22px] border border-[var(--border-subtle)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">
             快速开始
           </h2>
           <ol className="mt-5 flex list-none flex-col gap-3.5">
@@ -66,8 +66,8 @@ export default async function ApiUsagePage() {
               "把要上传的文件准备好：单个 report.html，或含 report.html 的 zip 压缩包。",
               "用下面的命令上传，成功后返回 {\"ok\":true,\"slug\":\"r_xxxxxxxx\"}。",
             ].map((t, i) => (
-              <li key={i} className="flex items-start gap-3 text-[15px] leading-[1.6] text-[#1d1d1f]">
-                <span className="mt-[2px] flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-[#0071e3] text-[11.5px] font-semibold text-white">
+              <li key={i} className="flex items-start gap-3 text-[15px] leading-[1.6] text-[var(--text-primary)]">
+                <span className="mt-[2px] flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[11.5px] font-semibold text-[var(--text-on-fill)]">
                   {i + 1}
                 </span>
                 {t}
@@ -77,37 +77,37 @@ export default async function ApiUsagePage() {
         </section>
 
         {/* 2 接口详情 */}
-        <section className="mb-7 rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
-          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[#1d1d1f]">
+        <section className="mb-7 rounded-[22px] border border-[var(--border-subtle)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">
             接口详情
           </h2>
 
-          <h3 className="mt-7 text-[15.5px] font-[650] text-[#1d1d1f]">
+          <h3 className="mt-7 text-[15.5px] font-[650] text-[var(--text-primary)]">
             上传新汇报
           </h3>
-          <p className="mt-1.5 text-[13.5px] leading-[1.6] text-[#6e6e73]">
+          <p className="mt-1.5 text-[13.5px] leading-[1.6] text-[var(--text-secondary)]">
             POST /api/v1/reports
           </p>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
-            <pre className="m-0 whitespace-pre font-mono text-[12.5px] leading-[1.75] text-[#1d1d1f]">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-sunken)] px-5 py-4">
+            <pre className="m-0 whitespace-pre font-mono text-[12.5px] leading-[1.75] text-[var(--text-primary)]">
               {uploadExample}
             </pre>
           </div>
 
-          <h3 className="mt-8 text-[15.5px] font-[650] text-[#1d1d1f]">
+          <h3 className="mt-8 text-[15.5px] font-[650] text-[var(--text-primary)]">
             替换已有汇报的文件
           </h3>
-          <p className="mt-1.5 text-[13.5px] leading-[1.6] text-[#6e6e73]">
+          <p className="mt-1.5 text-[13.5px] leading-[1.6] text-[var(--text-secondary)]">
             PATCH /api/v1/reports/&lt;slug&gt;（slug 是上传返回的编号；file
             可省略，省略则只更新信息）
           </p>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-[#e8e8ed] bg-[#f9f9fb] px-5 py-4">
-            <pre className="m-0 whitespace-pre font-mono text-[12.5px] leading-[1.75] text-[#1d1d1f]">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-sunken)] px-5 py-4">
+            <pre className="m-0 whitespace-pre font-mono text-[12.5px] leading-[1.75] text-[var(--text-primary)]">
               {replaceExample}
             </pre>
           </div>
 
-          <h3 className="mt-8 text-[15.5px] font-[650] text-[#1d1d1f]">
+          <h3 className="mt-8 text-[15.5px] font-[650] text-[var(--text-primary)]">
             请求字段
           </h3>
           <div className="mt-3 flex flex-col gap-2">
@@ -121,11 +121,11 @@ export default async function ApiUsagePage() {
               { f: "keywords", req: false, d: "关键词，最长 50 字" },
             ].map((r) => (
               <div key={r.f} className="flex flex-col gap-1 sm:flex-row sm:gap-5">
-                <code className="w-[110px] shrink-0 font-mono text-[13px] leading-[1.6] text-[#1d1d1f]">
+                <code className="w-[110px] shrink-0 font-mono text-[13px] leading-[1.6] text-[var(--text-primary)]">
                   {r.f}
-                  {r.req && <span className="ml-0.5 text-[#ff3b30]">*</span>}
+                  {r.req && <span className="ml-0.5 text-[var(--danger-text)]">*</span>}
                 </code>
-                <span className="text-[13.5px] leading-[1.6] text-[#6e6e73]">
+                <span className="text-[13.5px] leading-[1.6] text-[var(--text-secondary)]">
                   {r.d}
                 </span>
               </div>
@@ -134,11 +134,11 @@ export default async function ApiUsagePage() {
         </section>
 
         {/* 3 注意事项 */}
-        <section className="rounded-[22px] border border-[rgba(0,0,0,0.055)] bg-[rgba(255,255,255,0.94)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
-          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[#1d1d1f]">
+        <section className="rounded-[22px] border border-[var(--border-subtle)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.015),0_10px_30px_rgba(0,0,0,0.018)] md:px-14">
+          <h2 className="text-[19px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">
             注意事项
           </h2>
-          <div className="mt-5 flex flex-col gap-3 text-[14px] leading-[1.65] text-[#6e6e73]">
+          <div className="mt-5 flex flex-col gap-3 text-[14px] leading-[1.65] text-[var(--text-secondary)]">
             <p>令牌只在创建或更换时显示一次，请立即保存；疑似泄露时在令牌卡片里「更换令牌」即可让旧值立即失效。</p>
             <p>配额与网页上传共享：个人总存储 2GB，全站 20GB。</p>
             <p>请求频率限制：每分钟 30 次；认证失败 10 分钟内最多 20 次后会暂时锁定。</p>

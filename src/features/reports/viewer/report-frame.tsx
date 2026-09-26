@@ -10,6 +10,7 @@ import {
   resolveReportPdfUrl,
   type PdfLoadState,
 } from "@/features/reports/viewer/report-pdf";
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { REPORT_SANDBOX_TOKENS } from "@/features/reports/serving/report-security";
 
 // 系统头「分享」按钮与父页分享弹窗之间的请求事件名
@@ -26,7 +27,7 @@ type PdfReadyTimer = { previewId: number; timer: number };
  * 那会让报告内的 position:fixed、vh、sticky 与 IntersectionObserver 误把
  * 整篇正文当成浏览器视口，破坏普通 HTML 在本地运行时的布局语义。
  */
-export function ReportFrame({
+function FramedReport({
   src,
   title,
   bridgeToken,
@@ -64,9 +65,17 @@ export function ReportFrame({
     const share = header.querySelector("[data-report-share-trigger]") !== null;
     const back = header.querySelector<HTMLAnchorElement>("a.rpt-sys-back");
     const meta = !share && !back ? header.querySelector("span")?.textContent : "";
+    // 内容域无法继承父页 CSS 变量，只把系统头需要的颜色传入其 Shadow DOM。
+    const styles = getComputedStyle(header);
+    const colors = Object.fromEntries(
+      ["surface", "control-hover", "text-primary", "text-secondary", "accent", "border-subtle"].map(
+        (name) => [name, styles.getPropertyValue(`--${name}`).trim()],
+      ),
+    );
     el.contentWindow.postMessage(
       {
         __surgeReportHeaderConfig: {
+          colors,
           title: header.querySelector(".rpt-sys-title")?.textContent?.trim() || title,
           share,
           backLabel: back?.textContent?.trim() || "",
@@ -243,4 +252,26 @@ export function ReportFrame({
       </Modal>
     </>
   );
+}
+
+/** 根据展示模式选择网页原生视口或带平台交互桥接的汇报视口。 */
+export function ReportFrame(props: {
+  src: string;
+  title: string;
+  bridgeToken: string;
+  displayMode: DisplayMode;
+}) {
+  if (props.displayMode === "bare") {
+    return (
+      <iframe
+        src={props.src}
+        title={props.title}
+        sandbox={REPORT_SANDBOX_TOKENS}
+        allow="clipboard-write; fullscreen"
+        allowFullScreen
+        className="report-frame"
+      />
+    );
+  }
+  return <FramedReport {...props} />;
 }

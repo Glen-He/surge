@@ -119,7 +119,7 @@ export function DatePicker({
       >
         {/* 值格式 yyyy-mm-dd，与主页卡片日期显示一致 */}
         <span
-          className={`min-w-0 flex-1 truncate ${value ? "" : "text-[#86868b]"} ${
+          className={`min-w-0 flex-1 truncate ${value ? "" : "text-[var(--text-secondary)]"} ${
             clearLabel && value ? "mr-5" : ""
           }`}
         >
@@ -146,7 +146,7 @@ export function DatePicker({
             onChange("");
             setOpen(false);
           }}
-          className="absolute right-9 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[#86868b] transition-colors hover:bg-[#ededf2] hover:text-[#1d1d1f]"
+          className="absolute right-9 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[var(--icon-muted)] transition-colors hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
         >
           <svg
             viewBox="0 0 24 24"

@@ -130,8 +130,8 @@ export function SelectMenu<T extends string | number>({
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
         onKeyDown={onKeyDown}
-        className={`flex h-[38px] w-full items-center justify-between rounded-[10px] border bg-white px-3 text-left text-[14px] text-[#1d1d1f] outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          open ? "border-[#0071e3]" : "border-black/12 hover:border-black/20"
+        className={`flex h-[38px] w-full items-center justify-between rounded-[10px] border bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--text-primary)] outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          open ? "border-[var(--accent)]" : "border-[var(--border-control)] hover:border-[var(--border-hover)]"
         }`}
       >
         <span>{selected?.label ?? ""}</span>
@@ -141,7 +141,7 @@ export function SelectMenu<T extends string | number>({
           stroke="currentColor"
           strokeWidth="2"
           aria-hidden="true"
-          className={`h-[14px] w-[14px] shrink-0 text-[#86868b] transition-transform duration-150 ${
+          className={`h-[14px] w-[14px] shrink-0 text-[var(--icon-muted)] transition-transform duration-150 ${
             open ? "rotate-180" : ""
           }`}
         >
@@ -154,7 +154,7 @@ export function SelectMenu<T extends string | number>({
           id={listboxId}
           role="listbox"
           aria-labelledby={controlId}
-          className="animate-fade-in absolute left-0 top-[calc(100%+6px)] z-40 w-full min-w-[150px] rounded-[12px] border border-black/8 bg-white p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.05)]"
+          className="animate-fade-in absolute left-0 top-[calc(100%+6px)] z-40 w-full min-w-[150px] rounded-[12px] border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.05)]"
         >
           {options.map((option, index) => {
             const isSelected = option.value === value;
@@ -172,10 +172,10 @@ export function SelectMenu<T extends string | number>({
                 onClick={() => commit(index)}
                 className={`flex h-[36px] w-full items-center justify-between rounded-[9px] px-2.5 text-left text-[14px] transition-colors ${
                   isSelected
-                    ? "bg-[#eef6ff] font-medium text-[#0071e3]"
+                    ? "bg-[var(--accent-soft)] font-medium text-[var(--accent-text)]"
                     : isActive
-                      ? "bg-[#f5f5f7] text-[#1d1d1f]"
-                      : "text-[#1d1d1f]"
+                      ? "bg-[var(--control-hover)] text-[var(--text-primary)]"
+                      : "text-[var(--text-primary)]"
                 }`}
               >
                 <span>{option.label}</span>

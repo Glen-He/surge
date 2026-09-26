@@ -55,7 +55,7 @@ export function GuestOtpModal() {
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#0071E3"
+            stroke="var(--accent)"
             strokeWidth={1.8}
             className="h-5 w-5 shrink-0"
             aria-hidden="true"
@@ -69,7 +69,7 @@ export function GuestOtpModal() {
             style={{
               fontSize: 14,
               fontWeight: 600,
-              color: "#1d1d1f",
+              color: "var(--text-primary)",
               letterSpacing: "-0.01em",
               whiteSpace: "nowrap",
             }}
@@ -82,7 +82,7 @@ export function GuestOtpModal() {
               fontSize: 20,
               fontWeight: 600,
               letterSpacing: "0.12em",
-              color: "#0071E3",
+              color: "var(--accent-text)",
               fontVariantNumeric: "tabular-nums",
             }}
           >

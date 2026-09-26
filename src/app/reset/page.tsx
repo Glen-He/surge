@@ -58,13 +58,13 @@ function ResetPasswordForm() {
   }
 
   return (
-    <main className="flex min-h-svh flex-col bg-white px-6 text-zinc-900 antialiased">
+    <main className="flex min-h-svh flex-col bg-[var(--surface)] px-6 text-[var(--text-primary)] antialiased">
       <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm py-16">
           <h1 className="text-center text-2xl font-semibold tracking-tight">
             设置新密码
           </h1>
-          <p className="mt-2 text-center text-sm text-zinc-500">
+          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
             请输入你的新密码
           </p>
 
@@ -74,7 +74,7 @@ function ResetPasswordForm() {
             className="mt-[40px] flex flex-col gap-[30px]"
           >
             <div className="relative">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--icon-muted)]">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                   <rect x="4" y="10" width="16" height="10" rx="2" />
                   <path d="M8 10V7a4 4 0 0 1 8 0v3" />
@@ -86,13 +86,13 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-12 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
+                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-12 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 transition-colors hover:text-zinc-600"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--icon-muted)] transition-colors hover:text-[var(--text-secondary)]"
               >
                 {showPassword ? (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
@@ -110,7 +110,7 @@ function ResetPasswordForm() {
             </div>
 
             <div className="relative">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--icon-muted)]">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                   <rect x="4" y="10" width="16" height="10" rx="2" />
                   <path d="M8 10V7a4 4 0 0 1 8 0v3" />
@@ -122,14 +122,14 @@ function ResetPasswordForm() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password"
-                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-4 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
+                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-[10px] h-12 w-full rounded-full bg-zinc-900 text-[15px] font-medium text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-[10px] h-12 w-full rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "提交中…" : "重置密码"}
             </button>

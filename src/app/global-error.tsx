@@ -13,6 +13,7 @@ export default function GlobalError({
     console.error("global error boundary captured an error", error);
   }, [error]);
 
+  // 根布局也可能失效；这里保留与平台语义色一致的内联值，不依赖全局 CSS。
   return (
     <html lang="zh-CN">
       <body style={{ margin: 0, fontFamily: "system-ui, sans-serif" }}>

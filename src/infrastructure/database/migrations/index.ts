@@ -6,7 +6,7 @@
 // - pg_advisory_lock 防止多实例并发迁移（同库多进程同时启动的场景）
 //
 // 新增迁移示例：
-//   1. 新建 027-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
+//   1. 新建 029-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
 //   statements 一经发布不可修改（schema_migrations.checksum 会拒绝）。
 
 import { createHash } from "node:crypto";
@@ -38,6 +38,9 @@ import { REMOVE_REPORT_EXTERNAL_NETWORK } from "./024-remove-report-external-net
 import { REGISTRATION_ADMIN } from "./025-registration-admin";
 import { SINGLE_INVITE_AND_VISIBLE_API_TOKEN } from "./026-single-invite-and-visible-api-token";
 
+import { REPORT_DISPLAY_MODE } from "./027-report-display-mode";
+import { BOARD_ITEM_SHORT_ID } from "./028-board-item-short-id";
+
 const MIGRATIONS: Migration[] = [
   BASELINE,
   API_TOKENS,
@@ -63,6 +66,8 @@ const MIGRATIONS: Migration[] = [
   REMOVE_REPORT_EXTERNAL_NETWORK,
   REGISTRATION_ADMIN,
   SINGLE_INVITE_AND_VISIBLE_API_TOKEN,
+  REPORT_DISPLAY_MODE,
+  BOARD_ITEM_SHORT_ID,
 ];
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞

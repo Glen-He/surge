@@ -21,15 +21,15 @@ export default async function AccountPage() {
   ]);
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+    <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
       <div className="account-shell">
         {/* Header：标题 + 副标题 左侧，轻量返回 右侧 */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
+            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
               账号与安全
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
+            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
               管理你的登录信息、密码与账号安全设置
             </p>
           </div>

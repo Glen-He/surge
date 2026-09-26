@@ -107,7 +107,7 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
             <Link
               href="/account/invitations"
               aria-label="查看邀请详情"
-              className="mt-[1px] shrink-0 text-[#86868b] transition-colors hover:text-[#0071e3]"
+              className="mt-[1px] shrink-0 text-[var(--icon-muted)] transition-colors hover:text-[var(--accent-text)]"
             >
               {ICON_INFO}
             </Link>
@@ -116,15 +116,15 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
       />
       <div className="card-main shifted max-h-[83px] overflow-y-auto">
         {isGuest ? (
-          <p className="text-[15px] leading-[1.5] text-[#6e6e73]">
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
             游客模式不支持邀请用户，注册正式账号后可用
           </p>
         ) : !loaded ? (
-          <p className="text-[15px] leading-[1.5] text-[#86868b]">加载中…</p>
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">加载中…</p>
         ) : active ? (
           <div>
             <div className="flex min-w-0 items-center">
-              <code className="text-[17px] font-semibold tracking-[0.14em] text-[#1d1d1f]">
+              <code className="text-[17px] font-semibold tracking-[0.14em] text-[var(--text-primary)]">
                 {invite.code ?? "邀请码不可读取"}
               </code>
               {invite.code && (
@@ -138,34 +138,34 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
                   onCopyError={() => setError("复制失败，请稍后重试")}
                 />
               )}
-              <span className="ml-auto pl-3 text-right text-[12px] leading-none text-[#86868b]">
+              <span className="ml-auto pl-3 text-right text-[12px] leading-none text-[var(--text-secondary)]">
                 {invite.useCount} 人已注册
               </span>
             </div>
-            <p className="mt-1.5 text-[13px] leading-[1.45] text-[#6e6e73]">
+            <p className="mt-1.5 text-[13px] leading-[1.45] text-[var(--text-secondary)]">
               更换或撤销后旧值立即失效
             </p>
           </div>
         ) : invite ? (
           <div>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[17px] font-semibold leading-[1.4] text-[#1d1d1f]">
+              <p className="text-[17px] font-semibold leading-[1.4] text-[var(--text-primary)]">
                 邀请码已撤销
               </p>
-              <span className="shrink-0 text-right text-[12px] leading-none text-[#86868b]">
+              <span className="shrink-0 text-right text-[12px] leading-none text-[var(--text-secondary)]">
                 {invite.useCount} 人已注册
               </span>
             </div>
-            <p className="mt-1.5 text-[13px] leading-[1.45] text-[#6e6e73]">
+            <p className="mt-1.5 text-[13px] leading-[1.45] text-[var(--text-secondary)]">
               重新生成后旧邀请码仍保持失效
             </p>
           </div>
         ) : (
-          <p className="text-[15px] leading-[1.5] text-[#6e6e73]">
+          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
             还没有邀请码，生成后可随时复制邀请链接
           </p>
         )}
-        <p className="mt-3 min-h-[1.375rem] text-[13px] leading-[1.5] text-[#ff3b30]">
+        <p className="mt-3 min-h-[1.375rem] text-[13px] leading-[1.5] text-[var(--danger-text)]">
           {error || null}
         </p>
       </div>
@@ -177,7 +177,7 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
                 type="button"
                 onClick={() => void revoke()}
                 disabled={busy}
-                style={{ color: "#ff3b30" }}
+                style={{ color: "var(--danger-text)" }}
                 className="btn-action disabled:cursor-not-allowed disabled:opacity-40"
               >
                 撤销

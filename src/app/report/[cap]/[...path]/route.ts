@@ -1,5 +1,6 @@
 import { createReadStream, promises as fs } from "fs";
 import path from "path";
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { Readable } from "stream";
 import { db } from "@/infrastructure/database/client";
 import {
@@ -19,11 +20,11 @@ import { REPORT_PDF_DOWNLOAD_PARAM } from "@/features/reports/viewer/report-pdf"
 import { parseByteRange } from "@/features/reports/serving/parse-byte-range";
 import { REPORT_PERMISSIONS_POLICY } from "@/features/reports/serving/report-security";
 
-// ── 报告虚拟目录运行时（/r/<cap>/<path...>）──
+// ── 报告虚拟目录运行时（/report/<cap>/<path...>）──
 //
 // <cap> 是 capability（HMAC 签名的 reportId+revision+epoch+expires，见
-// features/reports/report-capability.ts），/r/<cap>/ 即报告的虚拟根目录：入口文档
-// /r/<cap>/report.html，其余相对引用（./data.js、images/a.png、CSS url()）
+// features/reports/report-capability.ts），/report/<cap>/ 即报告的虚拟根目录：入口文档
+// /report/<cap>/report.html，其余相对引用（./data.js、images/a.png、CSS url()）
 // 由浏览器按文档 URL 原生解析，落在同一命名空间下。
 //
 // 本路由只认 capability：不查 session、不看 share token——「谁有资格打开
@@ -101,13 +102,14 @@ export async function GET(
   // 报告定位 + 当前世代/纪元校验：报告被删除、文件被替换（revision 轮换）
   // 或权限被吊销（epoch 递增，如撤销分享）后，旧 capability 立即整体失效
   const r = await db.query<{
+    display_mode: DisplayMode;
     user_id: string;
     revision_id: string;
     capability_epoch: number;
     template_key: string | null;
     storage_key: string | null;
   }>(
-    `SELECT user_id, revision_id, capability_epoch, template_key, storage_key
+    `SELECT user_id, revision_id, capability_epoch, template_key, storage_key, display_mode
      FROM reports WHERE id = $1 LIMIT 1`,
     [grant.reportId],
   );
@@ -200,13 +202,13 @@ export async function GET(
       return notFound();
     }
     return new Response(
-      renderReportDoc(content.toString("utf-8"), reportBridgeToken(cap)),
+      renderReportDoc(content.toString("utf-8"), reportBridgeToken(cap), row.display_mode),
       {
         headers: {
           ...headers,
           "Content-Type": "text/html; charset=utf-8",
           "Content-Security-Policy": reportDocCsp(
-            `${reportsOrigin()}/r/${cap}`,
+            `${reportsOrigin()}/report/${cap}`,
             applicationOrigin(),
           ),
         },

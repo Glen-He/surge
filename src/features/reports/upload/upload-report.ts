@@ -203,12 +203,12 @@ export async function createReport(
         );
         const sortOrder = Number(maxRow.rows[0]?.m ?? -1) + 1;
         await client.query(
-          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes, storage_key)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          `INSERT INTO reports (id, user_id, slug, revision_id, title, date, tag, tag_color, description, keywords, sort_order, size_bytes, storage_key, display_mode)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             randomUUID(), userId, slug, newRevisionId(), meta.title, meta.date,
             meta.tag, meta.tagColor, meta.description, meta.keywords,
-            sortOrder, staged.projectBytes, storageKey,
+            sortOrder, staged.projectBytes, storageKey, meta.displayMode ?? "frame",
           ],
         );
       } catch {
@@ -326,7 +326,8 @@ export async function replaceReportFile(
                SET revision_id = $1, title = $2, date = $3, tag = $4,
                    tag_color = $5, description = $6, keywords = $7,
                    sort_order = $8, size_bytes = $9,
-                   template_key = NULL, storage_key = $10
+                   template_key = NULL, storage_key = $10,
+                   display_mode = COALESCE($13, display_mode)
                WHERE user_id = $11 AND slug = $12`,
               [
                 newRevisionId(),
@@ -336,7 +337,7 @@ export async function replaceReportFile(
                 meta.tagColor,
                 meta.description,
                 meta.keywords,
-                nextSortOrder, staged.projectBytes, storageKey, userId, slug,
+                nextSortOrder, staged.projectBytes, storageKey, userId, slug, meta.displayMode ?? null,
               ],
             )
           : await client.query(

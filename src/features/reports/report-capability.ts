@@ -7,7 +7,7 @@ import {
 } from "crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
 
-// ── 报告 capability（/r/<cap>/ 虚拟目录的访问凭证）──
+// ── 报告 capability（/report/<cap>/ 虚拟目录的访问凭证）──
 //
 // 权限分层：
 //   session / share token → 负责「谁有资格打开报告」（父页面验证）
@@ -15,7 +15,7 @@ import { serverEnv } from "@/infrastructure/environment/server";
 //   sandbox + CSP         → 负责「这些 JS 可以做什么」
 //
 // capability 绑定 reportId + revisionId + epoch + 过期时间，签名后编码为一个
-// URL 安全 token。/r/<cap>/... 天然构成报告的虚拟根目录：浏览器按文档 URL
+// URL 安全 token。/report/<cap>/... 天然构成报告的虚拟根目录：浏览器按文档 URL
 // 原生解析相对路径（./data.js、images/a.png、CSS url() 均无需改写），
 // runtime 对每个请求验签并比对数据库当前 revision + epoch——报告文件被
 // 替换（revision 轮换）或权限被吊销（epoch 递增，如撤销分享）后，旧
@@ -76,7 +76,7 @@ export function newRevisionId(): string {
  * @param epoch 报告当前 capability 纪元（撤销分享等权限变化时递增）
  * @param maxExpiresSec 到期上限（unix 秒）——分享链路传分享自身的截止时间，
  *   防止「分享 18:00 到期、17:59 签出活到明天的 capability」
- * 返回值直接用作虚拟目录 URL 的第一段：/r/<cap>/report.html
+ * 返回值直接用作虚拟目录 URL 的第一段：/report/<cap>/report.html
  */
 export function issueCapability(
   reportId: string,

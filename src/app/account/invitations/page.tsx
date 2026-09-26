@@ -55,14 +55,14 @@ export default async function InvitationDetailsPage() {
       : "正常使用";
 
   return (
-    <main className="min-h-svh bg-[#f5f5f7] text-[#1d1d1f] antialiased">
+    <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
       <div className="account-shell">
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[#1d1d1f]">
+            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
               邀请详情
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[#6e6e73]">
+            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
               查看邀请码状态、邀请人数与后续奖励规则
             </p>
           </div>
@@ -80,24 +80,24 @@ export default async function InvitationDetailsPage() {
               desc="当前邀请码及累计注册情况"
             />
             <div className="mt-9 grid grid-cols-2 gap-4">
-              <div className="rounded-[16px] bg-[#f7f7f9] px-5 py-4">
-                <p className="text-[12px] leading-[1.4] text-[#86868b]">
+              <div className="rounded-[16px] bg-[var(--surface-sunken)] px-5 py-4">
+                <p className="text-[12px] leading-[1.4] text-[var(--text-secondary)]">
                   当前状态
                 </p>
-                <p className="mt-1.5 text-[17px] font-semibold text-[#1d1d1f]">
+                <p className="mt-1.5 text-[17px] font-semibold text-[var(--text-primary)]">
                   {status}
                 </p>
               </div>
-              <div className="rounded-[16px] bg-[#f7f7f9] px-5 py-4">
-                <p className="text-[12px] leading-[1.4] text-[#86868b]">
+              <div className="rounded-[16px] bg-[var(--surface-sunken)] px-5 py-4">
+                <p className="text-[12px] leading-[1.4] text-[var(--text-secondary)]">
                   已注册人数
                 </p>
-                <p className="mt-1.5 text-[17px] font-semibold text-[#1d1d1f]">
+                <p className="mt-1.5 text-[17px] font-semibold text-[var(--text-primary)]">
                   {invite?.useCount ?? 0} 人
                 </p>
               </div>
             </div>
-            <p className="mt-5 text-[13px] leading-[1.6] text-[#6e6e73]">
+            <p className="mt-5 text-[13px] leading-[1.6] text-[var(--text-secondary)]">
               邀请码的生成、更换、撤销和复制仍在“账号与安全”页面完成。
             </p>
           </section>
@@ -108,11 +108,11 @@ export default async function InvitationDetailsPage() {
               title="奖励与规则"
               desc="后续邀请奖励和达成条件将在这里展示"
             />
-            <div className="mt-9 rounded-[16px] bg-[#f7f7f9] px-5 py-5">
-              <p className="text-[17px] font-semibold text-[#1d1d1f]">
+            <div className="mt-9 rounded-[16px] bg-[var(--surface-sunken)] px-5 py-5">
+              <p className="text-[17px] font-semibold text-[var(--text-primary)]">
                 暂未开放邀请奖励
               </p>
-              <p className="mt-2 text-[13px] leading-[1.6] text-[#6e6e73]">
+              <p className="mt-2 text-[13px] leading-[1.6] text-[var(--text-secondary)]">
                 当前邀请人数会持续累计，未来启用奖励机制时无需重新生成邀请码。
               </p>
             </div>

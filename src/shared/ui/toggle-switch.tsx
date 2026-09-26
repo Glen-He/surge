@@ -17,11 +17,11 @@ export function ToggleTrack({
       aria-hidden
       data-testid={testId}
       className={`${TRACK_CLASS} ${focusClassName} ${
-        checked ? "bg-[#34c759]" : "bg-[#d1d1d6]"
+        checked ? "bg-[var(--success)]" : "bg-[var(--control-off)]"
       }`}
     >
       <span
-        className={`absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform ${
+        className={`absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-[var(--surface)] shadow-sm transition-transform ${
           checked ? "translate-x-4" : "translate-x-0"
         }`}
       />
@@ -60,7 +60,7 @@ export function ToggleSwitch({
     >
       <ToggleTrack
         checked={checked}
-        focusClassName="group-focus-visible:ring-2 group-focus-visible:ring-[#34c759]/25 group-focus-visible:ring-offset-2"
+        focusClassName="group-focus-visible:ring-2 group-focus-visible:ring-[var(--success)]/25 group-focus-visible:ring-offset-2"
       />
     </button>
   );

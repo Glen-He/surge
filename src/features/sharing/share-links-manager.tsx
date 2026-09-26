@@ -1,3 +1,4 @@
+import type { DisplayMode } from "@/features/reports/display-mode";
 import Link from "next/link";
 import { shareStatus } from "@/features/sharing/report-share";
 import { ShareManagementEmptyState } from "@/features/sharing/share-management-empty-state";
@@ -12,6 +13,7 @@ export type ManagedShareLink = {
   created_at: Date;
   report_title: string;
   report_slug: string;
+  display_mode: DisplayMode;
 };
 
 function fmtDate(date: Date | null): string {
@@ -23,8 +25,8 @@ function fmtDate(date: Date | null): string {
 }
 
 const STATUS_CLASS = {
-  active: "bg-[#e9fbe9] text-[#166534]",
-  expired: "bg-[#f2f2f7] text-[#6e6e73]",
+  active: "bg-[var(--success-soft)] text-[var(--success-text)]",
+  expired: "bg-[var(--control-bg)] text-[var(--text-secondary)]",
 } as const;
 
 const STATUS_LABEL = {
@@ -44,7 +46,7 @@ export function ShareLinksManager({
         <h2 className="text-[21px] font-semibold tracking-[-0.01em]">
           分享链接
         </h2>
-        <p className="mt-1 text-[13px] text-[#6e6e73]">
+        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
           适合只发送一份汇报，可使用独立的 4 位提取码和有效期。
         </p>
       </div>
@@ -65,17 +67,19 @@ export function ShareLinksManager({
               <article
                 key={share.id}
                 data-share-link-card
-                className="flex h-[208px] min-w-0 flex-col rounded-[20px] bg-white p-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)]"
+                className="flex h-[208px] min-w-0 flex-col rounded-[20px] bg-[var(--surface)] p-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)]"
               >
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <Link
-                      href={`/report/${share.report_slug}`}
-                      className="block truncate text-[17px] font-semibold hover:text-[#0071e3]"
+                      href={`/view/${share.report_slug}`}
+                      target={share.display_mode === "bare" ? "_blank" : undefined}
+                      rel={share.display_mode === "bare" ? "noopener noreferrer" : undefined}
+                      className="block truncate text-[17px] font-semibold hover:text-[var(--accent-text)]"
                     >
                       {share.report_title}
                     </Link>
-                    <p className="mt-1 truncate text-[12px] text-[#6e6e73]">
+                    <p className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
                       {share.passcode
                         ? `提取码 ${share.passcode}`
                         : "无需提取码"}
@@ -94,13 +98,13 @@ export function ShareLinksManager({
 
                 <div className="mt-5 flex items-end gap-10">
                   <div>
-                    <p className="text-[11px] text-[#86868b]">浏览次数</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">浏览次数</p>
                     <p className="mt-1 text-[14px] font-semibold tabular-nums">
                       {Number(share.view_count)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#86868b]">创建时间</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">创建时间</p>
                     <p className="mt-1 text-[14px] font-medium tabular-nums">
                       {fmtDate(share.created_at)}
                     </p>

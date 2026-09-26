@@ -1,5 +1,5 @@
 // 架构边界检查：补足 ESLint 无法覆盖的相对导入、Feature 级依赖环与
-// Route Handler 直接访问底层数据库等问题。违反规则时 CI 直接失败。
+// Route Handler 直接访问底层数据库等问题。违反规则时检查直接失败。
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -10,7 +10,7 @@ const SOURCE_FILE = /\.(?:ts|tsx|mts)$/;
 const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx|mts)$/;
 const ROUTE_INFRASTRUCTURE_ALLOWLIST = new Set([
   "src/app/api/health/route.ts",
-  "src/app/r/[cap]/[...path]/route.ts",
+  "src/app/report/[cap]/[...path]/route.ts",
 ]);
 const FORBIDDEN_SOURCE_DIRECTORIES = ["lib", "components", "actions"];
 

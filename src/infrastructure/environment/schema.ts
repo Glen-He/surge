@@ -1,7 +1,7 @@
 /* 环境变量唯一契约（Single Source of Truth）：
  * - 业务代码不得直接读 process.env，一律经 server.ts 的 serverEnv 访问（ESLint 强制）；
- * - 新增变量必须先在本 schema 注册，随后 .env.example / .github/ci.env 会由
- *   env-contract.test.ts 自动校验同步，漏配会在 CI 第一个 job（environment）1 秒内失败；
+ * - 新增变量必须先在本 schema 注册，随后由 env-contract.test.ts 校验
+ *   `.env.example` 与本地 `.env.local` 的契约；
  * - required 语义（与既有启动校验保持一致）：
  *   - "always"     任何上下文访问即校验（开发 / 测试 / 构建 / 生产）
  *   - "production" 仅生产服务器运行时强制（NODE_ENV=production 且非构建阶段）；
@@ -33,8 +33,6 @@ export type EnvEntry = {
   max?: number;
   /** 字符串枚举白名单 */
   enum?: readonly string[];
-  /** 该变量由测试 harness（playwright.config）注入，不进 ci.env 契约 */
-  providedByHarness?: boolean;
   /** 用途说明：契约测试据此与 .env.example 对齐 */
   note: string;
 };
@@ -145,7 +143,6 @@ export const environmentSchema = {
   REPORTS_ORIGIN: {
     kind: "config",
     required: "optional",
-    providedByHarness: true,
     note: "独立无 Cookie 汇报内容域；本地留空回退主站 origin",
   },
   NEXT_PUBLIC_APP_URL: {
@@ -246,6 +243,11 @@ export const environmentSchema = {
     enum: ["0", "1"],
     note: "为 1 时运行 PostgreSQL 集成测试",
   },
+  SURGE_TEST_REPORTS_DATA_DIR: {
+    kind: "test",
+    required: "optional",
+    note: "单元与数据库集成测试的隔离报告目录",
+  },
   E2E_PORT: {
     kind: "test",
     required: "optional",
@@ -276,13 +278,5 @@ export const documentedEnvKeys = (Object.keys(environmentSchema) as EnvVarName[]
   (name) => {
     const kind = environmentSchema[name].kind;
     return kind === "secret" || kind === "config" || kind === "public" || kind === "storage";
-  },
-);
-
-/** CI 假环境（.github/ci.env）必须覆盖的键：非 optional、且非 harness 注入 */
-export const ciRequiredEnvKeys = (Object.keys(environmentSchema) as EnvVarName[]).filter(
-  (name) => {
-    const entry = environmentSchema[name] as EnvEntry;
-    return entry.required !== "optional" && !entry.providedByHarness;
   },
 );

@@ -30,13 +30,13 @@
   overflow: hidden;
   border: 0;
   border-radius: 16px;
-  background: rgba(240, 240, 245, 0.95);
+  background: color-mix(in srgb, var(--surface-sunken) 95%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(22px);
   backdrop-filter: saturate(180%) blur(22px);
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.1),
     0 1px 3px rgba(0, 0, 0, 0.05);
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -80,14 +80,14 @@
   padding: 0 20px !important;
   border: 0 !important;
   border-radius: 16px !important;
-  background: rgba(240, 240, 245, 0.95) !important;
+  background: color-mix(in srgb, var(--surface-sunken) 95%, transparent) !important;
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.1),
     0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
 [data-sonner-toaster] [data-sonner-toast] [data-title] {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
@@ -97,7 +97,7 @@
 
 [data-sonner-toaster] [data-sonner-toast] [data-description] {
   margin-top: 2px;
-  color: #6e6e73;
+  color: var(--text-secondary);
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.4;
@@ -110,15 +110,15 @@
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
-  color: #34c759;
+  color: var(--success);
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
-  color: #ff3b30;
+  color: var(--danger-text);
 }
 
 [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
-  color: #ff9500;
+  color: var(--warning);
 }
 
 @media (prefers-reduced-motion: reduce) {

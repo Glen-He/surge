@@ -18,11 +18,13 @@ describe("结构化日志脱敏", () => {
       "test",
       "failure",
       new Error(
-        "GET /s/SecretShareToken for person@example.test from 203.0.113.8 with Bearer abc123",
+        "GET /share/SecretShareToken /board/BoardSecret/item/id https://reports.example/report/CapSecret/report.html for person@example.test from 203.0.113.8 with Bearer abc123",
       ),
     );
     const line = String(write.mock.calls[0]?.[0] ?? "");
     expect(line).not.toContain("SecretShareToken");
+    expect(line).not.toContain("BoardSecret");
+    expect(line).not.toContain("CapSecret");
     expect(line).not.toContain("person@example.test");
     expect(line).not.toContain("203.0.113.8");
     expect(line).not.toContain("abc123");

@@ -5,7 +5,7 @@ import { mainContentSecurityPolicy, proxy } from "@/proxy";
 describe("独立报告内容域代理边界", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("内容域只允许 /r/*", () => {
+  it("内容域只允许 /report/*", () => {
     vi.stubEnv("BETTER_AUTH_URL", "https://glenhe.com");
     vi.stubEnv("REPORTS_ORIGIN", "https://reports.glenhe.com");
 
@@ -13,7 +13,7 @@ describe("独立报告内容域代理边界", () => {
     expect(denied.status).toBe(404);
 
     const allowed = proxy(
-      new NextRequest("https://reports.glenhe.com/r/CAP/report.html"),
+      new NextRequest("https://reports.glenhe.com/report/CAP/report.html"),
     );
     expect(allowed.status).toBe(200);
     expect(allowed.headers.get("x-middleware-next")).toBe("1");

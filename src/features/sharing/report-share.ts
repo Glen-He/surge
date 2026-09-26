@@ -15,25 +15,26 @@ import {
   encryptShareToken,
   shareTokenHash,
 } from "@/features/sharing/share-credentials";
+import type { DisplayMode } from "@/features/reports/display-mode";
 import { ReportShareError } from "@/features/sharing/report-share-errors";
 
 // ── 分享链接工具 ──
-// token 用 22 位 base62（≈131bit 熵），不可枚举；
+// token 用 8 位小写字母和数字；
 // 密码 scrypt 存储；解锁凭证为 HMAC(token, 服务端密钥)，客户端不可伪造。
 
 const TOKEN_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const SHARE_TOKEN_RE = /^[A-Za-z0-9]{22}$/;
+  "abcdefghijklmnopqrstuvwxyz0123456789";
+const SHARE_TOKEN_RE = /^[a-z0-9]{8}$/;
 
-export function generateShareToken(len = 22): string {
-  // rejection sampling 消除模偏差：256 % 62 = 8，直接取模会让前 8 个
-  // 字符（A-H）的概率略高；丢弃 >= 248 的字节后每个字符严格等概率
-  const LIMIT = 256 - (256 % 62);
+/** 使用密码学随机源与拒绝采样生成分享 token，默认八位。 */
+export function generateShareToken(len = 8): string {
+  // 拒绝采样：丢弃 >= 252 的字节，保证 36 个字符等概率。
+  const LIMIT = 256 - (256 % TOKEN_ALPHABET.length);
   let out = "";
   while (out.length < len) {
     const bytes = randomBytes(len);
     for (let i = 0; i < bytes.length && out.length < len; i++) {
-      if (bytes[i] < LIMIT) out += TOKEN_ALPHABET[bytes[i] % 62];
+      if (bytes[i] < LIMIT) out += TOKEN_ALPHABET[bytes[i] % TOKEN_ALPHABET.length];
     }
   }
   return out;
@@ -302,9 +303,9 @@ export async function listSharesBySlug(
 /** 按属主列出其全部报告的全部分享 */
 export async function listAllShares(
   userId: string,
-): Promise<(ShareRow & { report_title: string; report_slug: string })[]> {
-  const r = await db.query<StoredShareRow & { report_title: string; report_slug: string }>(
-    `SELECT s.*, r.title AS report_title, r.slug AS report_slug
+): Promise<(ShareRow & { report_title: string; report_slug: string; display_mode: DisplayMode })[]> {
+  const r = await db.query<StoredShareRow & { report_title: string; report_slug: string; display_mode: DisplayMode }>(
+    `SELECT s.*, r.title AS report_title, r.slug AS report_slug, r.display_mode
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
      WHERE r.user_id = $1
@@ -315,10 +316,12 @@ export async function listAllShares(
     ...revealShare(row),
     report_title: row.report_title,
     report_slug: row.report_slug,
+    display_mode: row.display_mode,
   }));
 }
 
 export interface ValidShare {
+  displayMode: DisplayMode;
   share: ShareRow;
   ownerId: string;
   reportTitle: string;
@@ -334,6 +337,7 @@ export async function findValidShare(
   if (!isValidShareToken(token)) return null;
   const r = await db.query<
     StoredShareRow & {
+      display_mode: DisplayMode;
       owner_id: string;
       report_title: string;
       revision_id: string;
@@ -341,7 +345,7 @@ export async function findValidShare(
     }
   >(
     `SELECT s.*, r.user_id AS owner_id, r.title AS report_title,
-            r.revision_id, r.capability_epoch
+            r.revision_id, r.capability_epoch, r.display_mode
      FROM report_shares s
      JOIN reports r ON r.id = s.report_id
      WHERE s.token_hash = $1 LIMIT 1`,
@@ -351,6 +355,7 @@ export async function findValidShare(
   if (!row) return null;
   if (row.expires_at && row.expires_at.getTime() < Date.now()) return null;
   const {
+    display_mode,
     owner_id,
     report_title,
     revision_id,
@@ -361,6 +366,7 @@ export async function findValidShare(
   return {
     share,
     ownerId: owner_id,
+    displayMode: display_mode,
     reportTitle: report_title,
     reportId: share.report_id,
     revisionId: revision_id,

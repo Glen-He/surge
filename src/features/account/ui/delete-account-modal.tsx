@@ -83,7 +83,7 @@ function DeleteAccountDialog({
 
   return (
     <Modal open onClose={onClose} title="删除账号？" busy={loading} plainHeader>
-      <p className="text-[14px] leading-[1.55] text-[#6e6e73]">
+      <p className="text-[14px] leading-[1.55] text-[var(--text-secondary)]">
         申请后账号进入 15 天冷却期，期间可正常登录并随时取消；冷却期结束后，账号及名下全部报告与数据将被永久删除，无法恢复。请先完成邮箱验证。
       </p>
 
@@ -117,7 +117,7 @@ function DeleteAccountDialog({
         </button>
       </div>
 
-      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[#ff3b30]">
+      <p className="min-h-[20px] mt-2 text-[13px] leading-[1.4] text-[var(--danger-text)]">
         {error}
       </p>
 

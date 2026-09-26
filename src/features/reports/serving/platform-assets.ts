@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-/** 平台公共资源目录（与 /r/<cap>/ 的报告内容目录分离）。 */
+/** 平台公共资源目录（与 /report/<cap>/ 的报告内容目录分离）。 */
 export const PLATFORM_SHARED_DIR = path.join(
   process.cwd(),
   "reports",

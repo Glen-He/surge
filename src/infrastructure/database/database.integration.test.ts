@@ -62,6 +62,7 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
        WHERE table_schema = 'public'
          AND (table_name, column_name) IN (
            ('reports', 'revision_id'),
+           ('reports', 'display_mode'),
            ('otp_codes', 'code_hash'),
            ('otp_codes', 'code'),
            ('api_tokens', 'token_lookup'),
@@ -104,6 +105,7 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
       rows.map((row) => [`${row.table_name}.${row.column_name}`, row.is_nullable]),
     );
     expect(columns.get("reports.revision_id")).toBe("NO");
+    expect(columns.get("reports.display_mode")).toBe("NO");
     expect(columns.get("otp_codes.code_hash")).toBe("NO");
     expect(columns.has("otp_codes.code")).toBe(false);
     expect(columns.has("api_tokens.token_lookup")).toBe(true);
@@ -157,7 +159,8 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
          AND conname IN (
            'reports_exactly_one_content_source',
            'reports_storage_size_positive',
-           'reports_tag_color_palette'
+           'reports_tag_color_palette',
+           'reports_display_mode_valid'
          )`,
     );
     expect(
@@ -168,6 +171,7 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
       reports_exactly_one_content_source: true,
       reports_storage_size_positive: true,
       reports_tag_color_palette: true,
+      reports_display_mode_valid: true,
     });
     const shareConstraints = await database.query<{
       conname: string;

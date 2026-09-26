@@ -255,11 +255,11 @@ test("登录与注册切换不会改变认证卡片尺寸", async ({ page }, tes
       const labelAfterFocus = await inviteLabel.boundingBox();
       expect(labelAfterFocus).not.toBeNull();
       expect(labelAfterFocus!.y).toBeLessThan(inputBeforeFocus!.y);
-      await expect(inviteLabel).toHaveCSS("color", "rgb(0, 113, 227)");
+      await expect(inviteLabel).toHaveCSS("color", "rgb(0, 98, 196)");
 
       await inviteInput.fill("ABC123");
       await inviteInput.press("Tab");
-      await expect(inviteLabel).toHaveCSS("color", "rgb(134, 134, 139)");
+      await expect(inviteLabel).toHaveCSS("color", "rgb(110, 110, 115)");
       const labelAfterBlur = await inviteLabel.boundingBox();
       expect(labelAfterBlur).not.toBeNull();
       expect(labelAfterBlur!.y).toBeLessThan(inputBeforeFocus!.y);
@@ -387,7 +387,7 @@ test("游客登录与退出仍完整创建并销毁临时账号", async ({ brows
   await expect(guestNotice).toHaveCSS("border-radius", "16px");
   await expect(guestNotice).toHaveCSS(
     "background-color",
-    "rgba(240, 240, 245, 0.95)",
+    "color(srgb 0.976471 0.976471 0.984314 / 0.95)",
   );
 
   const session = await page.request.get("/api/auth/get-session");
@@ -725,7 +725,7 @@ test("首页卡片可流畅跨间隙和跨日期排序", async ({ page }) => {
   await expect(saveErrorNotice).toHaveCSS("border-radius", "16px");
   await expect(saveErrorNotice).toHaveCSS(
     "background-color",
-    "rgba(240, 240, 245, 0.95)",
+    "color(srgb 0.976471 0.976471 0.984314 / 0.95)",
   );
   await expect(saveErrorNotice.locator("[data-close-button]")).toHaveCount(0);
 
@@ -1229,7 +1229,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   await expect(lockedInvite).toHaveAttribute("readonly", "");
   await inviteContext.close();
   await page.goto("/home");
-  await page.goto(`/report/${fixture.reportSlug}`);
+  await page.goto(`/view/${fixture.reportSlug}`);
   const embeddedReport = page.frameLocator(`iframe[title="${fixture.reportTitle}"]`);
   await embeddedReport.locator("body").evaluate(() => {
     window.parent.postMessage(
@@ -1399,7 +1399,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   }));
   expect(boardSizeAgain).toEqual(boardSize);
 
-  await page.goto("/shares");
+  await page.goto("/account/shared");
   await expect(page.locator("table")).toHaveCount(0);
   const shareLinksGrid = page.locator("[data-share-links-grid]");
   await expect(shareLinksGrid).toBeVisible();
@@ -1455,7 +1455,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   });
   const mobilePage = await mobileContext.newPage();
   try {
-    await mobilePage.goto("/shares");
+    await mobilePage.goto("/account/shared");
     const mobileShareLinksGrid = mobilePage.locator("[data-share-links-grid]");
     expect(
       await mobileShareLinksGrid.evaluate(
@@ -1498,10 +1498,10 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   }
 
   // 已登录的属主打开自己的受保护分享时直接进入，不计作外部访客。
-  await page.goto(`/b/${boardToken}`);
+  await page.goto(`/board/${boardToken}`);
   await expect(page.getByRole("heading", { name: "带密码的测试面板" })).toBeVisible();
   await expect(page.getByPlaceholder("4 位提取码")).toBeHidden();
-  await page.goto(`/s/${shareToken}`);
+  await page.goto(`/share/${shareToken}`);
   await expect(
     page
       .frameLocator(`iframe[title="${fixture.reportTitle}"]`)
@@ -1515,11 +1515,11 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   const visitorContext = await visitorBrowser!.newContext();
   const visitor = await visitorContext.newPage();
   const origin = new URL(page.url()).origin;
-  await visitor.goto(`${origin}/b/${boardToken}#pwd=${boardPasscode}`);
+  await visitor.goto(`${origin}/board/${boardToken}#pwd=${boardPasscode}`);
   await expect(visitor.getByRole("heading", { name: "带密码的测试面板" })).toBeVisible();
   await expect(visitor.getByPlaceholder("4 位提取码")).toBeHidden();
   expect(new URL(visitor.url()).hash).toBe("");
-  await visitor.goto(`${origin}/s/${shareToken}#pwd=${sharePasscode}`);
+  await visitor.goto(`${origin}/share/${shareToken}#pwd=${sharePasscode}`);
   await expect(
     visitor
       .frameLocator(`iframe[title="${fixture.reportTitle}"]`)

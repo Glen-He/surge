@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 
-const mocked = vi.hoisted(() => ({ reportRoot: "" }));
+const mocked = vi.hoisted(() => ({ reportRoot: "", displayMode: "frame", epoch: 0 }));
 
 vi.mock("@/infrastructure/database/client", () => ({
   db: {
@@ -13,7 +13,8 @@ vi.mock("@/infrastructure/database/client", () => ({
           user_id: "user-1",
           slug: "report-1",
           revision_id: "rev-1",
-          capability_epoch: 0,
+          capability_epoch: mocked.epoch,
+          display_mode: mocked.displayMode,
           template_key: null,
           storage_key: "a_0123456789abcdef0123456789abcdef",
         },
@@ -26,7 +27,7 @@ vi.mock("@/features/reports/storage/report-storage", () => ({
   reportContentDir: vi.fn(() => mocked.reportRoot),
 }));
 
-import { GET } from "@/app/r/[cap]/[...path]/route";
+import { GET } from "@/app/report/[cap]/[...path]/route";
 import { issueCapability } from "@/features/reports/report-capability";
 
 describe("报告资源路由缓存", () => {
@@ -37,6 +38,8 @@ describe("报告资源路由缓存", () => {
     vi.stubEnv("REPORTS_ORIGIN", "https://surge.example");
     root = await mkdtemp(path.join(os.tmpdir(), "surge-report-route-"));
     mocked.reportRoot = root;
+    mocked.displayMode = "frame";
+    mocked.epoch = 0;
     await mkdir(path.join(root, "images"));
     await writeFile(path.join(root, "images", "a.webp"), Buffer.from("webp-data"));
     await writeFile(path.join(root, "paper.pdf"), Buffer.from("pdf-data"));
@@ -58,7 +61,7 @@ describe("报告资源路由缓存", () => {
     headers?: HeadersInit,
     search = "",
   ) {
-    return GET(new Request(`https://surge.example/r/${cap}/${segments.join("/")}${search}`, { headers }), {
+    return GET(new Request(`https://surge.example/report/${cap}/${segments.join("/")}${search}`, { headers }), {
       params: Promise.resolve({ cap, path: segments }),
     });
   }
@@ -107,6 +110,21 @@ describe("报告资源路由缓存", () => {
     expect(html).toContain("data-surge-report-header");
   });
 
+  it("网页发布返回原始入口，同时保留内容域隔离与 capability 撤销", async () => {
+    mocked.displayMode = "bare";
+    const cap = issueCapability("report-id", "rev-1", 0);
+    const response = await request(cap, ["report.html"]);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("<!doctype html><html><head></head><body>report</body></html>");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    expect(response.headers.get("content-security-policy")).toContain("sandbox allow-scripts");
+    expect(response.headers.get("content-security-policy")).not.toContain("allow-same-origin");
+    expect(response.headers.get("content-security-policy")).toContain("frame-ancestors https://surge.example");
+    mocked.epoch = 1;
+    expect((await request(cap, ["report.html"])).status).toBe(404);
+  });
+
   it("子资源保留 CORS，供 opaque-origin 汇报加载 ES Module 等资源", async () => {
     const cap = issueCapability("report-id", "rev-1", 0);
     const response = await request(cap, ["images", "a.webp"]);
@@ -118,8 +136,8 @@ describe("报告资源路由缓存", () => {
     const cap = issueCapability("report-id", "rev-1", 0);
     const entry = await request(cap, ["report.html"]);
     const csp = entry.headers.get("content-security-policy")!;
-    expect(csp).toMatch(/connect-src https:\/\/surge\.example\/r\/[^;]+\//);
-    expect(csp).toMatch(/frame-src https:\/\/surge\.example\/r\/[^;]+\//);
+    expect(csp).toMatch(/connect-src https:\/\/surge\.example\/report\/[^;]+\//);
+    expect(csp).toMatch(/frame-src https:\/\/surge\.example\/report\/[^;]+\//);
     expect(csp).not.toMatch(/(?:^|[ ;])https:(?:[ ;]|$)/);
     expect(csp).toContain("form-action 'none'");
 

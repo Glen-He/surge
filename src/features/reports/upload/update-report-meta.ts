@@ -39,9 +39,12 @@ export async function updateReportMeta(
         await client.query(
           `UPDATE reports
            SET title = $1, date = $2, tag = $3, tag_color = $4,
-               description = $5, keywords = $6, sort_order = $7
+               description = $5, keywords = $6, sort_order = $7,
+               capability_epoch = capability_epoch + CASE
+                 WHEN $10::text IS NOT NULL AND display_mode <> $10 THEN 1 ELSE 0 END,
+               display_mode = COALESCE($10, display_mode)
            WHERE user_id = $8 AND slug = $9`,
-          [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, sortOrder, userId, slug],
+          [meta.title, meta.date, meta.tag, meta.tagColor, meta.description, meta.keywords, sortOrder, userId, slug, meta.displayMode ?? null],
         );
         await client.query("COMMIT");
         return { ok: true, slug };

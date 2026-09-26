@@ -1,29 +1,45 @@
-
-/* ============ 设计 Token（Apple 风格、克制、黑/白/灰） ============ */
+/* 平台颜色按用途分层；报告正文与项目分类色板不继承此约定。 */
 :root {
+  /* 背景层：页面 → 白色表面 → 内嵌内容；控件有独立的默认、悬停与关闭态。 */
   --page-bg: #f5f5f7;
   --surface: #ffffff;
+  --surface-sunken: #f9f9fb;
+  --control-bg: #f2f2f7;
+  --control-hover: #e8e8ed;
+  --control-off: #d1d1d6;
 
+  /* 信息文字只用主色或辅助色；浅灰仅用于图标与不可用内容。 */
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
-  /* 三级信息文字：#6e6e73 保白底 4.7:1 达 WCAG AA（#86868b 仅 3.9:1，
-     只允许用于图标/装饰，信息文字一律走本 token） */
-  --text-tertiary: #6e6e73;
+  --icon-muted: #86868b;
+  --text-disabled: #a1a1a6;
+  --text-on-fill: #ffffff;
 
+  /* 描边层：卡片轻边缘、普通容器、可输入控件、悬停反馈。 */
+  --border-subtle: rgba(0, 0, 0, 0.06);
   --border: rgba(0, 0, 0, 0.08);
+  --border-control: rgba(0, 0, 0, 0.12);
   --border-hover: rgba(0, 0, 0, 0.14);
 
+  /* 操作与选中态：浅蓝也用于浏览器自动填充，保持统一的表单反馈。 */
   --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-soft: rgba(0, 113, 227, 0.08);
+  --accent-hover: #0062c4;
+  --accent-text: var(--accent-hover);
+  --accent-soft: #eef6ff;
+  --accent-border: rgba(0, 113, 227, 0.3);
 
+  /* 状态色：实色用于图标和填充，深色用于文字，浅色用于背景。 */
   --success: #34c759;
-  --success-text: #18864b;
-  --success-soft: rgba(52, 199, 89, 0.1);
-
+  --success-text: #147a43;
+  --success-soft: #eaf9ee;
+  --warning: #ff9500;
+  --warning-text: #9a5700;
+  --warning-soft: #fff2e0;
   --danger: #ff3b30;
   --danger-hover: #e4382d;
-  --danger-soft: rgba(255, 59, 48, 0.08);
+  --danger-text: #d70015;
+  --danger-soft: #fff0ef;
+  --danger-border: rgba(255, 59, 48, 0.35);
 }
 
 /* ============ 基础 ============ */
@@ -93,8 +109,8 @@ button {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #fff;
+  border: 1px solid var(--border-control);
+  background: var(--surface);
   font-size: 16px;
   color: var(--text-primary);
   width: 100%;
@@ -103,7 +119,7 @@ button {
 }
 
 .input::placeholder {
-  color: #a1a1a6;
+  color: var(--text-secondary);
 }
 
 /* 聚焦：只变边框颜色，不做任何外扩光环 */
@@ -120,13 +136,13 @@ button {
 }
 
 .input:disabled {
-  background: #f5f5f7;
-  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
 /* ============ 按钮 ============ */
-/* 规则：全部胶囊形；深色按钮 hover 变浅，浅色按钮 hover 变深；成对按钮视觉等大 */
+/* 规则：全部胶囊形；悬停使用对应的交互色，不靠透明叠色制造额外色阶；成对按钮视觉等大 */
 /* 光学修正：实心（深色）按钮比带边框（浅色）按钮四周各小 1px —— 高 42 vs 44、宽 -2px，对齐边框内芯 */
 /* 主操作按钮：胶囊、实心蓝 */
 .btn-primary {
@@ -139,7 +155,7 @@ button {
   min-width: 104px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-fill);
   font-size: 15px;
   font-weight: 600;
   border: none;
@@ -150,7 +166,7 @@ button {
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.85;
+  background: var(--accent-hover);
 }
 
 .btn-primary:disabled {
@@ -167,11 +183,11 @@ button {
   padding: 0 21px;
   min-width: 106px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 500;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-control);
   white-space: nowrap;
   transition:
     border-color 0.15s ease,
@@ -180,7 +196,7 @@ button {
 
 .btn-secondary:hover:not(:disabled) {
   border-color: var(--border-hover);
-  background: #ededf2;
+  background: var(--control-hover);
 }
 
 .btn-secondary:disabled {
@@ -215,7 +231,7 @@ button {
   min-width: 104px;
   border-radius: 999px;
   background: var(--danger);
-  color: #fff;
+  color: var(--text-on-fill);
   font-size: 15px;
   font-weight: 600;
   border: none;
@@ -226,7 +242,7 @@ button {
 }
 
 .btn-danger:hover:not(:disabled) {
-  opacity: 0.85;
+  background: var(--danger-hover);
 }
 
 .btn-danger:disabled {
@@ -243,11 +259,11 @@ button {
   padding: 0 21px;
   min-width: 106px;
   border-radius: 999px;
-  background: #fff;
-  color: var(--danger);
+  background: var(--surface);
+  color: var(--danger-text);
   font-size: 15px;
   font-weight: 500;
-  border: 1px solid rgba(255, 59, 48, 0.35);
+  border: 1px solid var(--danger-border);
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease;
@@ -255,7 +271,7 @@ button {
 
 .btn-danger-outline:hover:not(:disabled) {
   background: var(--danger-soft);
-  border-color: rgba(255, 59, 48, 0.5);
+  border-color: var(--danger);
 }
 
 .btn-danger-outline:disabled {
@@ -271,7 +287,7 @@ button {
   background: none;
   border: none;
   padding: 6px 0;
-  color: #0071e3;
+  color: var(--accent-text);
   font-size: 14px;
   font-weight: 500;
   transition: color 0.15s ease;
@@ -283,7 +299,7 @@ button {
 }
 
 .btn-action:hover {
-  color: #0062c4;
+  color: var(--accent-text);
 }
 
 /* 同格式的危险文字 Action（删除账号），红仅危险 */
@@ -294,7 +310,7 @@ button {
   background: none;
   border: none;
   padding: 6px 0;
-  color: var(--danger);
+  color: var(--danger-text);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -302,7 +318,7 @@ button {
 }
 
 .btn-action-danger:hover {
-  color: #d32f25;
+  color: var(--danger-text);
 }
 
 /* 浅色胶囊按钮（返回 / 用户中心）：hover 变深而不是变浅 */
@@ -313,9 +329,9 @@ button {
   height: 40px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.72);
-  color: #6e6e73;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   transition:
@@ -323,10 +339,10 @@ button {
     color 0.15s ease;
 }
 
-/* 白色系按钮 hover 统一浅灰 #ededf2（与 .rpt-sys-back、分享小胶囊同值） */
+/* 白色系按钮 hover 统一使用 --control-hover（与 .rpt-sys-back、分享小胶囊同值） */
 .btn-light:hover {
-  background: #ededf2;
-  color: #1d1d1f;
+  background: var(--control-hover);
+  color: var(--text-primary);
 }
 
 /* Modal 底部操作行：右对齐、次按钮 + 主按钮，不再使用两个 50% 巨型按钮 */
@@ -385,7 +401,7 @@ button {
   height: 36px;
   overflow: hidden;
   font-size: 13px;
-  color: var(--danger);
+  color: var(--danger-text);
   line-height: 18px;
 }
 

@@ -25,6 +25,7 @@ export default async function EditReportPage({
       slug={report.slug}
       initial={{
         title: report.title,
+        displayMode: report.display_mode,
         date: report.date,
         tag: report.tag,
         tagColor: requireTagColor(report.tag_color),

@@ -8,7 +8,7 @@ const TARGETS = {
     endpoint: "share",
     action: "查看报告",
     surface:
-      "border border-black/8 shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+      "border border-[var(--border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
   },
   board: {
     endpoint: "share-board",
@@ -67,20 +67,20 @@ export function SharePasswordGate({
   });
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-[#f5f5f7] px-6">
+    <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
       <div
-        className={`w-full max-w-[400px] rounded-[20px] bg-white p-8 ${config.surface}`}
+        className={`w-full max-w-[400px] rounded-[20px] bg-[var(--surface)] p-8 ${config.surface}`}
       >
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(88,86,214,0.08)]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#5856d6" strokeWidth="1.8" className="h-6 w-6">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-soft)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" className="h-6 w-6">
             <rect x="5" y="11" width="14" height="9" rx="2" />
             <path d="M8 11V7a4 4 0 0 1 8 0v4" />
           </svg>
         </div>
-        <h1 className="text-center text-[17px] font-semibold text-[#1d1d1f]">
+        <h1 className="text-center text-[17px] font-semibold text-[var(--text-primary)]">
           {title}
         </h1>
-        <p className="mt-1.5 text-center text-[13px] text-[#6e6e73]">
+        <p className="mt-1.5 text-center text-[13px] text-[var(--text-secondary)]">
           请输入分享者提供的 4 位提取码
         </p>
         <input
@@ -97,19 +97,19 @@ export function SharePasswordGate({
           maxLength={4}
           autoCapitalize="characters"
           autoComplete="off"
-          className="mt-5 h-[44px] w-full rounded-full border border-black/12 bg-white px-4 text-center text-[16px] tracking-[0.24em] text-[#1d1d1f] outline-none transition-colors focus:border-[#0071e3]"
+          className="mt-5 h-[44px] w-full rounded-full border border-[var(--border-control)] bg-[var(--surface)] px-4 text-center text-[16px] tracking-[0.24em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
         />
         {/* 错误行固定占位：避免密码错误提示出现时卡片高度跳变 */}
-        <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[#ff3b30]">{error}</p>
+        <p className="mt-2 h-[18px] text-center text-[13px] leading-[18px] text-[var(--danger-text)]">{error}</p>
         <button
           type="button"
           onClick={() => void submit()}
           disabled={loading || !password}
-          className="mt-4 h-[44px] w-full rounded-full bg-[#0071e3] text-[15px] font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+          className="mt-4 h-[44px] w-full rounded-full bg-[var(--accent)] text-[15px] font-semibold text-[var(--text-on-fill)] transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-40"
         >
           {loading ? "验证中…" : config.action}
         </button>
-        <p className="mt-5 text-center text-[12px] text-[#6e6e73]">
+        <p className="mt-5 text-center text-[12px] text-[var(--text-secondary)]">
           来自 SURGE 工作汇报系统的分享
         </p>
       </div>

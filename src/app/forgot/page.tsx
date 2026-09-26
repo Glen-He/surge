@@ -36,25 +36,25 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <main className="flex min-h-svh flex-col bg-white px-6 text-zinc-900 antialiased">
+      <main className="flex min-h-svh flex-col bg-[var(--surface)] px-6 text-[var(--text-primary)] antialiased">
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-sm py-16 text-center">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7 text-zinc-700">
+            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-sunken)]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7 text-[var(--text-primary)]">
                 <rect x="3" y="5" width="18" height="14" rx="3" />
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">检查你的邮箱</h1>
             {email.toLowerCase().endsWith("@" + GUEST_DOMAIN) ? (
-              <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                检测到 <span className="font-medium text-zinc-700">游客模式</span>，无需接收邮件：
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                检测到 <span className="font-medium text-[var(--text-primary)]">游客模式</span>，无需接收邮件：
                 <br />
-                页面顶部会以 <span className="font-medium text-[#0066CC]">弹窗</span> 形式直接显示“游客验证码”。
+                页面顶部会以 <span className="font-medium text-[var(--accent-text)]">弹窗</span> 形式直接显示“游客验证码”。
               </p>
             ) : (
-              <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                如果 <span className="font-medium text-zinc-700">{email}</span>{" "}
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                如果 <span className="font-medium text-[var(--text-primary)]">{email}</span>{" "}
                 已注册，你将收到一封重置密码的邮件（1 小时内有效）。
                 <br />
                 没收到？请检查垃圾邮件。
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
             )}
             <Link
               href="/"
-              className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-full bg-zinc-900 text-[15px] font-medium text-white transition-opacity hover:opacity-80"
+              className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80"
             >
               返回登录
             </Link>
@@ -73,19 +73,19 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-svh flex-col bg-white px-6 text-zinc-900 antialiased">
+    <main className="flex min-h-svh flex-col bg-[var(--surface)] px-6 text-[var(--text-primary)] antialiased">
       <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm py-16">
           <h1 className="text-center text-2xl font-semibold tracking-tight">
             忘记密码
           </h1>
-          <p className="mt-2 text-center text-sm text-zinc-500">
+          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
             输入你的邮箱，我们会发送重置链接
           </p>
 
           <form onSubmit={handleSubmit} noValidate className="mt-[40px] flex flex-col gap-[30px]">
             <div className="relative">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--icon-muted)]">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                   <rect x="3" y="5" width="18" height="14" rx="3" />
                   <path d="m3 7 9 6 9-6" />
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
                   setError("");
                 }}
                 autoComplete="email"
-                className="h-12 w-full rounded-xl border border-transparent bg-zinc-100 pl-11 pr-4 text-[15px] text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-[#0071e3] focus:bg-white"
+                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
             </div>
 
@@ -108,7 +108,7 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="h-12 w-full rounded-full bg-zinc-900 text-[15px] font-medium text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-12 w-full rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "发送中…" : "发送重置链接"}
               </button>
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
           </form>
 
           <p className="mt-6 text-center text-sm">
-            <Link href="/" className="text-[#0066CC] hover:underline">
+            <Link href="/" className="text-[var(--accent-text)] hover:underline">
               返回登录
             </Link>
           </p>

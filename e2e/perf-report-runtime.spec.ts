@@ -138,7 +138,7 @@ async function openReport(
   token: string,
   title: string,
 ): Promise<FrameLocator> {
-  await page.goto(`/s/${token}`);
+  await page.goto(`/share/${token}`);
   await expect(page.locator(`iframe[title="${title}"]`)).toBeVisible();
   return page.frameLocator(`iframe[title="${title}"]`);
 }
