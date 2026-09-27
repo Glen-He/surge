@@ -1,35 +1,37 @@
 "use client";
 
-import { ToggleTrack } from "@/shared/ui/toggle-switch";
+import { ToggleSwitch } from "@/shared/ui/toggle-switch";
 
 export function SharePasscodeControl({
   enabled,
   onChange,
   disabled = false,
+  labelClassName = "mb-2 block type-label",
 }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   disabled?: boolean;
+  /** 标签样式随容器语境调整：复用 type-label，仅按相邻字段调整间距与颜色 */
+  labelClassName?: string;
 }) {
+  const stateText = enabled ? "自动生成 4 位提取码" : "无需提取码";
   return (
     <div>
-      <span className="mb-1 block text-[12px] text-[var(--text-secondary)]">访问保护</span>
-      <button
-        type="button"
-        role="switch"
+      <span className={labelClassName}>访问保护</span>
+      {/* 方框本身不是开关：只有右侧小开关（含四周 6px 余量）可点、是小手，行内文字与空白保持箭头 */}
+      <div
         data-testid="share-passcode-control"
-        aria-checked={enabled}
-        disabled={disabled}
-        onClick={() => onChange(!enabled)}
-        className="group flex h-[38px] w-full items-center justify-between rounded-[10px] border border-[var(--border-control)] bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--text-primary)] outline-none transition-colors hover:bg-[var(--control-hover)] disabled:opacity-50"
+        className="flex h-[40px] w-full items-center justify-between rounded-[var(--radius-md)] border border-[var(--border-control)] bg-[var(--surface)] px-3"
       >
-        <span>{enabled ? "自动生成 4 位提取码" : "无需提取码"}</span>
-        <ToggleTrack
+        <span className="min-w-0 truncate type-input text-[var(--text-primary)]">{stateText}</span>
+        <ToggleSwitch
           checked={enabled}
+          disabled={disabled}
+          label={stateText}
           testId="share-passcode-toggle-track"
-          focusClassName="group-focus-visible:ring-2 group-focus-visible:ring-[var(--success)]/25 group-focus-visible:ring-offset-2"
+          onChange={onChange}
         />
-      </button>
+      </div>
     </div>
   );
 }

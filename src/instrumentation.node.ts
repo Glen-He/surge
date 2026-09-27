@@ -14,21 +14,24 @@ export async function registerNodeRuntime() {
   );
   validateStorageSettings();
   validateUploadGateSettings();
-  // Better Auth 1.7 在 account identity 上新增 issuer。存量数据必须先完成
-  // 语义回填，再交给认证库补齐索引等结构，不能直接添加必填列。
-  const { ensureBetterAuthSchemaCompatible } = await import(
-    "@/infrastructure/auth/better-auth-migration"
-  );
-  await ensureBetterAuthSchemaCompatible();
-  // Next.js 会等 register() 完成后才接收流量，因此 schema 失败
-  // 属于就绪失败，而不是潜伏到某个请求才爆的 500。
-  const { auth } = await import("@/features/auth/auth");
-  const context = await auth.$context;
-  await context.runMigrations();
-  const { ensureSchemaVersioned } = await import(
-    "@/infrastructure/database/migrations"
-  );
-  await ensureSchemaVersioned();
+  const { withSchemaInitializationLock } = await import("@/infrastructure/database/schema-initialization");
+  await withSchemaInitializationLock(async () => {
+    // Better Auth 1.7 在 account identity 上新增 issuer。存量数据必须先完成
+    // 语义回填，再交给认证库补齐索引等结构，不能直接添加必填列。
+    const { ensureBetterAuthSchemaCompatible } = await import(
+      "@/infrastructure/auth/better-auth-migration"
+    );
+    await ensureBetterAuthSchemaCompatible();
+    // Next.js 会等 register() 完成后才接收流量，因此 schema 失败
+    // 属于就绪失败，而不是潜伏到某个请求才爆的 500。
+    const { auth } = await import("@/features/auth/auth");
+    const context = await auth.$context;
+    await context.runMigrations();
+    const { ensureSchemaVersioned } = await import(
+      "@/infrastructure/database/migrations"
+    );
+    await ensureSchemaVersioned();
+  });
   const { validateReportStorageConfiguration } = await import(
     "@/features/reports/storage/report-storage"
   );

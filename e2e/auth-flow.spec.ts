@@ -255,7 +255,7 @@ test("登录与注册切换不会改变认证卡片尺寸", async ({ page }, tes
       const labelAfterFocus = await inviteLabel.boundingBox();
       expect(labelAfterFocus).not.toBeNull();
       expect(labelAfterFocus!.y).toBeLessThan(inputBeforeFocus!.y);
-      await expect(inviteLabel).toHaveCSS("color", "rgb(0, 98, 196)");
+      await expect(inviteLabel).toHaveCSS("color", "rgb(8, 102, 216)");
 
       await inviteInput.fill("ABC123");
       await inviteInput.press("Tab");
@@ -979,7 +979,7 @@ test("手机 Safari 可区分页面滑动与整卡长按拖动", async ({ browse
   }
 });
 
-test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page, browser }) => {
+test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ page, browser }, testInfo) => {
   const bypassAttempt = await page.request.post("/api/auth/sign-in/email-otp", {
     data: {
       email: `closed-registration-${randomUUID()}@example.test`,
@@ -1203,7 +1203,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   });
   await expect(registrationToggle).not.toBeFocused();
   const registrationToggleBox = await registrationToggle.boundingBox();
-  expect(registrationToggleBox).toMatchObject({ width: 38, height: 22 });
+  expect(registrationToggleBox).toMatchObject({ width: 50, height: 34 });
   if ((await registrationToggle.getAttribute("aria-checked")) !== "true") {
     await registrationToggle.click();
     await expect(registrationToggle).toHaveAttribute("aria-checked", "true");
@@ -1213,7 +1213,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   const registrationThumb = registrationTrack.locator("span");
   const registrationTrackBox = await registrationTrack.boundingBox();
   const registrationThumbBox = await registrationThumb.boundingBox();
-  expect(registrationTrackBox).not.toBeNull();
+  expect(registrationTrackBox).toMatchObject({ width: 38, height: 22 });
   expect(registrationThumbBox).not.toBeNull();
   expect(registrationThumbBox!.x).toBe(registrationTrackBox!.x + 18);
   expect(registrationThumbBox!.x + registrationThumbBox!.width).toBe(
@@ -1383,7 +1383,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
     [fixture.reportId],
   );
   const sharePasscode = decryptSharePasscode(protectedShare.rows[0]!.password_enc!);
-  const shareToken = decryptShareToken(protectedShare.rows[0]!.token_enc!);
+  let shareToken = decryptShareToken(protectedShare.rows[0]!.token_enc!);
   expect(sharePasscode).toMatch(/^[A-Z0-9]{4}$/);
   await expect(page.getByText(`提取码 ${sharePasscode}`)).toBeVisible();
   const linkSize = await modal.evaluate((element) => ({
@@ -1391,6 +1391,8 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
     height: (element as HTMLElement).offsetHeight,
   }));
   expect(linkSize).toEqual(boardSize);
+  await expect(modal).toHaveCSS("border-radius", "22px");
+  await page.screenshot({ path: testInfo.outputPath("share-modal-radius.png") });
 
   await page.getByRole("tab", { name: "分享面板" }).click();
   const boardSizeAgain = await modal.evaluate((element) => ({
@@ -1413,21 +1415,60 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
     .filter({ hasText: fixture.reportTitle })
     .first();
   await expect(managedShareLink).toBeVisible();
-  const copyShareLink = managedShareLink.locator(
-    '[data-copy-variant="pill"]',
+  const managedShareItem = managedShareLink.locator("[data-share-item]").first();
+  const copyShareLink = managedShareItem.locator(
+    '[data-copy-variant="icon"]',
   );
-  const revokeShareLink = managedShareLink.getByRole("button", {
-    name: "撤销",
+  const settingsShareLink = managedShareItem.getByRole("button", { name: "分享设置" });
+  const revokeShareLink = managedShareItem.getByRole("button", {
+    name: "撤销分享链接",
   });
-  const [copyShareBox, revokeShareBox] = await Promise.all([
+  const [copyShareBox, revokeShareBox, settingsBox] = await Promise.all([
     copyShareLink.boundingBox(),
     revokeShareLink.boundingBox(),
+    settingsShareLink.boundingBox(),
   ]);
   expect(copyShareBox).not.toBeNull();
   expect(revokeShareBox).not.toBeNull();
-  expect(copyShareBox!.width).toBe(revokeShareBox!.width);
+  expect(settingsBox).not.toBeNull();
+  expect(copyShareBox!.width).toBeCloseTo(revokeShareBox!.width, 0);
   expect(copyShareBox!.height).toBe(revokeShareBox!.height);
-  expect(revokeShareBox!.x - (copyShareBox!.x + copyShareBox!.width)).toBe(12);
+  expect(settingsBox!.width).toBeCloseTo(copyShareBox!.width, 0);
+  expect(Math.abs(settingsBox!.y - copyShareBox!.y)).toBeLessThan(1);
+  // 单条链接图标顺序：设置 → 复制 → 撤销；同组间距统一为 6px。
+  expect(copyShareBox!.x - (settingsBox!.x + settingsBox!.width)).toBeCloseTo(6, 0);
+  expect(revokeShareBox!.x - (copyShareBox!.x + copyShareBox!.width)).toBeCloseTo(6, 0);
+  await expect(managedShareLink).toHaveCSS("border-radius", "22px");
+
+  // 更换链接已移入设置弹窗：打开弹窗 → 外壳尺寸锁定 → 更换链接 → 关窗
+  await settingsShareLink.scrollIntoViewIfNeeded();
+  await settingsShareLink.click();
+  const shareSettingsModal = page.locator(".security-modal");
+  await expect(shareSettingsModal).toBeVisible();
+  const shareSettingsSize = await shareSettingsModal.evaluate((element) => ({
+    width: (element as HTMLElement).offsetWidth,
+    height: (element as HTMLElement).offsetHeight,
+  }));
+  const rotateShareLink = shareSettingsModal.getByRole("button", { name: "更换链接" });
+  await expect(rotateShareLink).toBeVisible();
+  const rotatedResponse = page.waitForResponse((response) => response.url().includes("/api/shares/") && response.url().endsWith("/rotate-token"));
+  await rotateShareLink.click();
+  const rotated = await rotatedResponse;
+  expect(rotated.status()).toBe(200);
+  const newToken = (await rotated.json()).token as string;
+  expect(newToken).toMatch(/^[a-z0-9]{8}$/);
+  expect(newToken).not.toBe(shareToken);
+  shareToken = newToken;
+  await expect(rotateShareLink).toHaveText("更换链接");
+  expect(
+    await shareSettingsModal.evaluate((element) => ({
+      width: (element as HTMLElement).offsetWidth,
+      height: (element as HTMLElement).offsetHeight,
+    })),
+  ).toEqual(shareSettingsSize);
+  await page.keyboard.press("Escape");
+  await expect(shareSettingsModal).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("sharing-radius.png"), fullPage: true });
 
   const managedBoard = page.locator("article").filter({ hasText: "带密码的测试面板" });
   const copyBoardLink = managedBoard.locator('[data-copy-variant="pill"]');
@@ -1468,6 +1509,7 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
       .first();
     const mobileShareCardBox = await mobileShareCard.boundingBox();
     expect(mobileShareCardBox).not.toBeNull();
+    await expect(mobileShareCard).toHaveCSS("border-radius", "22px");
     expect(mobileShareCardBox!.x).toBeGreaterThanOrEqual(16);
     expect(mobileShareCardBox!.width).toBeLessThanOrEqual(358);
 

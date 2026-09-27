@@ -1,6 +1,6 @@
 import { getApiSession } from "@/features/session/api-session";
 import { isGuestEmail } from "@/features/auth/guest/guest-identity";
-import { createShareBoard, listShareBoards, MAX_BOARD_TITLE_LENGTH, normalizeBoardTitle, parseBoardExpiry } from "@/features/sharing/share-board";
+import { boardExpiryFromDays, createShareBoard, listShareBoards, MAX_BOARD_TITLE_LENGTH, normalizeBoardTitle } from "@/features/sharing/share-board";
 import {
   shareBoardErrorResponse,
   ShareBoardError,
@@ -42,14 +42,12 @@ export async function POST(req: Request) {
   }
   const passcode =
     requestedPasscode ?? (body.passwordProtected === true ? generateSharePasscode() : null);
-  const expiresAt = parseBoardExpiry(body.expiresOn);
-  if (expiresAt === "invalid") {
-    return Response.json({ error: "请选择未来的有效期" }, { status: 400 });
-  }
   const reportSlug = typeof body.reportSlug === "string" ? body.reportSlug : undefined;
   const passwordHash = passcode ? await hashSharePassword(passcode) : null;
   const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
   try {
+    // 未传档位时按「永久有效」处理（0 天）；非法档位抛 BOARD_EXPIRY_INVALID。
+    const expiresAt = boardExpiryFromDays(body.expiresInDays ?? 0);
     const board = await createShareBoard(
       session.user.id,
       title,
@@ -57,6 +55,7 @@ export async function POST(req: Request) {
       passwordEnc,
       expiresAt,
       reportSlug,
+      body.disabled === true,
     );
     return Response.json({ ok: true, board });
   } catch (error) {

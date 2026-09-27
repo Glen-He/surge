@@ -31,10 +31,10 @@ export default async function AccountSessionsPage() {
       <div className="account-shell">
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               登录设备
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               查看并管理当前账号的活跃登录会话
             </p>
           </div>

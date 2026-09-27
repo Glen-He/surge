@@ -51,9 +51,9 @@ export function EmptyState({
       >
         {ICONS[icon]}
       </svg>
-      <p className="text-[15px] font-medium text-[var(--text-primary)]">{title}</p>
+      <p className="type-subtitle text-[var(--text-primary)]">{title}</p>
       {hint && (
-        <p className="mt-1.5 text-[13px] leading-normal text-[var(--text-secondary)]">{hint}</p>
+        <p className="mt-1.5 type-caption text-[var(--text-secondary)]">{hint}</p>
       )}
     </div>
   );

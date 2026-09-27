@@ -34,16 +34,16 @@ export default function GlobalError({
               maxWidth: 420,
               padding: 32,
               boxSizing: "border-box",
-              borderRadius: 24,
+              borderRadius: "var(--radius-xl, 22px)",
               background: "white",
               textAlign: "center",
               boxShadow: "0 12px 36px rgba(0,0,0,0.08)",
             }}
           >
-            <h1 style={{ margin: 0, color: "#1d1d1f", fontSize: 22 }}>
+            <h1 style={{ margin: 0, color: "#1d1d1f", fontSize: "var(--font-size-section-title, 20px)", lineHeight: "var(--line-height-section-title, 28px)", fontWeight: "var(--font-weight-semibold, 600)" }}>
               系统暂时不可用
             </h1>
-            <p style={{ margin: "10px 0 0", color: "#6e6e73", fontSize: 14, lineHeight: 1.7 }}>
+            <p style={{ margin: "10px 0 0", color: "#6e6e73", fontSize: "var(--font-size-body, 14px)", lineHeight: "var(--line-height-body, 22px)", fontWeight: "var(--font-weight-regular, 400)" }}>
               请重试一次；如果问题持续存在，请稍后再访问。
             </p>
             <button
@@ -57,8 +57,9 @@ export default function GlobalError({
                 borderRadius: 999,
                 background: "#1d1d1f",
                 color: "white",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: "var(--font-size-body, 14px)",
+                lineHeight: "var(--line-height-body, 22px)",
+                fontWeight: "var(--font-weight-medium, 500)",
                 cursor: "pointer",
               }}
             >

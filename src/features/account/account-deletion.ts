@@ -113,6 +113,7 @@ export async function deleteUserPermanently(
          WHERE user_id = $1 OR lower(email) = lower($2)`,
         [userId, email],
       );
+      await client.query(`DELETE FROM otp_rate_reservations WHERE email = lower($1)`, [email]);
       await client.query(`DELETE FROM otp_codes WHERE lower(email) = lower($1)`, [
         email,
       ]);
@@ -173,6 +174,7 @@ export async function purgeExpiredPersonalSecurityData(): Promise<void> {
        WHERE expires_at <= NOW() OR (consumed = TRUE AND created_at < NOW() - INTERVAL '1 day')`,
     );
     await client.query(`DELETE FROM verification WHERE "expiresAt" <= NOW()`);
+    await client.query(`DELETE FROM otp_rate_reservations WHERE created_at < NOW() - INTERVAL '1 day'`);
     await client.query(
       `DELETE FROM account_changes
        WHERE expires_at <= NOW() OR (consumed = TRUE AND created_at < NOW() - INTERVAL '7 days')`,

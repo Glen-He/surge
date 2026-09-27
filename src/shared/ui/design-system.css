@@ -1,5 +1,32 @@
-/* 平台颜色按用途分层；报告正文与项目分类色板不继承此约定。 */
+/* 平台视觉令牌按用途分层；报告正文与项目分类色板不继承此约定。 */
 :root {
+  /* 平台排版按信息职责选档；字号、行高与字重成组使用，禁止在使用处另造小数档位。 */
+  --font-size-caption: 13px;
+  --line-height-caption: 20px;
+  --font-size-body: 14px;
+  --line-height-body: 22px;
+  --font-size-input: 16px;
+  --line-height-input: 24px;
+  --font-size-card-title: 18px;
+  --line-height-card-title: 24px;
+  --font-size-section-title: 20px;
+  --line-height-section-title: 28px;
+  --font-size-page-title: 32px;
+  --line-height-page-title: 40px;
+  --font-size-display: 40px;
+  --line-height-display: 48px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* 圆角五档按页面关系选用，同组卡片共用档位；胶囊和圆形不参与分档。 */
+  --radius-sm: 8px; /* 菜单选项、日期导航等紧凑单元 */
+  --radius-md: 12px; /* 表单控件、普通内嵌区块和图标底座 */
+  --radius-lg: 16px; /* 浮层、通知、较大的内嵌编辑区域 */
+  --radius-xl: 22px; /* 页面级卡片和 Modal 外壳，大小不同的同组卡片仍一致 */
+  --radius-2xl: 28px; /* 认证页左右合一的整体外框 */
+
   /* 背景层：页面 → 白色表面 → 内嵌内容；控件有独立的默认、悬停与关闭态。 */
   --page-bg: #f5f5f7;
   --surface: #ffffff;
@@ -24,21 +51,30 @@
   /* 操作与选中态：浅蓝也用于浏览器自动填充，保持统一的表单反馈。 */
   --accent: #0071e3;
   --accent-hover: #0062c4;
-  --accent-text: var(--accent-hover);
+  /* 文字蓝独立于填充蓝：比 --accent-hover 更亮，白底 5.38:1、浅蓝底 4.94:1
+     （均满足 AA 小字），供链接、按钮文字与行内蓝色文字统一使用。 */
+  --accent-text: #0866d8;
   --accent-soft: #eef6ff;
   --accent-border: rgba(0, 113, 227, 0.3);
 
   /* 状态色：实色用于图标和填充，深色用于文字，浅色用于背景。 */
   --success: #34c759;
-  --success-text: #147a43;
+  /* 文字绿：白底 5.02:1、浅绿底 --success-soft 4.61:1，均满足 AA 小字
+     （填充绿 #34c759 白底仅 2.22:1，不可用于文字）。 */
+  --success-text: #15803d;
   --success-soft: #eaf9ee;
   --warning: #ff9500;
   --warning-text: #9a5700;
   --warning-soft: #fff2e0;
   --danger: #ff3b30;
   --danger-hover: #e4382d;
-  --danger-text: #d70015;
+  /* 文字红选亮度更高的一档（白底 4.83:1、浅红底 4.51:1，均满足 AA 小字），
+     与填充红 --danger 同色相家族，避免旧值 #d70015 观感偏黑。 */
+  --danger-text: #dc2626;
   --danger-soft: #fff0ef;
+  /* 浅红底胶囊（撤销等）的悬停色：比 --danger-soft 深一档，
+     与 --control-bg → --control-hover 的递进幅度一致，避免悬停无反馈。 */
+  --danger-soft-hover: #f7e2e0;
   --danger-border: rgba(255, 59, 48, 0.35);
 }
 
@@ -46,6 +82,71 @@
 html,
 body {
   height: 100%;
+}
+
+/* 排版角色只设置字号、行高与字重，颜色与布局由组件按语义选择。 */
+.type-caption,
+.type-code {
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.type-badge,
+.type-control-sm {
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.type-body {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-regular);
+}
+
+.type-label,
+.type-control {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
+}
+
+.type-input {
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
+}
+
+.type-subtitle {
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-semibold);
+}
+
+.type-card-title,
+.type-value {
+  font-size: var(--font-size-card-title);
+  line-height: var(--line-height-card-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.type-section-title {
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-height-section-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.type-page-title {
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-bold);
+}
+
+.type-display {
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-display);
+  font-weight: var(--font-weight-bold);
 }
 
 /* 全局根除滚动条/滚动框（页面级 + 元素级：textarea、pre、内部滚动容器等）。
@@ -77,7 +178,7 @@ body {
 button {
   cursor: pointer;
   /* 只继承字体族，不整体 font: inherit -- 未分层规则会覆盖 Tailwind 工具类，
-     导致按钮上的 text-[13px] 等字号/字重全部失效（一律回退 16px） */
+     导致按钮的语义排版类被覆盖 */
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -108,10 +209,12 @@ button {
 .input {
   min-height: 48px;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-control);
   background: var(--surface);
-  font-size: 16px;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
   color: var(--text-primary);
   width: 100%;
   outline: none;
@@ -156,8 +259,9 @@ button {
   border-radius: 999px;
   background: var(--accent);
   color: var(--text-on-fill);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   border: none;
   white-space: nowrap;
   transition:
@@ -185,8 +289,9 @@ button {
   border-radius: 999px;
   background: var(--surface);
   color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   border: 1px solid var(--border-control);
   white-space: nowrap;
   transition:
@@ -232,8 +337,9 @@ button {
   border-radius: 999px;
   background: var(--danger);
   color: var(--text-on-fill);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   border: none;
   white-space: nowrap;
   transition:
@@ -261,8 +367,9 @@ button {
   border-radius: 999px;
   background: var(--surface);
   color: var(--danger-text);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   border: 1px solid var(--danger-border);
   transition:
     background-color 0.15s ease,
@@ -288,8 +395,9 @@ button {
   border: none;
   padding: 6px 0;
   color: var(--accent-text);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition: color 0.15s ease;
 }
 
@@ -311,8 +419,9 @@ button {
   border: none;
   padding: 6px 0;
   color: var(--danger-text);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: color 0.15s ease;
 }
@@ -332,8 +441,9 @@ button {
   border: 1px solid var(--border-subtle);
   background: var(--surface);
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
@@ -380,8 +490,9 @@ button {
   border-radius: 999px;
   background: var(--success-soft);
   color: var(--success-text);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
@@ -398,18 +509,20 @@ button {
 .field-error {
   margin-top: 6px;
   /* 固定两行高度：错误出现、消失或换行都不推动后续元素。 */
-  height: 36px;
+  height: calc(2 * var(--line-height-caption));
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--danger-text);
-  line-height: 18px;
 }
 
 .inline-success {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--success-text);
-  line-height: 1.4;
 }
 
 /* 长邮箱兼容：任何邮箱都允许在任意字符处断行 */

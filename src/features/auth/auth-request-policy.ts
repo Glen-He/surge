@@ -120,7 +120,7 @@ export const authRequestPolicy = createAuthMiddleware(async (ctx) => {
 
   // 用户首次注册时由服务端分配一个不可见的随机 ID 作为用户名。
   // sign-in/email-otp 只在用户不存在时才会用 name 建号，老用户不受影响。
-  if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email-otp") {
+  if (ctx.path === "/sign-in/email-otp") {
     return {
       context: {
         ...ctx,

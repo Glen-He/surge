@@ -14,7 +14,9 @@
   background: var(--surface);
   padding-inline: 16px;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
   text-align: center;
   letter-spacing: 0.25em;
   outline: none;

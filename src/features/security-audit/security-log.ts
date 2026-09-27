@@ -1,7 +1,7 @@
 import { db } from "@/infrastructure/database/client";
 import { logger } from "@/infrastructure/logging/logger";
 
-// 通用：记录安全日志（OTP 频控 / 变更凭证 / 审计）
+// 通用：记录安全日志（验证码发送 / 变更凭证 / 审计）
 export async function logSecurity(opts: {
   userId?: string | null;
   action: string;

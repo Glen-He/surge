@@ -151,13 +151,13 @@ export function SessionsManager({
 
   return (
     <>
-      <section className="rounded-[22px] bg-[var(--surface)] px-8 py-8 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-10">
+      <section className="rounded-[var(--radius-xl)] bg-[var(--surface)] px-8 py-8 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h2 className="text-[19px] font-semibold text-[var(--text-primary)]">
+            <h2 className="type-card-title text-[var(--text-primary)]">
               活跃会话
             </h2>
-            <p className="mt-1.5 text-[14px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-1.5 type-caption text-[var(--text-secondary)]">
               共 {sessions.length} 个会话；设备名称根据浏览器信息识别，可能存在少量偏差
             </p>
           </div>
@@ -172,7 +172,7 @@ export function SessionsManager({
           </button>
         </div>
 
-        <p className="mt-4 min-h-[1.375rem] text-[13px] leading-[1.5] text-[var(--danger-text)]">
+        <p className="mt-4 min-h-[1.375rem] type-caption text-[var(--danger-text)]">
           {error || null}
         </p>
 
@@ -182,23 +182,23 @@ export function SessionsManager({
             return (
               <article
                 key={session.id}
-                className="flex flex-col gap-5 rounded-[16px] bg-[var(--surface-sunken)] px-5 py-5 sm:flex-row sm:items-center"
+                className="flex flex-col gap-5 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-5 sm:flex-row sm:items-center"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                   {device.mobile ? ICON_MOBILE : ICON_DESKTOP}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-[16px] font-semibold text-[var(--text-primary)]">
+                    <h3 className="type-subtitle text-[var(--text-primary)]">
                       {device.label}
                     </h3>
                     {session.current && <span className="badge-success">当前设备</span>}
                   </div>
-                  <p className="mt-1.5 text-[13px] leading-[1.6] text-[var(--text-secondary)]">
+                  <p className="mt-1.5 type-caption text-[var(--text-secondary)]">
                     最近活动 {formatDate(session.updatedAt)}
                     {session.ipAddress ? ` · IP ${session.ipAddress}` : ""}
                   </p>
-                  <p className="mt-0.5 text-[12px] leading-[1.5] text-[var(--text-secondary)]">
+                  <p className="mt-0.5 type-caption text-[var(--text-secondary)]">
                     登录于 {formatDate(session.createdAt)} · 有效至 {formatDate(session.expiresAt)}
                   </p>
                 </div>
@@ -237,10 +237,10 @@ export function SessionsManager({
         busy={busy}
         plainHeader
       >
-        <p className="text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+        <p className="type-body text-[var(--text-secondary)]">
           {modalDescription}
         </p>
-        <p className="mt-2 min-h-[1.25rem] text-[13px] leading-5 text-[var(--danger-text)]">
+        <p className="mt-2 min-h-[1.25rem] type-caption text-[var(--danger-text)]">
           {error || null}
         </p>
         <div className="modal-actions">

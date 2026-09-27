@@ -26,10 +26,10 @@ export default async function AccountPage() {
         {/* Header：标题 + 副标题 左侧，轻量返回 右侧 */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               账号与安全
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               管理你的登录信息、密码与账号安全设置
             </p>
           </div>

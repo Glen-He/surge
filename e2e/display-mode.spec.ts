@@ -75,7 +75,7 @@ async function expectBasicFieldsLayout(page: Page) {
       expect(mode!.y).toBeGreaterThan(date!.y + date!.height);
     }
     const slots = row.locator(".project-error");
-    expect(await slots.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))).toEqual([18, 18]);
+    expect(await slots.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))).toEqual([20, 20]);
     const before = { row: await row.boundingBox(), card: await card.boundingBox() };
     // 日期选择器不会主动产生空值；在常驻槽填入真实错误文案，验证报错布局契约。
     await slots.first().evaluate((node) => { node.textContent = "请选择日期"; });
@@ -103,6 +103,10 @@ test("网页上传、新标签页、密码门和面板权限完整复用", async
   await expect(page.getByLabel("展示模式")).toHaveText("汇报展示");
   await expect(page.getByLabel("展示模式")).not.toBeFocused();
   await expectBasicFieldsLayout(page);
+  expect(await page.locator(".project-card").evaluateAll((cards) => cards.map((card) => getComputedStyle(card).borderRadius))).toEqual(["22px", "22px", "22px", "22px"]);
+  await expect(page.getByLabel("展示模式")).toHaveCSS("border-radius", "12px");
+  await expect(page.locator("textarea.project-input")).toHaveCSS("border-radius", "16px");
+  await expect(page.locator(".upload-zone")).toHaveCSS("border-radius", "16px");
   await page.screenshot({ path: testInfo.outputPath("new-project.png"), fullPage: true });
   const gridBefore = await page.locator(".project-grid").boundingBox();
   await page.getByLabel("展示模式").click();

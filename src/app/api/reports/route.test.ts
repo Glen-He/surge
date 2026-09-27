@@ -67,7 +67,7 @@ describe("报告资源路由缓存", () => {
   }
 
   it("子资源流式返回私有重验证头和 ETag", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["images", "a.webp"]);
 
     expect(response.status).toBe(200);
@@ -80,7 +80,7 @@ describe("报告资源路由缓存", () => {
   });
 
   it("ETag 命中在完成权限校验后返回 304", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const first = await request(cap, ["images", "a.webp"]);
     const etag = first.headers.get("etag");
     await first.body?.cancel();
@@ -93,7 +93,7 @@ describe("报告资源路由缓存", () => {
   });
 
   it("入口 HTML 仍禁止存储", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["report.html"]);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
@@ -112,7 +112,7 @@ describe("报告资源路由缓存", () => {
 
   it("网页发布返回原始入口，同时保留内容域隔离与 capability 撤销", async () => {
     mocked.displayMode = "bare";
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["report.html"]);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("<!doctype html><html><head></head><body>report</body></html>");
@@ -126,14 +126,14 @@ describe("报告资源路由缓存", () => {
   });
 
   it("子资源保留 CORS，供 opaque-origin 汇报加载 ES Module 等资源", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["images", "a.webp"]);
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     await response.body?.cancel();
   });
 
   it("入口阻止外部网络且包内媒体使用正确 MIME", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const entry = await request(cap, ["report.html"]);
     const csp = entry.headers.get("content-security-policy")!;
     expect(csp).toMatch(/connect-src https:\/\/surge\.example\/report\/[^;]+\//);
@@ -149,13 +149,13 @@ describe("报告资源路由缓存", () => {
   it("拒绝从主站 origin 直接读取 capability 资源", async () => {
     vi.stubEnv("BETTER_AUTH_URL", "https://surge.example");
     vi.stubEnv("REPORTS_ORIGIN", "https://reports.example");
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["report.html"]);
     expect(response.status).toBe(404);
   });
 
   it("PDF iframe 请求保持 inline，显式下载参数稳定返回 attachment", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const preview = await request(cap, ["paper.pdf"], {
       "Sec-Fetch-Dest": "iframe",
     });
@@ -174,7 +174,7 @@ describe("报告资源路由缓存", () => {
   });
 
   it("顶层打开 PDF 不会被误判成下载", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const response = await request(cap, ["paper.pdf"], {
       "Sec-Fetch-Dest": "document",
     });
@@ -183,7 +183,7 @@ describe("报告资源路由缓存", () => {
   });
 
   it("大文件支持单段 Range，并拒绝越界范围", async () => {
-    const cap = issueCapability("report-id", "rev-1", 0);
+    const cap = issueCapability("report-id", "rev-1", 0, { kind: "owner" });
     const partial = await request(cap, ["paper.pdf"], { Range: "bytes=0-2" });
     expect(partial.status).toBe(206);
     expect(partial.headers.get("accept-ranges")).toBe("bytes");

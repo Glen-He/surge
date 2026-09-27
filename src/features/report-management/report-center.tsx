@@ -62,7 +62,7 @@ export function Toolbar({ onSearch }: { onSearch: (q: string) => void }) {
               if (e.key === "Enter") submit();
             }}
             autoComplete="off"
-            className="h-[50px] w-full rounded-full border border-[var(--border)] bg-[var(--surface)] pl-10 pr-10 text-[14px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
+            className="h-[50px] w-full rounded-full border border-[var(--border)] bg-[var(--surface)] pl-10 pr-10 type-input text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
           />
           {draft !== "" && (
             <button
@@ -112,7 +112,7 @@ function NewProjectButton() {
           <path d="M12 5v14M5 12h14" />
         </svg>
       </Link>
-      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[12px] font-medium text-[var(--text-primary)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[60ms]">
+      <span className="pointer-events-none absolute left-1/2 top-full mt-2.5 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 type-badge text-[var(--text-primary)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] opacity-0 transition-opacity duration-150 group-hover/new:opacity-100 group-hover/new:delay-[60ms]">
         新建项目
       </span>
     </div>
@@ -214,11 +214,11 @@ function DeleteIcon({ r }: { r: Report }) {
         busy={deleting}
         plainHeader
       >
-        <p className="text-[14px] leading-[1.6] text-[var(--text-primary)]">
+        <p className="type-body text-[var(--text-primary)]">
           即将删除 <span className="font-semibold">{r.title}</span>{" "}
           及其全部报告文件，面板入口和分享链接同时失效。此操作不可恢复。
         </p>
-        <p className="mt-4 text-[13px] leading-[1.7] text-[var(--text-secondary)]">
+        <p className="mt-4 type-caption text-[var(--text-secondary)]">
           请输入验证码{" "}
           <span className="font-semibold text-[var(--text-primary)]">
             {code}
@@ -240,10 +240,10 @@ function DeleteIcon({ r }: { r: Report }) {
           placeholder={code}
           autoComplete="off"
           aria-label="删除项目验证码"
-          className="mt-2 h-[42px] w-full rounded-[10px] border border-[var(--border-control)] bg-[var(--surface)] px-3 text-[14px] tracking-[0.2em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="mt-2 h-[40px] w-full rounded-[var(--radius-md)] border border-[var(--border-control)] bg-[var(--surface)] px-3 type-body tracking-[0.2em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}
-        <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{error}</p>
+        <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--danger-text)]">{error}</p>
         <div className="mt-3 flex justify-end gap-2.5">
           <button
             type="button"

@@ -14,22 +14,21 @@ import { serverEnv } from "@/infrastructure/environment/server";
 //   capability            → 负责「这个 iframe 可以读取哪些资源」（runtime 验证）
 //   sandbox + CSP         → 负责「这些 JS 可以做什么」
 //
-// capability 绑定 reportId + revisionId + epoch + 过期时间，签名后编码为一个
+// capability 绑定报告内容版本、授权来源及其版本、过期时间，签名后编码为一个
 // URL 安全 token。/report/<cap>/... 天然构成报告的虚拟根目录：浏览器按文档 URL
 // 原生解析相对路径（./data.js、images/a.png、CSS url() 均无需改写），
-// runtime 对每个请求验签并比对数据库当前 revision + epoch——报告文件被
-// 替换（revision 轮换）或权限被吊销（epoch 递增，如撤销分享）后，旧
-// capability 整体 404，且不泄露报告是否存在。
+// runtime 对每个请求验签并检查当前报告版本与授权来源：内容替换时全局失效，
+// 撤销分享仅使这个来源失效，面板成员移除也不影响其他入口。
+// 失效统一返回 404，不泄露报告是否存在。
 //
-// payload 带版本前缀（v1），格式变更时升 v2 即可平滑淘汰旧 token。
+// v2 必须携带授权来源；旧格式直接失效，不保留兼容分支。
 
 const CAP_TTL_SEC = 6 * 60 * 60; // 6h：资源集中在初始加载，无需长 TTL
 // 签发时间按小时取整：同一报告在同一时间窗内返回/重载时
 // 获得稳定 URL，浏览器才能复用已验证的私有资源缓存。实际寿命
-// 仍被限制在 5–6 小时，更换报告文件或撤销分享会轮换 URL 中的
-// revision/epoch，不会命中旧资源。
+// 仍被限制在 5–6 小时，更换报告文件或撤销分享会改变内容或来源版本，不会命中旧资源。
 const CAP_BUCKET_SEC = 60 * 60;
-const VERSION = "v1";
+const VERSION = "v2";
 const SCOPE = "read";
 
 // 密钥隔离（key separation）：不与 Better Auth 会话签名共用同一密钥。
@@ -73,7 +72,8 @@ export function newRevisionId(): string {
 
 /**
  * 签发报告只读 capability。
- * @param epoch 报告当前 capability 纪元（撤销分享等权限变化时递增）
+ * @param epoch 报告全局纪元（展示模式等全局变化时递增）
+ * @param source 必须显式指定授权来源，分享入口不能省略后退回属主权限
  * @param maxExpiresSec 到期上限（unix 秒）——分享链路传分享自身的截止时间，
  *   防止「分享 18:00 到期、17:59 签出活到明天的 capability」
  * 返回值直接用作虚拟目录 URL 的第一段：/report/<cap>/report.html
@@ -82,6 +82,7 @@ export function issueCapability(
   reportId: string,
   revisionId: string,
   epoch: number,
+  source: CapabilitySource,
   maxExpiresSec?: number,
 ): string {
   const now = Math.floor(Date.now() / 1000);
@@ -89,7 +90,9 @@ export function issueCapability(
   if (maxExpiresSec !== undefined) {
     expires = Math.min(expires, maxExpiresSec);
   }
-  const payload = `${VERSION}.${SCOPE}.${reportId}.${revisionId}.${epoch}.${expires}`;
+  const sourceId = source.kind === "owner" ? "-" : source.id;
+  const sourceEpoch = source.kind === "owner" ? 0 : source.epoch;
+  const payload = `${VERSION}.${SCOPE}.${reportId}.${revisionId}.${epoch}.${expires}.${source.kind}.${sourceId}.${sourceEpoch}`;
   return `${Buffer.from(payload).toString("base64url")}.${capHmac(payload)}`;
 }
 
@@ -128,7 +131,13 @@ export function requestMatchesEtag(
   });
 }
 
+/** 授权来源与报告内容版本分离；面板使用成员世代而非对外短码。 */
+export type CapabilitySource =
+  | { kind: "owner" }
+  | { kind: "share" | "board"; id: string; epoch: number };
+
 export type CapabilityGrant = {
+  source: CapabilitySource;
   reportId: string;
   revisionId: string;
   epoch: number;
@@ -159,18 +168,25 @@ export function verifyCapability(cap: string): CapabilityGrant | null {
   if (expect.length !== got.length || !timingSafeEqual(expect, got)) return null;
 
   const parts = payload.split(".");
-  if (parts.length !== 6 || parts[0] !== VERSION || parts[1] !== SCOPE) return null;
-  const [, , reportId, revisionId, epochStr, expiresStr] = parts;
+  if (parts.length !== 9 || parts[0] !== VERSION || parts[1] !== SCOPE) return null;
+  const [, , reportId, revisionId, epochStr, expiresStr, kind, id, sourceEpochStr] = parts;
+  const sourceEpoch = Number(sourceEpochStr);
+  if (!Number.isSafeInteger(sourceEpoch) || sourceEpoch < 0) return null;
+  if (kind !== "owner" && kind !== "share" && kind !== "board") return null;
+  if (kind === "owner" ? id !== "-" || sourceEpoch !== 0 : !/^[a-zA-Z0-9_-]+$/.test(id)) return null;
   const epoch = Number(epochStr);
   const expires = Number(expiresStr);
   if (
     !reportId ||
     !revisionId ||
     !Number.isSafeInteger(epoch) ||
-    !Number.isFinite(expires)
+    epoch < 0 ||
+    !Number.isSafeInteger(expires)
   ) {
     return null;
   }
-  if (expires < Math.floor(Date.now() / 1000)) return null;
-  return { reportId, revisionId, epoch, expiresAt: expires };
+  if (expires <= Math.floor(Date.now() / 1000)) return null;
+  return { reportId, revisionId, epoch, expiresAt: expires,
+    source: kind === "owner" ? { kind } : { kind, id, epoch: sourceEpoch },
+  };
 }

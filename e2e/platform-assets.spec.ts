@@ -372,6 +372,7 @@ test("平台资源与 capability 安全边界", async () => {
     fixture.reportA.id,
     fixture.reportA.revisionId,
     0,
+    { kind: "owner" },
   );
 
   // 版本化平台 URL 公开可访问 + immutable 长缓存 + 正确 MIME

@@ -4,6 +4,7 @@ import {
   generateSharePasscode,
   generateShareToken,
   hashSharePassword,
+  shareStatus,
   unlockProof,
   verifySharePassword,
   isValidSharePasscode,
@@ -15,7 +16,13 @@ import {
   shareUrlWithPasscode,
 } from "@/features/sharing/share-copy";
 import { boardUnlockCookieName, boardUnlockProof, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
-import { normalizeBoardTitle, parseBoardExpiry } from "@/features/sharing/share-board";
+import { boardExpiryFromDays, normalizeBoardTitle } from "@/features/sharing/share-board";
+import {
+  SHARE_EXPIRY_OPTIONS,
+  nearestShareExpiryDays,
+  parseShareExpiryDays,
+  shareExpiryDate,
+} from "@/features/sharing/share-expiry";
 
 beforeEach(() => {
   vi.stubEnv("SHARE_SECRET", "share-proof-test-secret-at-least-32-characters");
@@ -69,9 +76,9 @@ describe("4 位分享提取码", () => {
     expect(isValidSharePasscode("ab_2")).toBe(false);
   });
 
-  it("复制内容的链接自带提取码，同时保留独立提取码文案", () => {
+  it("复制分享内容时只包含链接，并将提取码放入 URL fragment", () => {
     expect(shareClipboardText("https://example.test/share/token", "A7B2")).toBe(
-      "链接：https://example.test/share/token#pwd=A7B2\n提取码：A7B2",
+      "https://example.test/share/token#pwd=A7B2",
     );
     expect(shareClipboardText("https://example.test/share/token", null)).toBe(
       "https://example.test/share/token",
@@ -129,18 +136,66 @@ describe("unlockProof（密码门解锁凭证）", () => {
 });
 
 describe("分享面板边界", () => {
+  it("分享状态优先展示暂停，其次过期", () => {
+    const now = Date.now();
+    expect(shareStatus({ expires_at: null, disabled_at: null })).toBe("active");
+    expect(shareStatus({ expires_at: null })).toBe("active");
+    expect(
+      shareStatus({ expires_at: new Date(now - 1000), disabled_at: null }),
+    ).toBe("expired");
+    expect(
+      shareStatus({ expires_at: null, disabled_at: new Date(now) }),
+    ).toBe("paused");
+    expect(
+      shareStatus({
+        expires_at: new Date(now - 1000),
+        disabled_at: new Date(now),
+      }),
+    ).toBe("paused");
+  });
+
   it("规范化名称并拒绝空名称或超长名称", () => {
     expect(normalizeBoardTitle("  课题组   周会  ")).toBe("课题组 周会");
     expect(normalizeBoardTitle("   ")).toBeNull();
     expect(normalizeBoardTitle("面".repeat(41))).toBeNull();
   });
 
-  it("有效期严格校验日历日并按上海时间当日末到期", () => {
-    expect(parseBoardExpiry("2026-02-30", 0)).toBe("invalid");
-    expect(parseBoardExpiry("not-a-date", 0)).toBe("invalid");
-    expect(parseBoardExpiry("2026-08-31", 0)).toEqual(
-      new Date("2026-08-31T23:59:59.999+08:00"),
-    );
+  it("有效期只接受预设档位并按天数换算到期时刻", () => {
+    expect(parseShareExpiryDays(0)).toBe(0);
+    expect(parseShareExpiryDays(90)).toBe(90);
+    expect(parseShareExpiryDays(3)).toBeNull();
+    expect(parseShareExpiryDays("7")).toBeNull();
+    expect(parseShareExpiryDays(undefined)).toBeNull();
+    expect(shareExpiryDate(0)).toBeNull();
+    expect(shareExpiryDate(7, 0)).toEqual(new Date(7 * 24 * 60 * 60 * 1000));
+  });
+
+  it("下拉选项与档位表一致（永久 / 1 / 7 / 30 / 90）", () => {
+    expect(SHARE_EXPIRY_OPTIONS).toEqual([
+      { value: 0, label: "永久有效" },
+      { value: 1, label: "1 天" },
+      { value: 7, label: "7 天" },
+      { value: 30, label: "30 天" },
+      { value: 90, label: "90 天" },
+    ]);
+  });
+
+  it("已设置到期时间反推最接近档位，永久与已过期按永久处理", () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.UTC(2026, 8, 27);
+    expect(nearestShareExpiryDays(null, now)).toBe(0);
+    expect(nearestShareExpiryDays(new Date(now - 1), now)).toBe(0);
+    expect(nearestShareExpiryDays(new Date(now + 7 * day), now)).toBe(7);
+    expect(nearestShareExpiryDays(new Date(now + 6 * day), now)).toBe(7);
+    expect(nearestShareExpiryDays(new Date(now + 25 * day), now)).toBe(30);
+    expect(nearestShareExpiryDays(new Date(now + 200 * day), now)).toBe(90);
+  });
+
+  it("面板档位换算到期时刻，非法档位抛业务错误", () => {
+    const day = 24 * 60 * 60 * 1000;
+    expect(boardExpiryFromDays(30)).toEqual(new Date(Date.now() + 30 * day));
+    expect(boardExpiryFromDays(0)).toBeNull();
+    expect(() => boardExpiryFromDays(3)).toThrowError(/BOARD_EXPIRY_INVALID/);
   });
 
   it("面板解锁凭证与单独链接分属不同命名空间", () => {

@@ -1,6 +1,9 @@
 export type ReportShareErrorParamsByCode = {
   SHARE_PASSCODE_INVALID: undefined;
   SHARE_EXPIRY_INVALID: undefined;
+  SHARE_PASSWORD_SETTING_INVALID: undefined;
+  SHARE_DISABLED_INVALID: undefined;
+  SHARE_NO_CHANGES: undefined;
   SHARE_REPORT_NOT_FOUND: undefined;
   SHARE_LIMIT_REACHED: { max: number };
   SHARE_NOT_FOUND: undefined;
@@ -29,6 +32,18 @@ const DEFINITIONS: DefinitionTable = {
   SHARE_EXPIRY_INVALID: {
     status: 400,
     copy: () => "无效的有效期",
+  },
+  SHARE_PASSWORD_SETTING_INVALID: {
+    status: 400,
+    copy: () => "无效的密码设置",
+  },
+  SHARE_DISABLED_INVALID: {
+    status: 400,
+    copy: () => "无效的启停设置",
+  },
+  SHARE_NO_CHANGES: {
+    status: 400,
+    copy: () => "没有可更新的内容",
   },
   SHARE_REPORT_NOT_FOUND: {
     status: 404,

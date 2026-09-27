@@ -6,7 +6,7 @@
 // - pg_advisory_lock 防止多实例并发迁移（同库多进程同时启动的场景）
 //
 // 新增迁移示例：
-//   1. 新建 029-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
+//   1. 新建 032-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
 //   statements 一经发布不可修改（schema_migrations.checksum 会拒绝）。
 
 import { createHash } from "node:crypto";
@@ -40,7 +40,13 @@ import { SINGLE_INVITE_AND_VISIBLE_API_TOKEN } from "./026-single-invite-and-vis
 
 import { REPORT_DISPLAY_MODE } from "./027-report-display-mode";
 import { BOARD_ITEM_SHORT_ID } from "./028-board-item-short-id";
+import { SCOPED_SHARE_ACCESS } from "./029-scoped-share-access";
+import { OTP_RATE_RESERVATIONS } from "./030-otp-rate-reservations";
+import { REMOVE_GUEST_PAYLOAD } from "./031-remove-guest-payload";
+import { SHARE_DISABLED_AT } from "./032-share-disabled-at";
 
+// 按版本全序执行，不能为主题分组而重排。API 令牌终态见 v26，
+// 分享来源隔离见 v29，OTP 预留状态见 v30；新增迁移保持单一变更主题。
 const MIGRATIONS: Migration[] = [
   BASELINE,
   API_TOKENS,
@@ -68,6 +74,10 @@ const MIGRATIONS: Migration[] = [
   SINGLE_INVITE_AND_VISIBLE_API_TOKEN,
   REPORT_DISPLAY_MODE,
   BOARD_ITEM_SHORT_ID,
+  SCOPED_SHARE_ACCESS,
+  OTP_RATE_RESERVATIONS,
+  REMOVE_GUEST_PAYLOAD,
+  SHARE_DISABLED_AT,
 ];
 
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞

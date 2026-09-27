@@ -1,3 +1,5 @@
+// API 令牌演进：v2 建表 → v3 加密 → v4 移除旧 hash → v7 lookup → v11 仅 hash → v26 可回显加密。
+// 当前终态见 v26；历史 statements 必须保持原样。
 import type { Migration } from "./migration";
 
 

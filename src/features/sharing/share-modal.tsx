@@ -5,17 +5,17 @@ import { CopyPillButton } from "@/shared/ui/copy-feedback-button";
 import { Modal } from "@/shared/ui/modal/modal";
 import { SelectMenu } from "@/shared/ui/select-menu";
 import { SharePasscodeControl } from "@/features/sharing/share-passcode-control";
+import { SHARE_EXPIRY_OPTIONS } from "@/features/sharing/share-expiry";
+import type { ShareExpiryDays } from "@/features/sharing/share-expiry";
 import { shareClipboardText } from "@/features/sharing/share-copy";
 
 // 分享链接视图模型
 interface ShareView {
   id: string;
   token: string;
-  hasPassword: boolean;
   passcode: string | null;
   expiresAt: string | null;
-  viewCount: number;
-  createdAt: string;
+  disabled: boolean;
 }
 
 interface BoardView {
@@ -25,20 +25,13 @@ interface BoardView {
   hasPassword: boolean;
   passcode: string | null;
   disabled: boolean;
-  viewCount: number;
-  itemCount: number;
   included: boolean;
 }
 
-function fmtDate(s: string | null): string {
-  if (!s) return "—";
-  const d = new Date(s);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
 function statusOf(s: ShareView): { label: string; cls: string } {
+  if (s.disabled) {
+    return { label: "已暂停", cls: "bg-[var(--control-bg)] text-[var(--text-secondary)]" };
+  }
   if (s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) {
     return { label: "已过期", cls: "bg-[var(--control-bg)] text-[var(--text-secondary)]" };
   }
@@ -79,7 +72,8 @@ function ShareDialog({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [passwordProtected, setPasswordProtected] = useState(false);
-  const [days, setDays] = useState(0);
+  const [days, setDays] = useState<ShareExpiryDays>(0);
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [boards, setBoards] = useState<BoardView[]>([]);
   const [boardsLoading, setBoardsLoading] = useState(true);
@@ -173,8 +167,21 @@ function ShareDialog({
     }
   }
 
+  async function rotate(id: string) {
+    if (rotatingId || revokingId) return;
+    setRotatingId(id);
+    setError("");
+    try {
+      const response = await fetch(`/api/shares/${id}/rotate-token`, { method: "POST" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.token) { setError(data?.error ?? "更换失败，请重试"); return; }
+      setShares((current) => current.map((share) => share.id === id ? { ...share, token: data.token } : share));
+    } catch { setError("更换失败，请重试"); }
+    finally { setRotatingId(null); }
+  }
+
   async function revoke(id: string) {
-    if (revokingId) return;
+    if (revokingId || rotatingId) return;
     setRevokingId(id);
     try {
       const res = await fetch(`/api/shares/${id}`, { method: "DELETE" });
@@ -221,7 +228,7 @@ function ShareDialog({
     const next = !board.included;
     setBoards((current) => current.map((item) =>
       item.id === board.id
-        ? { ...item, included: next, itemCount: item.itemCount + (next ? 1 : -1) }
+        ? { ...item, included: next }
         : item,
     ));
     try {
@@ -232,7 +239,7 @@ function ShareDialog({
       if (!response.ok) {
         setBoards((current) => current.map((item) =>
           item.id === board.id
-            ? { ...item, included: board.included, itemCount: board.itemCount }
+            ? { ...item, included: board.included }
             : item,
         ));
         setBoardError(data?.error ?? "更新失败，请重试");
@@ -268,7 +275,7 @@ function ShareDialog({
           aria-selected={tab === "boards"}
           aria-controls="share-panel-boards"
           onClick={() => setTab("boards")}
-          className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+          className={`relative z-10 h-[34px] rounded-full type-control transition-colors ${
             tab === "boards" ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
@@ -281,7 +288,7 @@ function ShareDialog({
           aria-selected={tab === "links"}
           aria-controls="share-panel-links"
           onClick={() => setTab("links")}
-          className={`relative z-10 h-[34px] rounded-full text-[13px] font-semibold transition-colors ${
+          className={`relative z-10 h-[34px] rounded-full type-control transition-colors ${
             tab === "links" ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
@@ -298,11 +305,11 @@ function ShareDialog({
           aria-labelledby="share-tab-boards"
           className="flex h-full flex-col gap-5"
         >
-          <div className="shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--surface-sunken)] p-4">
-            <p className="text-[13px] font-semibold text-[var(--text-primary)]">新建面板并加入当前汇报</p>
+          <div className="shrink-0 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] p-4">
+            <p className="type-label text-[var(--text-primary)]">新建面板并加入当前汇报</p>
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
-                <label htmlFor="new-share-board-name" className="mb-1 block text-[12px] text-[var(--text-secondary)]">
+                <label htmlFor="new-share-board-name" className="mb-1 block type-label text-[var(--text-secondary)]">
                   面板名称
                 </label>
                 <input
@@ -316,7 +323,7 @@ function ShareDialog({
                   onKeyDown={(event) => event.key === "Enter" && void createBoard()}
                   maxLength={40}
                   placeholder="例如：课题组周会"
-                  className="h-[38px] w-full rounded-[10px] border border-[var(--border-control)] bg-[var(--surface)] px-3 text-[14px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
+                  className="h-[40px] w-full rounded-[var(--radius-md)] border border-[var(--border-control)] bg-[var(--surface)] px-3 type-input text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
                 />
               </div>
               <SharePasscodeControl
@@ -326,9 +333,10 @@ function ShareDialog({
                   setBoardError("");
                 }}
                 disabled={creatingBoard}
+                labelClassName="mb-1 block type-label text-[var(--text-secondary)]"
               />
             </div>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--danger-text)]">{boardError}</p>
+            <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--danger-text)]">{boardError}</p>
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
@@ -342,14 +350,14 @@ function ShareDialog({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <p className="mb-2 text-[13px] font-semibold text-[var(--text-primary)]">
+            <p className="mb-2 type-label text-[var(--text-primary)]">
               已有面板 {boards.length > 0 && `（${boards.length}）`}
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {boardsLoading ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">加载中…</div>
+                <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">加载中…</div>
               ) : boards.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">还没有分享面板，先新建一个</div>
+                <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">还没有分享面板，先新建一个</div>
               ) : (
                 <ul className="space-y-2">
                   {boards.map((board) => {
@@ -361,16 +369,13 @@ function ShareDialog({
                     return (
                       <li
                         key={board.id}
-                        className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
+                        className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
                       >
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${boardStatus.cls}`}>
+                        <span className={`rounded-full px-2.5 py-0.5 type-badge ${boardStatus.cls}`}>
                           {boardStatus.label}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12px] font-semibold text-[var(--text-primary)]">{board.title}</span>
-                          <span className="block text-[11px] text-[var(--text-secondary)]">
-                            {board.passcode ? `提取码 ${board.passcode}` : "无需提取码"} · {board.itemCount} 份汇报
-                          </span>
+                          <span className="block truncate type-label text-[var(--text-primary)]">{board.title}</span>
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
                           <CopyPillButton
@@ -382,13 +387,13 @@ function ShareDialog({
                             }
                             label="复制链接"
                             disabled={board.disabled}
-                            className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
+                            className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                           />
                           <button
                             type="button"
                             onClick={() => toggleBoard(board)}
                             disabled={board.disabled || changingBoardId === board.id}
-                            className={`inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border text-[12px] font-medium transition-colors disabled:opacity-40 ${
+                            className={`inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border type-control-sm transition-colors disabled:opacity-40 ${
                               board.included
                                 ? "border-[var(--danger-border)] text-[var(--danger-text)] hover:bg-[var(--danger-soft)]"
                                 : "border-[var(--accent-border)] text-[var(--accent-text)] hover:bg-[var(--accent-soft)]"
@@ -417,11 +422,11 @@ function ShareDialog({
         className="flex h-full flex-col gap-5"
       >
         {/* 创建区 */}
-        <div className="shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--surface-sunken)] p-4">
-          <p className="text-[13px] font-semibold text-[var(--text-primary)]">创建分享链接</p>
+        <div className="shrink-0 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] p-4">
+          <p className="type-label text-[var(--text-primary)]">创建分享链接</p>
           <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>
-              <label htmlFor="share-link-expiry" className="mb-1 block text-[12px] text-[var(--text-secondary)]">
+              <label htmlFor="share-link-expiry" className="mb-1 block type-label text-[var(--text-secondary)]">
                 有效期
               </label>
               <SelectMenu
@@ -429,12 +434,7 @@ function ShareDialog({
                 value={days}
                 onChange={setDays}
                 disabled={creating || limitReached}
-                options={[
-                  { value: 0, label: "永久有效" },
-                  { value: 1, label: "1 天" },
-                  { value: 7, label: "7 天" },
-                  { value: 30, label: "30 天" },
-                ]}
+                options={SHARE_EXPIRY_OPTIONS}
               />
             </div>
             <SharePasscodeControl
@@ -444,11 +444,12 @@ function ShareDialog({
                 setError("");
               }}
               disabled={creating || limitReached}
+              labelClassName="mb-1 block type-label text-[var(--text-secondary)]"
             />
           </div>
           {/* 提示行固定占位 18px：错误（红）/ 达到上限说明（灰）都不改变弹窗高度 */}
           <p
-            className={`mt-2 h-[18px] text-[13px] leading-[18px] ${
+            className={`mt-2 h-[var(--line-height-caption)] type-caption ${
               limitReached && !error ? "text-[var(--text-secondary)]" : "text-[var(--danger-text)]"
             }`}
           >
@@ -473,7 +474,7 @@ function ShareDialog({
         {/* 列表占用固定面板的剩余空间；内容增加时仅列表内部滚动，
             不改变弹窗尺寸。隐藏原生滚动条，滚轮、触控板和触摸滑动仍可用。 */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <p className="mb-2 text-[13px] font-semibold text-[var(--text-primary)]">
+          <p className="mb-2 type-label text-[var(--text-primary)]">
             已有链接 {shares.length > 0 && `（${shares.length}）`}
           </p>
           <div
@@ -481,11 +482,11 @@ function ShareDialog({
             className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {loading ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">
+              <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">
                 加载中…
               </div>
             ) : shares.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-[12px] border border-dashed border-[var(--border-control)] text-[13px] text-[var(--text-secondary)]">
+              <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">
                 还没有分享链接，先生成一个
               </div>
             ) : (
@@ -496,20 +497,22 @@ function ShareDialog({
                 return (
                   <li
                     key={s.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
+                    className="flex min-h-[50px] flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5"
                   >
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${st.cls}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 type-badge ${st.cls}`}>
                       {st.label}
                     </span>
-                    <span className="text-[12px] text-[var(--text-secondary)]">
-                      {s.passcode ? `提取码 ${s.passcode}` : "公开"}
-                      {" · "}
-                      {s.expiresAt ? `至 ${fmtDate(s.expiresAt)}` : "永久"}
-                      {" · "}
-                      {s.viewCount} 次浏览
-                    </span>
                     <span className="ml-auto flex items-center gap-1.5">
-                      {/* 两按钮统一 min-w + 居中：文字在“复制链接/已复制”“撤销/撤销中…”间切换时宽度不变 */}
+                      {/* 同组操作固定为 78×28px，避免文案切换或按钮样式造成尺寸差异 */}
+                      <button
+                        type="button"
+                        onClick={() => rotate(s.id)}
+                        disabled={!active || !!rotatingId || !!revokingId}
+                        title="更换后旧链接立即失效，提取码与有效期保持不变"
+                        className="inline-flex h-[28px] w-[78px] shrink-0 items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
+                      >
+                        {rotatingId === s.id ? "更换中…" : "更换链接"}
+                      </button>
                       <CopyPillButton
                         text={() =>
                           shareClipboardText(
@@ -519,18 +522,16 @@ function ShareDialog({
                         }
                         label="复制链接"
                         disabled={!active}
-                        className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
+                        className="inline-flex h-[28px] w-[78px] shrink-0 items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                       />
-                      {active && (
-                        <button
-                          type="button"
-                          onClick={() => revoke(s.id)}
-                          disabled={revokingId === s.id}
-                          className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--danger-border)] text-[12px] font-medium text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-soft)] disabled:opacity-40"
-                        >
-                          {revokingId === s.id ? "撤销中…" : "撤销"}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => revoke(s.id)}
+                        disabled={!!revokingId || !!rotatingId}
+                        className="inline-flex h-[28px] w-[78px] shrink-0 items-center justify-center rounded-full border border-[var(--danger-border)] type-control-sm text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-soft)] disabled:opacity-40"
+                      >
+                        {revokingId === s.id ? "撤销中…" : "撤销"}
+                      </button>
                     </span>
                   </li>
                 );

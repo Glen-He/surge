@@ -1,3 +1,5 @@
+import { checkShareLookupRate } from "@/features/sharing/share-lookup-rate";
+import { ShareLookupNotice } from "@/features/sharing/share-lookup-notice";
 import { after } from "next/server";
 import { cookies, headers } from "next/headers";
 import { clientIp } from "@/infrastructure/security/client-ip";
@@ -10,9 +12,9 @@ import { getOptionalSession } from "@/features/session/session";
 function InvalidBoard() {
   return (
     <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
-      <div className="w-full max-w-[400px] rounded-[20px] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
-        <h1 className="text-[17px] font-semibold">分享面板无效或已停用</h1>
-        <p className="mt-2 text-[13px] leading-[1.55] text-[var(--text-secondary)]">请联系分享者确认面板状态或获取新链接。</p>
+      <div className="w-full max-w-[400px] rounded-[var(--radius-xl)] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
+        <h1 className="type-section-title">分享面板无效或已停用</h1>
+        <p className="mt-2 type-caption text-[var(--text-secondary)]">请联系分享者确认面板状态或获取新链接。</p>
       </div>
     </main>
   );
@@ -20,6 +22,9 @@ function InvalidBoard() {
 
 export default async function ShareBoardPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const ip = clientIp(await headers());
+  const lookupRate = await checkShareLookupRate(ip, token);
+  if (!lookupRate.allowed) return <ShareLookupNotice retryAfter={lookupRate.retryAfter} />;
   const board = await findPublicShareBoard(token);
   if (!board) return <InvalidBoard />;
   const session = await getOptionalSession();
@@ -34,7 +39,6 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
     }
   }
 
-  const ip = clientIp(await headers());
   if (!isOwner && await shouldCountBoardView(token, ip).catch(() => false)) {
     after(async () => {
       await incrementBoardView(token).catch((error) => {

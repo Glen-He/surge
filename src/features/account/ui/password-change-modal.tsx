@@ -33,9 +33,9 @@ function passwordStrength(pw: string): 0 | 1 | 2 | 3 {
 }
 
 const STRENGTH_META = {
-  1: { label: "弱", color: "var(--danger)" },
-  2: { label: "一般", color: "var(--warning)" },
-  3: { label: "强", color: "var(--success)" },
+  1: { label: "弱", color: "var(--danger-text)" },
+  2: { label: "一般", color: "var(--warning-text)" },
+  3: { label: "强", color: "var(--success-text)" },
 } as const;
 
 const ICON_LOCK = (
@@ -322,10 +322,10 @@ function PasswordChangeDialog({
           <StepIndicator steps={STEPS} current={0} />
 
           <div className="security-step-center">
-            <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+            <p className="type-subtitle text-[var(--text-primary)]">
               选择身份验证方式
             </p>
-            <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+            <p className="mt-1 type-body text-[var(--text-secondary)]">
               为了保护账号安全，请先确认是你本人。
             </p>
 
@@ -336,10 +336,10 @@ function PasswordChangeDialog({
                 className="verify-method"
               >
                 <span className="verify-method-icon">{ICON_LOCK}</span>
-                <span className="text-[15px] font-medium text-[var(--text-primary)]">
+                <span className="type-label text-[var(--text-primary)]">
                   当前密码
                 </span>
-                <span className="mt-0.5 text-[13px] leading-snug text-[var(--text-secondary)]">
+                <span className="mt-0.5 type-caption text-[var(--text-secondary)]">
                   使用登录密码验证
                 </span>
               </button>
@@ -349,10 +349,10 @@ function PasswordChangeDialog({
                 className="verify-method"
               >
                 <span className="verify-method-icon">{ICON_MAIL}</span>
-                <span className="text-[15px] font-medium text-[var(--text-primary)]">
+                <span className="type-label text-[var(--text-primary)]">
                   邮箱验证码
                 </span>
-                <span className="break-email mt-0.5 text-[13px] leading-snug text-[var(--text-secondary)]">
+                <span className="break-email mt-0.5 type-caption text-[var(--text-secondary)]">
                   发送至 {currentEmail}
                 </span>
               </button>
@@ -366,14 +366,14 @@ function PasswordChangeDialog({
           <BackLink onClick={() => setMode("select")} />
 
           <div className="security-step-center">
-            <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+            <p className="type-subtitle text-[var(--text-primary)]">
               验证当前密码
             </p>
-            <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+            <p className="mt-1 type-body text-[var(--text-secondary)]">
               请输入当前登录密码以继续。
             </p>
 
-            <label className="mb-2 mt-4 block text-[14px] font-medium text-[var(--text-primary)]">
+            <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
               当前密码
             </label>
             <div className="relative">
@@ -417,8 +417,8 @@ function PasswordChangeDialog({
           <BackLink onClick={() => setMode("select")} />
 
           <div className="security-step-center">
-            <p className="text-[16px] font-semibold text-[var(--text-primary)]">验证邮箱</p>
-            <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+            <p className="type-subtitle text-[var(--text-primary)]">验证邮箱</p>
+            <p className="mt-1 type-body text-[var(--text-secondary)]">
               验证码将发送至{" "}
               <span className="break-email font-medium text-[var(--text-primary)]">
                 {currentEmail}
@@ -455,11 +455,11 @@ function PasswordChangeDialog({
                       : "获取验证码"}
               </button>
             </div>
-            <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
+            <p className="mt-2 type-caption text-[var(--text-secondary)]">
               验证码 6 位数字，输入后自动验证，5 分钟内有效
             </p>
             <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--text-secondary)]">
               {loading ? "验证中…" : ""}
             </p>
           </div>
@@ -476,12 +476,12 @@ function PasswordChangeDialog({
           />
           <StepIndicator steps={STEPS} current={1} />
 
-          <p className="text-[16px] font-semibold text-[var(--text-primary)]">设置新密码</p>
-          <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+          <p className="type-subtitle text-[var(--text-primary)]">设置新密码</p>
+          <p className="mt-1 type-body text-[var(--text-secondary)]">
             请设置一个新的登录密码。
           </p>
 
-          <label className="mb-2 mt-4 block text-[14px] font-medium text-[var(--text-primary)]">
+          <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
             新密码
           </label>
           <div className="relative">
@@ -520,7 +520,7 @@ function PasswordChangeDialog({
             </span>
           </div>
 
-          <label className="mb-2 mt-4 block text-[14px] font-medium text-[var(--text-primary)]">
+          <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
             确认新密码
           </label>
           <div className="relative">
@@ -571,10 +571,10 @@ function PasswordChangeDialog({
               <path d="m5 13 4 4L19 7" />
             </svg>
           </div>
-          <p className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">
+          <p className="mt-3 type-subtitle text-[var(--text-primary)]">
             密码已更新
           </p>
-          <p className="mt-1.5 max-w-[280px] text-[14px] leading-relaxed text-[var(--text-secondary)]">
+          <p className="mt-1.5 max-w-[280px] type-body text-[var(--text-secondary)]">
             为了保护账号安全，其他设备的登录状态已失效。
           </p>
           <button

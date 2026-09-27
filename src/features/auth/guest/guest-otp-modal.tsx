@@ -55,7 +55,7 @@ export function GuestOtpModal() {
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--accent)"
+            stroke="var(--accent-text)"
             strokeWidth={1.8}
             className="h-5 w-5 shrink-0"
             aria-hidden="true"
@@ -66,9 +66,8 @@ export function GuestOtpModal() {
 
           {/* 单一行：标题 + 数字 + 复制按钮，全部同一水平线 */}
           <span
+            className="type-label"
             style={{
-              fontSize: 14,
-              fontWeight: 600,
               color: "var(--text-primary)",
               letterSpacing: "-0.01em",
               whiteSpace: "nowrap",
@@ -78,9 +77,8 @@ export function GuestOtpModal() {
           </span>
           <span
             aria-label={`验证码 ${code}`}
+            className="type-section-title"
             style={{
-              fontSize: 20,
-              fontWeight: 600,
               letterSpacing: "0.12em",
               color: "var(--accent-text)",
               fontVariantNumeric: "tabular-nums",

@@ -21,6 +21,7 @@ export type PublicShareBoard = {
 };
 
 export type PublicBoardReport = {
+  membershipAccessId: string;
   boardId: string;
   boardOwnerId: string;
   boardTitle: string;
@@ -122,6 +123,7 @@ export async function findPublicBoardReport(
 ): Promise<PublicBoardReport | null> {
   if (!isValidShareToken(token) || !/^[a-z0-9]{4}$/.test(itemId)) return null;
   const result = await db.query<{
+    membership_access_id: string;
     board_id: string;
     board_owner_id: string;
     board_title: string;
@@ -134,7 +136,7 @@ export async function findPublicBoardReport(
     revision_id: string;
     capability_epoch: number;
   }>(
-    `SELECT b.id AS board_id, b.user_id AS board_owner_id, b.title AS board_title,
+    `SELECT i.access_id AS membership_access_id, b.id AS board_id, b.user_id AS board_owner_id, b.title AS board_title,
             b.password_hash, b.access_epoch, b.expires_at,
             r.id AS report_id, r.title AS report_title,
             r.revision_id, r.capability_epoch, r.display_mode
@@ -149,6 +151,7 @@ export async function findPublicBoardReport(
   const row = result.rows[0];
   if (!row) return null;
   return {
+    membershipAccessId: row.membership_access_id,
     boardId: row.board_id,
     boardOwnerId: row.board_owner_id,
     boardTitle: row.board_title,

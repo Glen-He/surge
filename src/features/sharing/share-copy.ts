@@ -12,6 +12,5 @@ export function sharePasscodeFromHash(hash: string): string | null {
 }
 
 export function shareClipboardText(url: string, passcode?: string | null): string {
-  const shareUrl = shareUrlWithPasscode(url, passcode);
-  return passcode ? `链接：${shareUrl}\n提取码：${passcode}` : shareUrl;
+  return shareUrlWithPasscode(url, passcode);
 }

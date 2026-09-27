@@ -207,10 +207,10 @@ export function ProjectForm({
         {/* 页头 + 右侧返回（与账号页 / Home 同一视觉轴） */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               {heading}
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               {headingDesc}
             </p>
           </div>
@@ -342,7 +342,7 @@ export function ProjectForm({
                         className="fixed inset-0 z-20"
                         onClick={() => setColorOpen(false)}
                       />
-                      <div className="absolute right-0 top-full z-30 mt-2 flex gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)]">
+                      <div className="absolute right-0 top-full z-30 mt-2 flex gap-1.5 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)]">
                         {TAG_PALETTE.map((c) => (
                           <button
                             key={c.bg}
@@ -355,7 +355,7 @@ export function ProjectForm({
                               setColorOpen(false);
                             }}
                             style={{ backgroundColor: c.swatch }}
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[9px] border border-[var(--border)] transition-transform duration-150 hover:scale-110"
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] transition-transform duration-150 hover:scale-110"
                           >
                             {tagColor === c.bg && (
                               <svg

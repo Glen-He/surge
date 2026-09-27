@@ -3,7 +3,8 @@
 const TRACK_CLASS =
   "relative block h-[22px] w-[38px] shrink-0 rounded-full transition-[background-color,box-shadow]";
 
-export function ToggleTrack({
+/** 纯展示的开关轨道；点击区与无障碍语义统一由外层 `ToggleSwitch` 提供。 */
+function ToggleTrack({
   checked,
   focusClassName = "",
   testId,
@@ -29,13 +30,20 @@ export function ToggleTrack({
   );
 }
 
-/** 与分享面板一致的紧凑开关。 */
+/**
+ * 与分享面板一致的紧凑开关。
+ *
+ * 可点区域只在开关本身（含四周各 6px 余量，视觉位置不变），**整行不做成开关**：
+ * 行内文字与空白保持默认箭头光标，点击不切换。用户明确要求过「不要整行都可点」，
+ * 不要再把它改成整行 `<button role="switch">`。
+ */
 export function ToggleSwitch({
   checked,
   disabled = false,
   pending = false,
   muted = disabled,
   label,
+  testId,
   onChange,
 }: {
   checked: boolean;
@@ -43,6 +51,7 @@ export function ToggleSwitch({
   pending?: boolean;
   muted?: boolean;
   label: string;
+  testId?: string;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -54,12 +63,14 @@ export function ToggleSwitch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`group inline-flex h-[22px] w-[38px] shrink-0 rounded-full border-0 bg-transparent p-0 disabled:cursor-not-allowed ${
+      // 6px padding + 等量负外边距：点击余量变大，滑轨的视觉位置与原来一致
+      className={`group -mr-1.5 inline-flex h-[34px] w-[50px] shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-1.5 disabled:cursor-not-allowed ${
         pending || muted ? "opacity-45" : ""
       }`}
     >
       <ToggleTrack
         checked={checked}
+        testId={testId}
         focusClassName="group-focus-visible:ring-2 group-focus-visible:ring-[var(--success)]/25 group-focus-visible:ring-offset-2"
       />
     </button>

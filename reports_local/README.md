@@ -357,14 +357,14 @@ curl -s -X PATCH "$GLENHE_API/<slug>" -H "Authorization: Bearer $GLENHE_TOKEN" \
 
 ### 11.4 上传后必须验证（两步，缺一不可）
 
-1. **验证内容**：登录拿会话（`POST /api/auth/sign-in/email`，JSON `{"email","password"}`，`-c cookies.txt`）→ `GET https://glenhe.com/report/<slug>`（带 cookie）→ 从返回 HTML 里提取 `https://reports.glenhe.com/r/<capability>/report.html` → curl 拉取该 URL，确认 200 且内容是刚上传的报告（grep 关键标题/特征字符串）。
+1. **验证内容**：登录拿会话（`POST /api/auth/sign-in/email`，JSON `{"email","password"}`，`-c cookies.txt`）→ `GET https://glenhe.com/view/<slug>`（带 cookie）→ 从返回 HTML 里提取 `https://reports.glenhe.com/report/<capability>/report.html` → curl 拉取该 URL，确认 200 且内容是刚上传的报告（grep 关键标题/特征字符串）。
 2. **验证元数据**：在验证页 HTML 里核对项目卡片渲染的标题/标签/颜色（或让用户在网页上确认）。
 
 只有两步都通过才算上传完成；失败必须回滚或重传，不能放着不管。
 
 ### 11.5 上传后必须登记
 
-每次上传——无论 `POST` 新建还是 `PATCH` 更新，无论成功还是失败——都要在仓库根目录的 [`upload.md`](./upload.md) 里追加一条记录。记录格式、元数据填写规范（标题 / 标签 / 颜色 / 简介 / 关键词）和参考示例都在那个文件里，**按规范填，不要临场发挥**。
+每次上传——无论 `POST` 新建还是 `PATCH` 更新，无论成功还是失败——都要在本目录的 [`upload.md`](./upload.md) 里追加一条记录。记录格式、元数据填写规范（标题 / 标签 / 颜色 / 简介 / 关键词）和参考示例都在那个文件里，**按规范填，不要临场发挥**。
 
 ### 11.6 用户偏好（上传相关）
 

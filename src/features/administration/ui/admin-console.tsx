@@ -49,19 +49,19 @@ export function AdminConsole({
     <section className="account-card min-h-[260px]">
       <div className="card-head">
         <div>
-          <h2 className="text-[18px] font-semibold tracking-[-0.01em]">
+          <h2 className="type-card-title tracking-[-0.01em]">
             注册策略
           </h2>
-          <p className="mt-1 text-[13px] leading-5 text-[var(--text-secondary)]">
+          <p className="mt-1 type-caption text-[var(--text-secondary)]">
             修改后立即作用于所有实例和注册入口
           </p>
         </div>
       </div>
       <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="flex min-h-[74px] items-center justify-between gap-5 rounded-[16px] bg-[var(--surface-sunken)] px-5 py-4">
+        <div className="flex min-h-[74px] items-center justify-between gap-5 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-4">
           <div>
-            <p className="text-[14px] font-medium">允许用户注册</p>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+            <p className="type-label">允许用户注册</p>
+            <p className="mt-1 type-caption text-[var(--text-secondary)]">
               关闭后已有用户仍可正常登录
             </p>
           </div>
@@ -79,10 +79,10 @@ export function AdminConsole({
             }
           />
         </div>
-        <div className="flex min-h-[74px] items-center justify-between gap-5 rounded-[16px] bg-[var(--surface-sunken)] px-5 py-4">
+        <div className="flex min-h-[74px] items-center justify-between gap-5 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-4">
           <div>
-            <p className="text-[14px] font-medium">仅限邀请码注册</p>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+            <p className="type-label">仅限邀请码注册</p>
+            <p className="mt-1 type-caption text-[var(--text-secondary)]">
               关闭后邀请码仍可选填并记录归因
             </p>
           </div>
@@ -101,7 +101,7 @@ export function AdminConsole({
           />
         </div>
       </div>
-      <p className="mt-3 min-h-[20px] text-[12px] leading-5 text-[var(--danger-text)]">
+      <p className="mt-3 min-h-[20px] type-caption text-[var(--danger-text)]">
         {error}
       </p>
     </section>

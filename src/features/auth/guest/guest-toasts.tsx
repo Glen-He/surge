@@ -40,9 +40,8 @@ function Card({ variant }: { variant: Variant }) {
     <TopNotice mounted={mounted}>
       {variant.icon}
       <span
+        className="type-label"
         style={{
-          fontSize: 14,
-          fontWeight: 600,
           color: "var(--text-primary)",
           letterSpacing: "-0.01em",
           whiteSpace: "nowrap",
@@ -51,9 +50,8 @@ function Card({ variant }: { variant: Variant }) {
         {variant.title}
       </span>
       <span
+        className="type-caption"
         style={{
-          fontSize: 13,
-          fontWeight: 600,
           color: variant.subColor,
           whiteSpace: "nowrap",
         }}
@@ -69,7 +67,7 @@ function PersonIcon() {
     <svg
       viewBox="0 0 24 24"
       fill="none"
-      stroke="var(--accent)"
+      stroke="var(--accent-text)"
       strokeWidth={1.8}
       className="h-5 w-5 shrink-0"
       aria-hidden="true"
@@ -85,7 +83,7 @@ function ClockIcon() {
     <svg
       viewBox="0 0 24 24"
       fill="none"
-      stroke="var(--warning)"
+      stroke="var(--warning-text)"
       strokeWidth={1.8}
       className="h-5 w-5 shrink-0"
       aria-hidden="true"

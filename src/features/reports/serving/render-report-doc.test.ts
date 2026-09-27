@@ -13,7 +13,7 @@ import {
   requestMatchesEtag,
   verifyCapability,
 } from "@/features/reports/report-capability";
-import { createHmac } from "crypto";
+import { createHmac, hkdfSync } from "crypto";
 
 describe("reportDocCsp", () => {
   it("包含沙箱且只允许 capability 资源、数据、媒体与 Worker", () => {
@@ -86,8 +86,22 @@ describe("报告内容域", () => {
 });
 
 describe("report capability", () => {
+  it("来源签入凭证，不能把分享改成属主；合法签名的旧格式也拒绝", () => {
+    const source = { kind: "share", id: "share-id", epoch: 2 } as const;
+    const cap = issueCapability("r-123", "rev-abc", 0, source);
+    expect(verifyCapability(cap)?.source).toEqual(source);
+    const [encoded, signature] = cap.split(".");
+    const payload = Buffer.from(encoded, "base64url").toString("utf8");
+    const forged = Buffer.from(payload.replace("share.share-id.2", "owner.-.0")).toString("base64url") + "." + signature;
+    expect(verifyCapability(forged)).toBeNull();
+    const old = "v1.read.r-123.rev-abc.0.9999999999";
+    const key = Buffer.from(hkdfSync("sha256", process.env.BETTER_AUTH_SECRET!, "surge-report-capability", "v1", 32));
+    const oldCap = Buffer.from(old).toString("base64url") + "." + createHmac("sha256", key).update(old).digest("base64url");
+    expect(verifyCapability(oldCap)).toBeNull();
+  });
+
   it("签发-验证往返，携带报告、世代与纪元", () => {
-    const cap = issueCapability("r-123", "rev-abc", 3);
+    const cap = issueCapability("r-123", "rev-abc", 3, { kind: "owner" });
     const grant = verifyCapability(cap);
     expect(grant).not.toBeNull();
     expect(grant!.reportId).toBe("r-123");
@@ -97,13 +111,13 @@ describe("report capability", () => {
   });
 
   it("capability URL 安全（可直接作路径段）", () => {
-    const cap = issueCapability("r-123", "rev-abc", 0);
+    const cap = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
     expect(cap).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 
   it("为每个 capability 派生稳定且相互隔离的 bridge token", () => {
-    const first = issueCapability("r-123", "rev-abc", 0);
-    const second = issueCapability("r-456", "rev-abc", 0);
+    const first = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
+    const second = issueCapability("r-456", "rev-abc", 0, { kind: "owner" });
     expect(reportBridgeToken(first)).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(reportBridgeToken(first)).toBe(reportBridgeToken(first));
     expect(reportBridgeToken(first)).not.toBe(reportBridgeToken(second));
@@ -112,21 +126,21 @@ describe("report capability", () => {
   it("同一小时窗内签发稳定 URL，便于返回时复用私有缓存", () => {
     const hour = 1_800_000_000 * 1000;
     const spy = vi.spyOn(Date, "now").mockReturnValue(hour + 5 * 60 * 1000);
-    const first = issueCapability("r-123", "rev-abc", 0);
+    const first = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
     spy.mockReturnValue(hour + 55 * 60 * 1000);
-    expect(issueCapability("r-123", "rev-abc", 0)).toBe(first);
+    expect(issueCapability("r-123", "rev-abc", 0, { kind: "owner" })).toBe(first);
     spy.mockReturnValue(hour + 65 * 60 * 1000);
-    expect(issueCapability("r-123", "rev-abc", 0)).not.toBe(first);
+    expect(issueCapability("r-123", "rev-abc", 0, { kind: "owner" })).not.toBe(first);
   });
 
   it("到期上限 clamp：capability 不活过分享截止时间", () => {
     const soon = Math.floor(Date.now() / 1000) + 60;
-    const cap = issueCapability("r-123", "rev-abc", 0, soon);
+    const cap = issueCapability("r-123", "rev-abc", 0, { kind: "owner" }, soon);
     expect(verifyCapability(cap)!.expiresAt).toBe(soon);
   });
 
   it("篡改签名验证失败", () => {
-    const cap = issueCapability("r-123", "rev-abc", 0);
+    const cap = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
     expect(verifyCapability(cap + "x")).toBeNull();
     expect(verifyCapability("x" + cap)).toBeNull();
     expect(verifyCapability("")).toBeNull();
@@ -139,18 +153,18 @@ describe("report capability", () => {
   });
 
   it("过期 capability 验证失败", () => {
-    const cap = issueCapability("r-123", "rev-abc", 0);
+    const cap = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
     const spy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 7 * 60 * 60 * 1000);
     expect(verifyCapability(cap)).toBeNull();
     spy.mockRestore();
   });
 
   it("伪造 payload（换报告 ID / 换纪元）验证失败", () => {
-    const cap = issueCapability("r-123", "rev-abc", 5);
+    const cap = issueCapability("r-123", "rev-abc", 5, { kind: "owner" });
     const dot = cap.indexOf(".");
     for (const payload of [
-      "v1.read.r-456.rev-abc.5.9999999999",
-      "v1.read.r-123.rev-abc.6.9999999999",
+      "v2.read.r-456.rev-abc.5.9999999999.owner.-.0",
+      "v2.read.r-123.rev-abc.6.9999999999.owner.-.0",
     ]) {
       const forged =
         Buffer.from(payload).toString("base64url") + cap.slice(dot);
@@ -159,10 +173,8 @@ describe("report capability", () => {
   });
 
   it("密钥隔离：派生密钥不同于主密钥直接签名", () => {
-    const cap = issueCapability("r-123", "rev-abc", 0);
-    const payload =
-      "v1.read.r-123.rev-abc.0." +
-      verifyCapability(cap)!.expiresAt;
+    const cap = issueCapability("r-123", "rev-abc", 0, { kind: "owner" });
+    const payload = Buffer.from(cap.split(".")[0], "base64url").toString("utf8");
     const directSig = createHmac(
       "sha256",
       process.env.BETTER_AUTH_SECRET!,

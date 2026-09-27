@@ -92,6 +92,9 @@ export async function unzipStream(
   let declaredFiles = 0;
 
   for (const file of directory.files) {
+    // 中央目录用于拒绝声明为符号链接或特殊文件的包；后续 Parse 仅产出字节流，
+    // 配合 createWriteStream 的 wx 创建普通文件，不会恢复 Unix 链接语义。
+    // 第二遍另行校验路径、目录包含关系及实时大小，安全性不依赖两遍头部一致。
     assertRegularFile(file);
     if (file.type === "Directory") continue;
     const rel = safeRelative(file.path, L.maxDepth);

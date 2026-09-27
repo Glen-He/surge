@@ -1,3 +1,4 @@
+import { checkShareLookupRate } from "@/features/sharing/share-lookup-rate";
 import { cookies, headers } from "next/headers";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { clientIp } from "@/infrastructure/security/client-ip";
@@ -14,12 +15,17 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+  const ip = clientIp(await headers());
+  const lookupRate = await checkShareLookupRate(ip, token);
+  if (!lookupRate.allowed) return Response.json(
+    { error: `访问过于频繁，请 ${lookupRate.retryAfter} 秒后再试` },
+    { status: 429, headers: { "Retry-After": String(lookupRate.retryAfter), "Cache-Control": "no-store" } },
+  );
   const board = await findPublicShareBoard(token);
   if (!board) return Response.json({ error: "面板无效或已停用" }, { status: 404 });
   if (!board.passwordHash) return Response.json({ ok: true });
 
   const rateKey = `board:${token}`;
-  const ip = clientIp(await headers());
   const rate = await checkUnlockRate(rateKey, ip);
   if (!rate.ok) {
     return Response.json(
