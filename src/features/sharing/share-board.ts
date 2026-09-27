@@ -1,3 +1,4 @@
+import { withShareTokenRetry } from "./share-token-retry";
 import type { DisplayMode } from "@/features/reports/display-mode";
 import type { PoolClient } from "pg";
 import { db } from "@/infrastructure/database/client";
@@ -13,6 +14,8 @@ import {
   shareTokenHash,
 } from "./share-credentials";
 import { ShareBoardError } from "@/features/sharing/share-board-errors";
+import { shareExpiryDate, parseShareExpiryDays } from "@/features/sharing/share-expiry";
+import type { ShareExpiryDays } from "@/features/sharing/share-expiry";
 
 // ── 分享面板（管理端）：面板 CRUD、条目成员、令牌轮换 ──
 // 公开读取/解锁在 public-share-board.ts；本模块只服务属主管理流程。
@@ -48,7 +51,12 @@ export type ShareBoardItemView = {
 };
 
 export type ShareBoardManageView = ShareBoardSummary & {
-  items: Pick<ShareBoardItemView, "slug" | "date" | "title" | "displayMode">[];
+  items: {
+    slug: string;
+    sharedAt: Date;
+    title: string;
+    displayMode: DisplayMode;
+  }[];
 };
 
 export type BoardRow = {
@@ -74,26 +82,11 @@ export function normalizeBoardTitle(value: unknown): string | null {
   return title;
 }
 
-/** 按产品时区把 calendar day 解析为当天结束时刻。 */
-export function parseBoardExpiry(
-  value: unknown,
-  now = Date.now(),
-): Date | null | "invalid" {
-  if (value === null || value === "" || value === undefined) return null;
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return "invalid";
-  }
-  const [year, month, day] = value.split("-").map(Number);
-  const calendar = new Date(Date.UTC(year, month - 1, day));
-  if (
-    calendar.getUTCFullYear() !== year ||
-    calendar.getUTCMonth() !== month - 1 ||
-    calendar.getUTCDate() !== day
-  ) {
-    return "invalid";
-  }
-  const expiry = new Date(`${value}T23:59:59.999+08:00`);
-  return expiry.getTime() > now ? expiry : "invalid";
+/** 面板有效期档位（天，0 = 永久）换算为到期时刻；非预设档位抛业务错误。 */
+export function boardExpiryFromDays(value: unknown): Date | null {
+  const days: ShareExpiryDays | null = parseShareExpiryDays(value);
+  if (days === null) throw new ShareBoardError("BOARD_EXPIRY_INVALID");
+  return shareExpiryDate(days);
 }
 
 export function toSummary(row: BoardRow): ShareBoardSummary {
@@ -132,10 +125,10 @@ export async function listShareBoardsWithItems(userId: string): Promise<ShareBoa
     display_mode: DisplayMode;
     board_id: string;
     slug: string;
-    date: string;
+    shared_at: Date;
     title: string;
   }>(
-    `SELECT i.board_id, r.slug, r.date, r.title, r.display_mode
+    `SELECT i.board_id, i.created_at AS shared_at, r.slug, r.title, r.display_mode
        FROM share_board_items i
        JOIN share_boards b ON b.id = i.board_id
        JOIN reports r ON r.id = i.report_id
@@ -143,10 +136,15 @@ export async function listShareBoardsWithItems(userId: string): Promise<ShareBoa
       ORDER BY r.date DESC, r.sort_order ASC NULLS LAST, r.created_at DESC`,
     [userId],
   );
-  const byBoard = new Map<string, Pick<ShareBoardItemView, "slug" | "date" | "title" | "displayMode">[]>();
+  const byBoard = new Map<string, ShareBoardManageView["items"]>();
   for (const row of result.rows) {
     const items = byBoard.get(row.board_id) ?? [];
-    items.push({ slug: row.slug, date: row.date, title: row.title, displayMode: row.display_mode });
+    items.push({
+      slug: row.slug,
+      sharedAt: row.shared_at,
+      title: row.title,
+      displayMode: row.display_mode,
+    });
     byBoard.set(row.board_id, items);
   }
   return boards.map((board) => ({ ...board, items: byBoard.get(board.id) ?? [] }));
@@ -184,10 +182,11 @@ export async function createShareBoard(
   passwordEnc: string | null,
   expiresAt: Date | null,
   initialReportSlug?: string,
+  disabled = false,
 ): Promise<ShareBoardSummary> {
   const client = await db.connect();
   const id = generateShareId();
-  const token = generateShareToken();
+  let token = "";
   try {
     await client.query("BEGIN");
     await client.query(`SELECT id FROM "user" WHERE id = $1 FOR UPDATE`, [userId]);
@@ -209,21 +208,25 @@ export async function createShareBoard(
       reportId = report.rows[0]?.id ?? null;
       if (!reportId) throw new ShareBoardError("BOARD_REPORT_NOT_FOUND");
     }
-    await client.query(
-      `INSERT INTO share_boards
-         (id, user_id, token_hash, token_enc, title, password_hash, password_enc, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        id,
-        userId,
-        shareTokenHash(token),
-        encryptShareToken(token),
-        title,
-        passwordHash,
-        passwordEnc,
-        expiresAt,
-      ],
-    );
+    await withShareTokenRetry(client, "share_boards_token_hash_unique", async () => {
+      token = generateShareToken();
+      await client.query(
+        `INSERT INTO share_boards
+           (id, user_id, token_hash, token_enc, title, password_hash, password_enc, expires_at, disabled_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          id,
+          userId,
+          shareTokenHash(token),
+          encryptShareToken(token),
+          title,
+          passwordHash,
+          passwordEnc,
+          expiresAt,
+          disabled ? new Date() : null,
+        ],
+      );
+    });
     if (reportId) {
       await insertBoardItem(client, id, reportId);
     }
@@ -241,7 +244,7 @@ export async function createShareBoard(
     title,
     hasPassword: !!passwordHash,
     passcode: passwordEnc ? decryptSharePasscode(passwordEnc) : null,
-    disabled: false,
+    disabled,
     viewCount: 0,
     itemCount: initialReportSlug ? 1 : 0,
     createdAt: now,
@@ -279,15 +282,6 @@ async function lockOwnedBoard(client: PoolClient, userId: string, boardId: strin
   return row;
 }
 
-async function bumpBoardReportEpochs(client: PoolClient, boardId: string) {
-  await client.query(
-    `UPDATE reports r SET capability_epoch = capability_epoch + 1
-      FROM share_board_items i
-     WHERE i.board_id = $1 AND i.report_id = r.id`,
-    [boardId],
-  );
-}
-
 export async function setBoardMembership(
   userId: string,
   boardId: string,
@@ -305,27 +299,22 @@ export async function setBoardMembership(
     const reportId = report.rows[0]?.id;
     if (!reportId) throw new ShareBoardError("BOARD_REPORT_NOT_FOUND");
     if (included) {
-      const count = await client.query<{ n: string }>(
-        `SELECT count(*)::text AS n FROM share_board_items WHERE board_id = $1`,
-        [boardId],
+      const count = await client.query<{ n: string; already_member: boolean }>(
+        `SELECT count(*)::text AS n, bool_or(report_id = $2) AS already_member
+         FROM share_board_items WHERE board_id = $1`,
+        [boardId, reportId],
       );
-      if (Number(count.rows[0]?.n ?? 0) >= MAX_BOARD_ITEMS) {
+      if (!count.rows[0]?.already_member && Number(count.rows[0]?.n ?? 0) >= MAX_BOARD_ITEMS) {
         throw new ShareBoardError("BOARD_ITEM_LIMIT_REACHED", {
           max: MAX_BOARD_ITEMS,
         });
       }
       await insertBoardItem(client, boardId, reportId);
     } else {
-      const removed = await client.query(
+      await client.query(
         `DELETE FROM share_board_items WHERE board_id = $1 AND report_id = $2`,
         [boardId, reportId],
       );
-      if ((removed.rowCount ?? 0) > 0) {
-        await client.query(
-          `UPDATE reports SET capability_epoch = capability_epoch + 1 WHERE id = $1`,
-          [reportId],
-        );
-      }
     }
     await client.query(`UPDATE share_boards SET updated_at = NOW() WHERE id = $1`, [boardId]);
     await client.query("COMMIT");
@@ -357,7 +346,6 @@ export async function updateShareBoard(
       nextDisabled !== !!board.disabled_at ||
       changes.passwordHash !== undefined ||
       changes.expiresAt !== undefined;
-    if (accessChanged) await bumpBoardReportEpochs(client, boardId);
     await client.query(
       `UPDATE share_boards
           SET title = COALESCE($3, title),
@@ -392,18 +380,20 @@ export async function updateShareBoard(
 
 export async function rotateShareBoardToken(userId: string, boardId: string): Promise<string> {
   const client = await db.connect();
-  const token = generateShareToken();
+  let token = "";
   try {
     await client.query("BEGIN");
-    await lockOwnedBoard(client, userId, boardId);
-    await bumpBoardReportEpochs(client, boardId);
-    await client.query(
-      `UPDATE share_boards
-       SET token_hash = $3, token_enc = $4,
-           access_epoch = access_epoch + 1, updated_at = NOW()
-       WHERE id = $1 AND user_id = $2`,
-      [boardId, userId, shareTokenHash(token), encryptShareToken(token)],
-    );
+    const current = await lockOwnedBoard(client, userId, boardId);
+    await withShareTokenRetry(client, "share_boards_token_hash_unique", async () => {
+      do { token = generateShareToken(); } while (token === decryptShareToken(current.token_enc));
+      await client.query(
+        `UPDATE share_boards
+         SET token_hash = $3, token_enc = $4,
+             access_epoch = access_epoch + 1, updated_at = NOW()
+         WHERE id = $1 AND user_id = $2`,
+        [boardId, userId, shareTokenHash(token), encryptShareToken(token)],
+      );
+    });
     await client.query("COMMIT");
     return token;
   } catch (error) {
@@ -419,7 +409,6 @@ export async function deleteShareBoard(userId: string, boardId: string): Promise
   try {
     await client.query("BEGIN");
     await lockOwnedBoard(client, userId, boardId);
-    await bumpBoardReportEpochs(client, boardId);
     await client.query(`DELETE FROM share_boards WHERE id = $1 AND user_id = $2`, [boardId, userId]);
     await client.query("COMMIT");
   } catch (error) {

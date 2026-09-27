@@ -17,10 +17,10 @@ export function SignOutModal({
 }) {
   return (
     <Modal open={open} onClose={onClose} title="退出当前设备？" busy={loading} plainHeader>
-      <p className="text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+      <p className="type-body text-[var(--text-secondary)]">
         退出后，这台设备需要重新登录才能继续使用该账号。
       </p>
-      <p className="mt-2 min-h-[1.25rem] text-[13px] leading-5 text-[var(--danger-text)]">
+      <p className="mt-2 min-h-[1.25rem] type-caption text-[var(--danger-text)]">
         {error}
       </p>
       <div className="modal-actions">

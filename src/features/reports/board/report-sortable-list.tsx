@@ -167,7 +167,7 @@ function SortableReportCard({
       data-report-card-date={projectedDate}
       data-report-hover-suppressed={suppressHover ? "true" : undefined}
       onPointerLeave={suppressHover ? clearSuppressedHover : undefined}
-      className={`relative mb-5 rounded-[18px] will-change-transform ${
+      className={`relative mb-5 rounded-[var(--radius-xl)] will-change-transform ${
         isDragging || isDropping ? "z-50" : "z-0"
       }`}
     >
@@ -534,12 +534,12 @@ export function SortableReportList({
           {groups.flatMap((month, monthIndex) => [
             <h3
               key={`month:${month.key}`}
-              className={`col-span-full mb-10 flex items-center gap-3 text-[15px] font-medium text-[var(--text-secondary)] ${
+              className={`col-span-full mb-10 flex items-center gap-3 type-label text-[var(--text-secondary)] ${
                 monthIndex > 0 ? "mt-5" : ""
               }`}
             >
               {monthLabel(month.key)}
-              <span className="text-[13px] font-medium text-[var(--text-secondary)]">
+              <span className="type-caption text-[var(--text-secondary)]">
                 {month.days.reduce(
                   (count, day) => count + day.items.length,
                   0,

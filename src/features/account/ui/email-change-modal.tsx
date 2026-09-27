@@ -236,17 +236,17 @@ function EmailChangeDialog({
           <StepIndicator steps={STEPS} current={0} />
 
           <div className="security-step-center">
-            <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+            <p className="type-subtitle text-[var(--text-primary)]">
               验证当前邮箱
             </p>
-            <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+            <p className="mt-1 type-body text-[var(--text-secondary)]">
               为了保护账号安全，请先验证当前绑定邮箱。
             </p>
 
-            <p className="mt-4 text-[13px] text-[var(--text-secondary)]">当前绑定邮箱</p>
+            <p className="mt-4 type-caption text-[var(--text-secondary)]">当前绑定邮箱</p>
             <div className="info-card mt-1.5">
               <span className="info-card-icon">{ICON_MAIL}</span>
-              <span className="break-email min-w-0 text-[15px] font-semibold text-[var(--text-primary)]">
+              <span className="break-email min-w-0 type-label text-[var(--text-primary)]">
                 {currentEmail}
               </span>
             </div>
@@ -281,11 +281,11 @@ function EmailChangeDialog({
                       : "获取验证码"}
               </button>
             </div>
-            <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
+            <p className="mt-2 type-caption text-[var(--text-secondary)]">
               验证码 6 位数字，输入后自动验证，5 分钟内有效
             </p>
             <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--text-secondary)]">
               {loading ? "验证中…" : ""}
             </p>
           </div>
@@ -298,14 +298,14 @@ function EmailChangeDialog({
           <StepIndicator steps={STEPS} current={1} />
 
           <div className="security-step-center">
-            <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+            <p className="type-subtitle text-[var(--text-primary)]">
               设置新的登录邮箱
             </p>
-            <p className="mt-1 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+            <p className="mt-1 type-body text-[var(--text-secondary)]">
               新的邮箱将用于后续登录、身份验证和接收安全通知。
             </p>
 
-            <label className="mb-2 mt-4 block text-[14px] font-medium text-[var(--text-primary)]">
+            <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
               新邮箱地址
             </label>
             <input
@@ -351,11 +351,11 @@ function EmailChangeDialog({
                       : "获取验证码"}
               </button>
             </div>
-            <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
+            <p className="mt-2 type-caption text-[var(--text-secondary)]">
               验证码 6 位数字，输入后自动验证，5 分钟内有效
             </p>
             <p className="field-error">{msg && !msg.ok ? msg.text : ""}</p>
-            <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--text-secondary)]">
+            <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--text-secondary)]">
               {loading ? "验证中…" : ""}
             </p>
           </div>
@@ -378,10 +378,10 @@ function EmailChangeDialog({
               <path d="m5 13 4 4L19 7" />
             </svg>
           </div>
-          <p className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">
+          <p className="mt-3 type-subtitle text-[var(--text-primary)]">
             邮箱修改成功
           </p>
-          <p className="break-email mt-1.5 text-[14px] leading-relaxed text-[var(--text-secondary)]">
+          <p className="break-email mt-1.5 type-body text-[var(--text-secondary)]">
             你的登录邮箱已经更新为
             <span className="font-semibold text-[var(--text-primary)]">{successEmail}</span>
           </p>

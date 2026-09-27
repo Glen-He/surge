@@ -13,12 +13,6 @@ export default async function SharesPage() {
     listAllShares(session.user.id),
     listShareBoardsWithItems(session.user.id),
   ]);
-  const minExpiryDate = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 
   return (
     <main className="min-h-svh bg-[var(--page-bg)] text-[var(--text-primary)] antialiased">
@@ -26,10 +20,10 @@ export default async function SharesPage() {
         {/* 页头 + 返回（与用户中心同一视觉轴） */}
         <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
-            <h1 className="whitespace-nowrap text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="whitespace-nowrap type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               分享管理
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               {boards.length > 0 || rows.length > 0
                 ? `${boards.length} 个分享面板 · ${rows.length} 条分享链接`
                 : "暂无分享内容"}
@@ -44,7 +38,6 @@ export default async function SharesPage() {
         </div>
 
         <ShareBoardsManager
-          minExpiryDate={minExpiryDate}
           initialBoards={boards.map((board) => ({
             id: board.id,
             token: board.token,
@@ -55,7 +48,10 @@ export default async function SharesPage() {
             viewCount: board.viewCount,
             itemCount: board.itemCount,
             expiresAt: board.expiresAt?.toISOString() ?? null,
-            items: board.items,
+            items: board.items.map((item) => ({
+              ...item,
+              sharedAt: item.sharedAt.toISOString(),
+            })),
           }))}
         />
 

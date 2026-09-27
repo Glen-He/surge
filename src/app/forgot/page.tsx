@@ -45,15 +45,15 @@ export default function ForgotPasswordPage() {
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">检查你的邮箱</h1>
+            <h1 className="type-page-title tracking-tight">检查你的邮箱</h1>
             {email.toLowerCase().endsWith("@" + GUEST_DOMAIN) ? (
-              <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+              <p className="mt-2 type-body text-[var(--text-secondary)]">
                 检测到 <span className="font-medium text-[var(--text-primary)]">游客模式</span>，无需接收邮件：
                 <br />
                 页面顶部会以 <span className="font-medium text-[var(--accent-text)]">弹窗</span> 形式直接显示“游客验证码”。
               </p>
             ) : (
-              <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+              <p className="mt-2 type-body text-[var(--text-secondary)]">
                 如果 <span className="font-medium text-[var(--text-primary)]">{email}</span>{" "}
                 已注册，你将收到一封重置密码的邮件（1 小时内有效）。
                 <br />
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
             )}
             <Link
               href="/"
-              className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80"
+              className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-full bg-[var(--text-primary)] type-control text-[var(--text-on-fill)] transition-opacity hover:opacity-80"
             >
               返回登录
             </Link>
@@ -76,10 +76,10 @@ export default function ForgotPasswordPage() {
     <main className="flex min-h-svh flex-col bg-[var(--surface)] px-6 text-[var(--text-primary)] antialiased">
       <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm py-16">
-          <h1 className="text-center text-2xl font-semibold tracking-tight">
+          <h1 className="text-center type-page-title tracking-tight">
             忘记密码
           </h1>
-          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
+          <p className="mt-2 text-center type-body text-[var(--text-secondary)]">
             输入你的邮箱，我们会发送重置链接
           </p>
 
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
                   setError("");
                 }}
                 autoComplete="email"
-                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+                className="h-12 w-full rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 type-input text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
             </div>
 
@@ -108,19 +108,17 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="h-12 w-full rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-12 w-full rounded-full bg-[var(--text-primary)] type-control text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "发送中…" : "发送重置链接"}
               </button>
-              {error && (
-                <p className="absolute left-0 top-full mt-1.5 text-xs text-red-500">
-                  {error}
-                </p>
-              )}
+              <p role="status" className="mt-1.5 h-[var(--line-height-caption)] overflow-hidden type-caption text-[var(--danger-text)]">
+                {error}
+              </p>
             </div>
           </form>
 
-          <p className="mt-6 text-center text-sm">
+          <p className="mt-6 text-center type-body">
             <Link href="/" className="text-[var(--accent-text)] hover:underline">
               返回登录
             </Link>

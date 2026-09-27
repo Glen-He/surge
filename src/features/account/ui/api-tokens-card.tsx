@@ -121,7 +121,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
             <Link
               href="/account/api-usage"
               aria-label="API 使用说明"
-              className="mt-[1px] shrink-0 text-[var(--icon-muted)] transition-colors hover:text-[var(--accent-text)]"
+              className="mt-[1px] shrink-0 text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)]"
             >
               {ICON_INFO}
             </Link>
@@ -131,15 +131,15 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
       {/* 内容区固定高度上限（280 卡高含边框 − padding56 − 头部48 − 间距40 − 操作区51 = 83px） */}
       <div className="card-main shifted max-h-[83px] overflow-y-auto">
         {isGuest ? (
-          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+          <p className="type-body text-[var(--text-secondary)]">
             游客模式不支持 API 令牌，注册正式账号后可用
           </p>
         ) : !loaded ? (
-          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">加载中…</p>
+          <p className="type-body text-[var(--text-secondary)]">加载中…</p>
         ) : token ? (
           <div>
-            <div className="flex items-center gap-1">
-              <code className="min-w-0 flex-1 truncate font-mono text-[13px] leading-[1.5] text-[var(--text-primary)]">
+            <div className="account-value-row flex items-center gap-1">
+              <code className="min-w-0 flex-1 truncate font-mono type-code text-[var(--text-primary)]">
                 {token.token ? (revealed ? token.token : masked) : "令牌不可读取"}
               </code>
               {token.token && (
@@ -148,7 +148,7 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                     type="button"
                     aria-label={revealed ? "隐藏令牌" : "显示令牌"}
                     onClick={() => setRevealed((v) => !v)}
-                    className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent-text)]"
+                    className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)]"
                   >
                     {revealed ? ICON_EYE_OFF : ICON_EYE}
                   </button>
@@ -162,19 +162,19 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
                 </>
               )}
             </div>
-            <p className="mt-1.5 text-[12px] leading-[1.4] text-[var(--text-secondary)]">
+            <p className="account-detail type-caption text-[var(--text-secondary)]">
               {token.token
                 ? "更换或撤销后旧值立即失效"
                 : "更换后会生成新的可查看令牌"}
             </p>
           </div>
         ) : (
-          <p className="text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+          <p className="type-body text-[var(--text-secondary)]">
             还没有令牌，创建后可在代码中直接上传汇报
           </p>
         )}
         {/* 常驻错误槽：高度固定，报错出现/消失零位移 */}
-        <p className="mt-3 min-h-[1.375rem] text-[13px] leading-[1.5] text-[var(--danger-text)]">
+        <p className="mt-1 h-[var(--line-height-caption)] overflow-hidden type-caption text-[var(--danger-text)]">
           {error || null}
         </p>
       </div>

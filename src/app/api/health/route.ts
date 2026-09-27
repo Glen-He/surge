@@ -1,3 +1,4 @@
+import { isMaintenanceHealthy } from "@/features/maintenance/maintenance-health";
 import { db } from "@/infrastructure/database/client";
 import { constants, promises as fs } from "node:fs";
 import { REPORT_DATA_DIR } from "@/features/reports/storage/report-storage";
@@ -22,16 +23,17 @@ export async function GET() {
     const maintenanceAgeSeconds = state?.last_succeeded_at
       ? Math.max(0, Math.round((Date.now() - state.last_succeeded_at.getTime()) / 1000))
       : null;
+    const healthy = isMaintenanceHealthy(state);
     return Response.json(
       {
-        status: "ok",
+        status: healthy ? "ok" : "degraded",
         maintenance: {
           lastSucceededAt: state?.last_succeeded_at ?? null,
           ageSeconds: maintenanceAgeSeconds,
           lastError: state?.last_error ?? null,
         },
       },
-      { headers: { "Cache-Control": "no-store" } },
+      { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
     );
   } catch {
     return Response.json(

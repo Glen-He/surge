@@ -1,3 +1,4 @@
+import { withSchemaInitializationLock } from "@/infrastructure/database/schema-initialization";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { auth } from "@/features/auth/auth";
 import { db } from "@/infrastructure/database/client";
@@ -14,9 +15,11 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("面板条目短码", 
 
   beforeAll(async () => {
     const context = await auth.$context;
-    await ensureBetterAuthSchemaCompatible();
-    await context.runMigrations();
-    await ensureSchemaVersioned();
+    await withSchemaInitializationLock(async () => {
+      await ensureBetterAuthSchemaCompatible();
+      await context.runMigrations();
+      await ensureSchemaVersioned();
+    });
     userId = (await context.internalAdapter.createUser({ name: "Board item test", email: `board-item-${crypto.randomUUID()}@example.test`, emailVerified: true }, { method: "test" })).id;
     for (const report of reports) {
       await db.query(`INSERT INTO reports (id, user_id, slug, revision_id, title, date, size_bytes, storage_key)

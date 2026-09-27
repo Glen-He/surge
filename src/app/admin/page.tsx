@@ -12,10 +12,10 @@ export default async function AdminPage() {
       <div className="account-shell">
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               管理后台
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               管理平台注册策略与其他全局能力
             </p>
           </div>

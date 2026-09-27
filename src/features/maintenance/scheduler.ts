@@ -14,7 +14,7 @@ import {
 } from "@/features/reports/storage/report-storage";
 import { db } from "@/infrastructure/database/client";
 
-const MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
+import { MAINTENANCE_INTERVAL_MS } from "./maintenance-health";
 const GUEST_EXPIRY_INTERVAL_MS = 60 * 1000;
 let running = false;
 let guestExpiryRunning = false;
@@ -58,7 +58,7 @@ export async function runMaintenance(): Promise<boolean> {
     await db.query(
       `INSERT INTO maintenance_state (name, last_started_at, last_error)
        VALUES ('full', NOW(), NULL)
-       ON CONFLICT (name) DO UPDATE SET last_started_at = NOW(), last_error = NULL, updated_at = NOW()`,
+       ON CONFLICT (name) DO UPDATE SET last_started_at = NOW(), updated_at = NOW()`,
     );
     const tasks: Array<[string, () => Promise<unknown>]> = [
       ["security-rate-limit-purge", purgeExpiredSecurityRateLimits],

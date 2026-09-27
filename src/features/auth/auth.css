@@ -23,7 +23,7 @@
   grid-template-columns: 0.9fr 1.1fr;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 28px;
+  border-radius: var(--radius-2xl);
   overflow: hidden;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.015),
@@ -44,8 +44,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
@@ -58,15 +59,17 @@
 }
 
 .auth-brand-title {
-  font-size: 30px;
-  line-height: 1.42;
-  font-weight: 650;
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.025em;
   color: var(--text-primary);
 }
 
 .auth-brand-foot {
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
 
@@ -87,8 +90,9 @@
 }
 
 .auth-title {
-  font-size: 28px;
-  font-weight: 650;
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
   color: var(--text-primary);
   text-align: left;
@@ -96,7 +100,9 @@
 
 .auth-subtitle {
   margin-top: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
   text-align: left;
 }
@@ -133,8 +139,9 @@
   z-index: 1;
   background: transparent;
   border: 0;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   transition: color 0.15s ease;
 }
@@ -159,7 +166,7 @@
   --auth-field-background: var(--surface);
   --auth-field-border: var(--border-control);
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--auth-field-background);
   transition: background-color 0.18s ease;
 }
@@ -175,10 +182,12 @@
   height: 44px;
   width: 100%;
   border: 1px solid var(--auth-field-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--auth-field-background);
   padding: 0 14px 0 44px;
-  font-size: 15px;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
   color: var(--text-primary);
   outline: none;
   transition:
@@ -252,9 +261,9 @@
   padding-inline: 0;
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
@@ -281,7 +290,9 @@
     var(--auth-field-background) 50% 100%
   );
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
 }
 
 .auth-input:focus + .auth-floating-label {
@@ -306,7 +317,7 @@
   width: 36px;
   height: 36px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--icon-muted);
   transition: color 0.15s ease;
@@ -327,8 +338,9 @@
   left: 0;
   right: 0;
   bottom: 2px;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--danger-text);
 }
 
@@ -350,8 +362,9 @@
 }
 
 .auth-link {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--accent-text);
 }
 
@@ -381,8 +394,9 @@
   border-radius: 999px;
   background: var(--accent);
   color: var(--text-on-fill);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition:
     background-color 0.15s ease,
     opacity 0.15s ease;
@@ -405,8 +419,9 @@
   border: 1px solid var(--border-control);
   background: var(--surface);
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition:
     background-color 0.15s ease,
     color 0.15s ease,
@@ -434,10 +449,6 @@
   .auth-brand {
     padding: 28px 24px 22px;
     gap: 24px;
-  }
-
-  .auth-brand-title {
-    font-size: 25px;
   }
 
   .auth-form-panel {

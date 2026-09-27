@@ -1,11 +1,12 @@
 /* ============ 安全操作 Modal ============ */
+/* 宽度与圆角对齐账号与安全页卡片（.account-card：528px / 22px） */
 .security-modal {
-  width: min(496px, calc(100vw - 32px));
+  width: min(528px, calc(100vw - 32px));
   /* 相对弹窗容器（= 可见视口，键盘弹出时被 visualViewport 缩小），
      而非 100dvh（iOS 上 dvh 不响应键盘），保证键盘弹出时内容可完整滚读 */
   max-height: calc(100% - 32px);
   background: var(--surface);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   box-shadow:
     0 24px 70px rgba(0, 0, 0, 0.16),
@@ -24,7 +25,7 @@
   height: min(76vh, 820px);
   min-height: 520px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -80,7 +81,7 @@
   backdrop-filter: blur(2px);
 }
 
-/* Header：68px，标题 20px/650，底部分隔线 */
+/* Header：68px，标题使用分区标题档位，底部分隔线 */
 .security-modal-header {
   display: flex;
   align-items: center;
@@ -92,8 +93,9 @@
 }
 
 .security-modal-title {
-  font-size: 20px;
-  font-weight: 650;
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-height-section-title);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
@@ -163,7 +165,7 @@
   text-align: center;
 }
 
-/* 轻量步骤指示器：24px 圆点 + 13px 文字 + 细连接线 */
+/* 轻量步骤指示器：24px 圆点 + 辅助文字档位 + 细连接线 */
 .step-indicator {
   display: flex;
   align-items: center;
@@ -185,8 +187,9 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
   transition:
     background-color 0.2s ease,
@@ -205,8 +208,9 @@
 }
 
 .step-label {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
@@ -239,7 +243,7 @@
   align-items: center;
   gap: 10px;
   padding: 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
 }
 
@@ -249,7 +253,7 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-primary);
   flex-shrink: 0;
@@ -271,13 +275,15 @@
 .pw-bar {
   width: 24px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: 999px;
   background: var(--control-hover);
   transition: background-color 0.2s ease;
 }
 
 .pw-strength-label {
-  font-size: 12px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
 
@@ -298,7 +304,7 @@
   align-items: flex-start;
   min-height: 116px;
   padding: 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-control);
   background: var(--surface);
   text-align: left;
@@ -318,7 +324,7 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   color: var(--text-primary);
   margin-bottom: 10px;
@@ -340,8 +346,9 @@
   border: none;
   padding: 0;
   color: var(--accent-text);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition: color 0.15s ease;
 }
 
@@ -354,7 +361,7 @@
     width: calc(100vw - 24px);
     /* 同桌面：相对容器（= 可见视口），iOS 键盘弹出时 dvh 不收缩 */
     max-height: calc(100% - 24px);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
   }
 
   .security-modal-wide {

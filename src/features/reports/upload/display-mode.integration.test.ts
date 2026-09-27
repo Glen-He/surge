@@ -1,3 +1,4 @@
+import { withSchemaInitializationLock } from "@/infrastructure/database/schema-initialization";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -25,9 +26,11 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("展示模式存储与
 
   beforeAll(async () => {
     const context = await auth.$context;
-    await ensureBetterAuthSchemaCompatible();
-    await context.runMigrations();
-    await ensureSchemaVersioned();
+    await withSchemaInitializationLock(async () => {
+      await ensureBetterAuthSchemaCompatible();
+      await context.runMigrations();
+      await ensureSchemaVersioned();
+    });
     userId = (await context.internalAdapter.createUser({ name: "Display mode test", email, emailVerified: true }, { method: "test" })).id;
     inputDir = await fs.mkdtemp(path.join(os.tmpdir(), "surge-mode-input-"));
     const html = "<!doctype html><html><body>website</body></html>";

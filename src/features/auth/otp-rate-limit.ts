@@ -28,17 +28,16 @@ export async function checkOtpRateLimit(opts: {
       `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
       [`otp-rate:${email}`],
     );
-    // 仅保留该邮箱当日自然日的频控预留行；
-    // 长期审计事件使用不同的 action，不受此清理影响。
+    // 独立预留表只保留当日配额和最近一分钟冷却，跨午夜也不能绕过冷却。
     await client.query(
-      `DELETE FROM security_logs
-       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
-         AND created_at < date_trunc('day', NOW())`,
+      `DELETE FROM otp_rate_reservations
+       WHERE email = $1
+         AND created_at < LEAST(date_trunc('day', NOW()), NOW() - INTERVAL '60 seconds')`,
       [email],
     );
     const last = await client.query<{ created_at: Date }>(
-      `SELECT created_at FROM security_logs
-       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
+      `SELECT created_at FROM otp_rate_reservations
+       WHERE email = $1
        AND created_at > NOW() - INTERVAL '60 seconds'
        ORDER BY created_at DESC LIMIT 1`,
       [email],
@@ -55,29 +54,28 @@ export async function checkOtpRateLimit(opts: {
       };
     }
 
-    const r = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM security_logs
-       WHERE email = $1 AND action = 'OTP_RATE_RESERVED'
+    const r = await client.query<{ count: string; retry_after: number }>(
+      `SELECT COUNT(*)::text AS count,
+         CEIL(EXTRACT(EPOCH FROM date_trunc('day', NOW()) + INTERVAL '1 day' - NOW()))::int AS retry_after
+       FROM otp_rate_reservations
+       WHERE email = $1
        AND created_at >= date_trunc('day', NOW())`,
       [email],
     );
     const todayCount = Number(r.rows[0]?.count ?? 0);
     if (todayCount >= 10) {
       await client.query("COMMIT");
-      const tomorrow = new Date();
-      tomorrow.setHours(24, 0, 0, 0);
       return {
         ok: false,
         reason: "daily_limit",
-        retryAfter: Math.ceil((tomorrow.getTime() - Date.now()) / 1000),
+        retryAfter: r.rows[0].retry_after,
       };
     }
 
     // 先占位再发信：发送失败也故意消耗名额，对重试风暴与
     // 邮件服务商故障保持失败关闭（fail closed）。
     await client.query(
-      `INSERT INTO security_logs (action, email)
-       VALUES ('OTP_RATE_RESERVED', $1)`,
+      `INSERT INTO otp_rate_reservations (email) VALUES ($1)`,
       [email],
     );
     await client.query("COMMIT");

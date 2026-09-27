@@ -133,10 +133,28 @@ export type TrashMove = {
   manifest: string | null;
 };
 
+/**
+ * 直接判断路径是否存在，而不是靠 `error.code === "ENOENT"`：
+ * 外部文件系统代理（沙箱、云同步驱动）可能改写错误码，
+ * 那时按错误码分支会走错路径，把应清理的条目永久留在回收站。
+ */
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function stageInTrash(
   original: string,
   details: Omit<TrashManifest, "version" | "payload">,
 ): Promise<TrashMove> {
+  // 源头不存在即没有数据需要入回收站：直接返回，不落 manifest。
+  if (!(await pathExists(original))) {
+    return { original, trashed: null, manifest: null };
+  }
   await fs.mkdir(REPORT_TRASH_DIR, { recursive: true });
   const key = randomUUID();
   const payloadName = `${key}.data`;
@@ -246,6 +264,14 @@ export async function purgeTrash(): Promise<void> {
         continue;
       }
       const payload = path.join(REPORT_TRASH_DIR, manifest.payload);
+      // 清单还在但数据目录已不存在（删除已提交，或暂存本身没完成）：
+      // 没有任何可恢复的内容，直接回收清单，避免每次启动重复报错、
+      // 并把条目永久堆在回收站里（真实故障：283 条残留清单 + 每次启动 283 条 error）。
+      // 这与正常文件系统上的行为一致（那里会命中 ENOENT 分支做同样的事）。
+      if (!(await pathExists(payload))) {
+        await fs.rm(manifestPath, { force: true });
+        continue;
+      }
       const exists = await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [
         manifest.userId,
       ]);

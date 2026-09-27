@@ -132,7 +132,8 @@ export function CopyIconButton({
   disabled = false,
   className = "",
   onCopyError,
-}: CopyFeedbackProps) {
+  showTooltip = true,
+}: CopyFeedbackProps & { showTooltip?: boolean }) {
   const { copied, copy } = useCopyFeedback({ text, onCopyError });
   return (
     <button
@@ -140,21 +141,24 @@ export function CopyIconButton({
       disabled={disabled}
       onClick={() => void copy()}
       aria-label={copied ? copiedLabel : label}
-      title={copied ? copiedLabel : label}
+      title={showTooltip ? (copied ? copiedLabel : label) : undefined}
       data-copy-variant="icon"
       data-copy-state={copied ? "copied" : "idle"}
       className={`ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)] focus-visible:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
       style={copied ? { color: "var(--success)" } : undefined}
     >
+      {/* 两个图标必须同尺寸：按钮是 inline-flex（默认 baseline 对齐），内联元素的基线
+          取自身内容底边，图标高度一变，外层文字行高就会跟着变 0.5px，导致整行文字与
+          下方元素上下跳动。对号放大到 15px 并等比减细描边（2.2 ≈ 原 14px/2.4 的视觉粗细）。 */}
       {copied ? (
         <svg
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.4"
+          strokeWidth="2.2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="h-3.5 w-3.5"
+          className="h-[15px] w-[15px]"
           aria-hidden="true"
         >
           <path d="m5 13 4 4L19 7" />

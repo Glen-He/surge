@@ -54,8 +54,8 @@ const ICON_BACK = (
 /** 小节标题：序号圆片 + 标题 */
 function SectionTitle({ no, children }: { no: number; children: React.ReactNode }) {
   return (
-    <h2 className="mb-5 flex items-center gap-2.5 text-[19px] font-semibold text-[var(--text-primary)]">
-      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-[var(--accent-soft)] text-[14px] font-bold text-[var(--accent-text)]">
+    <h2 className="mb-5 flex items-center gap-2.5 type-section-title text-[var(--text-primary)]">
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full bg-[var(--accent-soft)] type-badge text-[var(--accent-text)]">
         {no}
       </span>
       {children}
@@ -99,7 +99,7 @@ function NoteRow({
     ),
   } as const;
   return (
-    <div className="mt-3 flex items-start gap-2.5 text-[13px] leading-[19px] text-[var(--text-secondary)]">
+    <div className="mt-3 flex items-start gap-2.5 type-caption text-[var(--text-secondary)]">
       {icons[icon]}
       <span>{children}</span>
     </div>
@@ -115,7 +115,7 @@ function CopyButton() {
     <CopyPillButton
       text={PROMPT}
       label="复制"
-      className="inline-flex h-[28px] w-[52px] items-center justify-center rounded-full bg-[var(--accent)] text-[12px] font-semibold text-[var(--text-on-fill)] transition-colors duration-200 hover:bg-[var(--accent-hover)]"
+      className="inline-flex h-[28px] w-[52px] items-center justify-center rounded-full bg-[var(--accent)] type-control-sm text-[var(--text-on-fill)] transition-colors duration-200 hover:bg-[var(--accent-hover)]"
     />
   );
 }
@@ -123,9 +123,9 @@ function CopyButton() {
 /** 流程节点 */
 function FlowNode({ t, d }: { t: string; d: string }) {
   return (
-    <div className="flex flex-col rounded-[10px] bg-[var(--surface-sunken)] px-5 py-[18px]">
-      <div className="text-[14px] font-[650] text-[var(--text-primary)]">{t}</div>
-      <div className="mt-[5px] text-[12.5px] leading-[1.6] text-[var(--text-secondary)]">{d}</div>
+    <div className="flex flex-col rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-[18px]">
+      <div className="type-subtitle text-[var(--text-primary)]">{t}</div>
+      <div className="mt-[5px] type-caption text-[var(--text-secondary)]">{d}</div>
     </div>
   );
 }
@@ -133,9 +133,9 @@ function FlowNode({ t, d }: { t: string; d: string }) {
 /** 使用节点：上传之后的 2x2 子卡 */
 function UsageNode({ t, d }: { t: string; d: string }) {
   return (
-    <div className="rounded-[10px] bg-[var(--surface-sunken)] px-5 py-4">
-      <div className="text-[14px] font-[650] text-[var(--text-primary)]">{t}</div>
-      <div className="mt-[5px] text-[12.5px] leading-[1.7] text-[var(--text-secondary)]">{d}</div>
+    <div className="rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-4">
+      <div className="type-subtitle text-[var(--text-primary)]">{t}</div>
+      <div className="mt-[5px] type-caption text-[var(--text-secondary)]">{d}</div>
     </div>
   );
 }
@@ -150,7 +150,7 @@ function FaqTile({ no, q, a }: { no: number; q: string; a: React.ReactNode }) {
   return (
     <details className="group block">
       <summary
-        className="flex cursor-pointer list-none items-center gap-2.5 py-4 text-[14px] font-[600] leading-[1.5] text-[var(--text-primary)] [&::-webkit-details-marker]:hidden"
+        className="flex cursor-pointer list-none items-center gap-2.5 py-4 type-control text-[var(--text-primary)] [&::-webkit-details-marker]:hidden"
         style={{ listStyle: "none" }}
       >
         <span className="w-[18px] shrink-0 text-right tabular-nums">
@@ -171,7 +171,7 @@ function FaqTile({ no, q, a }: { no: number; q: string; a: React.ReactNode }) {
         </svg>
       </summary>
       {/* 答案缩进 = 序号槽 18px + 间距 10px（gap-2.5），与问题文字精确对齐 */}
-      <div className="pb-5 pl-[28px] text-[13px] leading-[1.75] text-[var(--text-secondary)]">
+      <div className="pb-5 pl-[28px] type-caption text-[var(--text-secondary)]">
         {a}
       </div>
     </details>
@@ -198,10 +198,10 @@ function GuideContent() {
         {/* 页头 + 右侧返回（与新建项目页同一视觉轴） */}
         <div className="mb-[42px] flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               汇报页制作指南
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               用 AI 生成汇报页，上传即可展示和分享。
             </p>
           </div>
@@ -212,35 +212,35 @@ function GuideContent() {
         </div>
 
         {/* 1 制作流程 */}
-        <section className="mb-7 rounded-[22px] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
+        <section className="mb-7 rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={1}>制作流程</SectionTitle>
           <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-[1fr_28px_1fr_28px_1fr] md:gap-0">
             <FlowNode t="① 发模板给 AI" d="复制下方模板发给任意 AI：聊天 AI 可在结尾接上你的素材；办公 AI 直接发即可" />
-            <div className="hidden items-center justify-center text-[18px] text-[var(--accent-text)] select-none md:flex">→</div>
+            <div className="hidden items-center justify-center type-card-title text-[var(--accent-text)] select-none md:flex">→</div>
             <FlowNode t="② AI 生成汇报页" d="AI 产出一个汇报文件夹：report.html 主文件 + 可选的 data.js、图片等辅助文件；简单汇报页往往只有一个 HTML" />
-            <div className="hidden items-center justify-center text-[18px] text-[var(--accent-text)] select-none md:flex">→</div>
+            <div className="hidden items-center justify-center type-card-title text-[var(--accent-text)] select-none md:flex">→</div>
             <FlowNode t="③ 上传" d="单个 HTML 文件直接上传；带辅助文件则压成 zip。在首页点「＋」新建项目，上传并填写信息" />
           </div>
         </section>
 
         {/* 第 2 部分：Prompt */}
-        <section className="mb-7 rounded-[22px] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
+        <section className="mb-7 rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={2}>Prompt</SectionTitle>
           {/* 两个用法卡间距与到下方模板的间距一致（均 24px） */}
           <div className="-mt-3 mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
             <UsageNode t="在聊天 AI 里用" d="复制模板，在结尾接上你的工作素材一起发送" />
             <UsageNode t="在办公 AI 里用" d="直接把模板发给它，它已经掌握你的工作文档，无需再贴材料" />
           </div>
-          <div className="overflow-hidden rounded-[10px] bg-[var(--surface-sunken)]">
+          <div className="overflow-hidden rounded-[var(--radius-md)] bg-[var(--surface-sunken)]">
             <div className="flex items-center justify-between px-5 py-3">
-              <span className="text-[12.5px] font-semibold text-[var(--text-secondary)]">汇报页生成模板</span>
+              <span className="type-label text-[var(--text-secondary)]">汇报页生成模板</span>
               <CopyButton />
             </div>
-            <pre className="m-0 overflow-x-auto px-5 pb-[18px] font-mono text-[12.5px] leading-[1.75] whitespace-pre-wrap break-words text-[var(--text-primary)]">
+            <pre className="m-0 overflow-x-auto px-5 pb-[18px] font-mono type-code whitespace-pre-wrap break-words text-[var(--text-primary)]">
               {PROMPT}
             </pre>
           </div>
-          <p className="mt-[22px] text-[13px] text-[var(--text-secondary)]">
+          <p className="mt-[22px] type-caption text-[var(--text-secondary)]">
             模板只保留平台外壳、运行边界和交付要求；卡片内部的排版与视觉表达由 AI 根据内容自由设计。
           </p>
           <NoteRow icon="info">
@@ -249,20 +249,20 @@ function GuideContent() {
         </section>
 
         {/* 3 文件结构与上传 */}
-        <section className="mb-7 rounded-[22px] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
+        <section className="mb-7 rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={3}>文件结构与上传</SectionTitle>
-          <p className="-mt-3 mb-6 text-[13px] leading-[1.7] text-[var(--text-secondary)]">
+          <p className="-mt-3 mb-6 type-caption text-[var(--text-secondary)]">
             AI 生成的是一个文件夹，主文件是 report.html，可能还带 data.js、图片等辅助文件。上传支持两种方式，按产物选择即可：
             <br />
-            <strong className="font-[650] text-[var(--text-primary)]">只有一个 HTML 文件</strong>
+            <strong className="font-semibold text-[var(--text-primary)]">只有一个 HTML 文件</strong>
             ——最常见的情况，不用打包，直接上传这个文件；
             <br />
-            <strong className="font-[650] text-[var(--text-primary)]">带辅助文件</strong>
+            <strong className="font-semibold text-[var(--text-primary)]">带辅助文件</strong>
             ——选中文件夹里的全部文件压缩成一个 zip
             （选中文件压缩，不要把文件夹本身压进去，保证 report.html 在压缩包根目录）。
           </p>
-          <div className="overflow-x-auto rounded-[10px] bg-[var(--surface-sunken)] px-5 py-4">
-            <div className="min-w-[760px] font-mono text-[12.5px] leading-[2] whitespace-nowrap text-[var(--text-primary)]">
+          <div className="overflow-x-auto rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-4">
+            <div className="min-w-[760px] font-mono type-code whitespace-nowrap text-[var(--text-primary)]">
               <div>汇报文件夹</div>
               {[
                 ["├──", "report.html", "必须有，名字不能改；打 zip 时必须放在根目录，这是汇报页的入口"],
@@ -294,7 +294,7 @@ function GuideContent() {
         </section>
 
         {/* 4 上传之后 */}
-        <section className="mb-7 rounded-[22px] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
+        <section className="mb-7 rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={4}>上传之后</SectionTitle>
           {/* grid-auto-rows:1fr 四卡等高，自动适配内容最多的那张 */}
           <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2">
@@ -318,7 +318,7 @@ function GuideContent() {
         </section>
 
         {/* 5 常见问题 */}
-        <section className="rounded-[22px] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
+        <section className="rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
           <SectionTitle no={5}>常见问题</SectionTitle>
           {/* overflow-anchor:none：把 FAQ 列表排除出浏览器滚动锚定候选。
               否则展开某条时，下方条目被选作锚点又被推下，浏览器为保持

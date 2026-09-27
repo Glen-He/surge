@@ -61,10 +61,10 @@ function ResetPasswordForm() {
     <main className="flex min-h-svh flex-col bg-[var(--surface)] px-6 text-[var(--text-primary)] antialiased">
       <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm py-16">
-          <h1 className="text-center text-2xl font-semibold tracking-tight">
+          <h1 className="text-center type-page-title tracking-tight">
             设置新密码
           </h1>
-          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
+          <p className="mt-2 text-center type-body text-[var(--text-secondary)]">
             请输入你的新密码
           </p>
 
@@ -86,7 +86,7 @@ function ResetPasswordForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
-                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-12 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+                className="h-12 w-full rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-sunken)] pl-11 pr-12 type-input text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
               <button
                 type="button"
@@ -122,21 +122,19 @@ function ResetPasswordForm() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password"
-                className="h-12 w-full rounded-xl border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+                className="h-12 w-full rounded-[var(--radius-md)] border border-transparent bg-[var(--surface-sunken)] pl-11 pr-4 type-input text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-[10px] h-12 w-full rounded-full bg-[var(--text-primary)] text-[15px] font-medium text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-[10px] h-12 w-full rounded-full bg-[var(--text-primary)] type-control text-[var(--text-on-fill)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "提交中…" : "重置密码"}
             </button>
 
-            {error && (
-              <p className="text-center text-xs text-red-500">{error}</p>
-            )}
+            <p role="status" className="h-[var(--line-height-caption)] overflow-hidden text-center type-caption text-[var(--danger-text)]">{error}</p>
           </form>
         </div>
       </div>

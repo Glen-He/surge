@@ -6,7 +6,7 @@ import path from "node:path";
  * 设计原则（对齐 Apple ID 验证码邮件 / apple.com 邮件语言）：
  * - 留白营造焦点：层级靠字重和间距，不靠色块与巨字号
  * - 验证码 28px 近黑 #1d1d1f（Apple 的红只用于错误警示，验证码不染红）
- * - 蓝色仅行动按钮 #0071e3 / 文字链 #0062c4，背景苹果灰 #f5f5f7
+ * - 蓝色仅行动按钮 #0071e3 / 文字链 #0866d8（与站内 --accent-text 同值），背景苹果灰 #f5f5f7
  * - 白卡片无边框无阴影，圆角 18px，靠背景色差分层
  * - 全端（320px ~ 桌面）同一版式，零媒体查询：Outlook / 剥离 <style> 的
  *   客户端（Gmail IMAP、部分国产 webmail）渲染完全一致
@@ -253,7 +253,7 @@ function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
           <tr>
             <td align="center" style="padding:12px 28px 0;">
               <p style="margin:0;font-size:12px;line-height:19px;word-break:break-all;">
-                <a href="${url}" style="color:#0062C4;text-decoration:underline;word-break:break-all;">${url}</a>
+                <a href="${url}" style="color:#0866D8;text-decoration:underline;word-break:break-all;">${url}</a>
               </p>
             </td>
           </tr>

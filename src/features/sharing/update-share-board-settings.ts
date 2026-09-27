@@ -1,7 +1,7 @@
 import {
+  boardExpiryFromDays,
   MAX_BOARD_TITLE_LENGTH,
   normalizeBoardTitle,
-  parseBoardExpiry,
   updateShareBoard,
 } from "./share-board";
 import { ShareBoardError } from "./share-board-errors";
@@ -16,7 +16,7 @@ type ShareBoardSettingsInput = {
   title?: unknown;
   regeneratePassword?: unknown;
   password?: unknown;
-  expiresOn?: unknown;
+  expiresInDays?: unknown;
   disabled?: unknown;
 };
 
@@ -67,12 +67,9 @@ export async function updateShareBoardSettings(input: {
     }
   }
 
-  if (input.settings.expiresOn !== undefined) {
-    const expiresAt = parseBoardExpiry(input.settings.expiresOn);
-    if (expiresAt === "invalid") {
-      throw new ShareBoardError("BOARD_EXPIRY_INVALID");
-    }
-    changes.expiresAt = expiresAt;
+  // 只有显式传入档位才改写到期时间：未改动有效期的保存不会重置到期时钟。
+  if (input.settings.expiresInDays !== undefined) {
+    changes.expiresAt = boardExpiryFromDays(input.settings.expiresInDays);
   }
   if (input.settings.disabled !== undefined) {
     if (typeof input.settings.disabled !== "boolean") {

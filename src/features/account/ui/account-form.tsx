@@ -42,11 +42,11 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
     // 清晰度靠文字层级：说明文字灰 13px，时间数字近黑 14px semibold，
     // 深浅对比聚焦视线，不引入新颜色/容器框。
     // 文字列总高 ≈ 24 + 10 + 21 = 55px < 头像 56px，行高不变 → 卡片高度不增
-    <div className="mt-[10px] flex items-center gap-1.5 text-[13px] leading-[1.5] text-[var(--text-secondary)]">
+    <div className="mt-[10px] flex items-center gap-1.5 type-caption text-[var(--text-secondary)]">
       <svg
         viewBox="0 0 24 24"
         fill="none"
-        stroke={urgent ? "var(--danger)" : "currentColor"}
+        stroke={urgent ? "var(--danger-text)" : "currentColor"}
         strokeWidth={1.8}
         className="h-[15px] w-[15px] shrink-0"
         aria-hidden="true"
@@ -56,9 +56,9 @@ function GuestCountdown({ expiresAt }: { expiresAt: string }) {
       </svg>
       游客会话剩余
       <span
-        className="text-[14px] font-semibold"
+        className="type-label"
         style={{
-          color: urgent ? "var(--danger)" : "var(--text-primary)",
+          color: urgent ? "var(--danger-text)" : "var(--text-primary)",
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "0.02em",
         }}
@@ -176,18 +176,18 @@ export function AccountForm({
         <section className="account-card">
           <CardHead icon={ICON_USER} title="账号信息" desc="当前登录账号" />
           <div className="card-main flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)] text-[22px] font-semibold text-[var(--text-on-fill)]">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)] type-section-title text-[var(--text-on-fill)]">
               {email.slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="break-email text-[17px] font-semibold leading-[1.4] text-[var(--text-primary)]">
+              <p className="break-email type-value text-[var(--text-primary)]">
                 {email}
               </p>
               {guestExpiresAt && <GuestCountdown expiresAt={guestExpiresAt} />}
             </div>
           </div>
           <div className="card-action-wrap">
-            <p className="mt-4 min-h-[1.375rem] text-right text-[13px] leading-[1.5] text-[var(--danger-text)]">
+            <p className="mt-4 min-h-[1.375rem] text-right type-caption text-[var(--danger-text)]">
               {deletionRequestedAt
                 ? `已申请删除，${deletionLabel} 前可取消。`
                 : null}
@@ -224,10 +224,10 @@ export function AccountForm({
             desc="用于登录、身份验证和接收安全通知"
           />
           <div className="card-main shifted">
-            <p className="break-email text-[17px] font-semibold leading-[1.4] text-[var(--text-primary)]">
+            <p className="break-email type-value text-[var(--text-primary)]">
               {email}
             </p>
-            <span className="badge-success mt-2">已验证</span>
+            <div className="account-detail"><span className="badge-success">已验证</span></div>
           </div>
           <div className="card-action-wrap">
             <div className="card-action">
@@ -251,10 +251,10 @@ export function AccountForm({
             desc="保护你的账号登录安全"
           />
           <div className="card-main shifted">
-            <p className="text-[17px] tracking-[0.22em] text-[var(--text-primary)]">
+            <p className="type-value tracking-[0.22em] text-[var(--text-primary)]">
               ••••••••••••
             </p>
-            <p className="mt-1.5 text-[13px] leading-[1.45] text-[var(--text-secondary)]">
+            <p className="account-detail type-caption text-[var(--text-secondary)]">
               支持当前密码或邮箱验证码验证
             </p>
           </div>
@@ -280,12 +280,12 @@ export function AccountForm({
             desc="查看并管理当前账号的活跃会话"
           />
           <div className="card-main shifted">
-            <p className="text-[17px] font-semibold leading-[1.4] text-[var(--text-primary)]">
+            <p className="type-value text-[var(--text-primary)]">
               {guestExpiresAt ? "当前设备" : `${activeSessionCount} 个登录会话`}
             </p>
-            <span className="badge-success mt-2">
-              {guestExpiresAt ? "活跃" : "当前设备在线"}
-            </span>
+            <div className="account-detail">
+              <span className="badge-success">{guestExpiresAt ? "活跃" : "当前设备在线"}</span>
+            </div>
           </div>
           <div className="card-action-wrap">
             <div className="card-action gap-6">

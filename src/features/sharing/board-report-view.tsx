@@ -1,7 +1,10 @@
+import { clientIp } from "@/infrastructure/security/client-ip";
+import { checkShareLookupRate } from "@/features/sharing/share-lookup-rate";
+import { ShareLookupNotice } from "@/features/sharing/share-lookup-notice";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { boardReportShareUrl } from "./board-report-url";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { ReportFrame } from "@/features/reports/viewer/report-frame";
 import { SharePasswordGate } from "@/features/sharing/share-password-gate";
 import { boardUnlockCookieName, findPublicBoardReport, verifyBoardUnlockProof } from "@/features/sharing/public-share-board";
@@ -15,11 +18,14 @@ export async function BoardReportView({ token, itemId, landing = false }: {
   itemId: string;
   landing?: boolean;
 }) {
+  const ip = clientIp(await headers());
+  const lookupRate = await checkShareLookupRate(ip, token);
+  if (!lookupRate.allowed) return <ShareLookupNotice retryAfter={lookupRate.retryAfter} />;
   const found = await findPublicBoardReport(token, itemId);
   if (!found) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
-        <div className="w-full max-w-[400px] rounded-[20px] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
+        <div className="w-full max-w-[400px] rounded-[var(--radius-xl)] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
           <h1 className="text-[17px] font-semibold">该汇报已不在分享面板中</h1>
           <Link href={`/board/${token}`} className="mt-5 inline-flex text-[14px] font-semibold text-[var(--accent-text)]">返回分享面板</Link>
         </div>
@@ -47,6 +53,7 @@ export async function BoardReportView({ token, itemId, landing = false }: {
     found.reportId,
     found.revisionId,
     found.capabilityEpoch,
+    { kind: "board", id: found.membershipAccessId, epoch: found.boardAccessEpoch },
     found.boardExpiresAt
       ? Math.floor(found.boardExpiresAt.getTime() / 1000)
       : undefined,

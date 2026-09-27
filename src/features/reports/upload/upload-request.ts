@@ -65,34 +65,18 @@ export async function readUploadForm(req: Request): Promise<UploadParseResult> {
   }
   if (!req.body) return uploadFailure("FORM_INVALID");
 
-  let lease: Awaited<ReturnType<typeof tryAcquireUploadLease>>;
-  try {
-    lease = await tryAcquireUploadLease();
-  } catch {
-    return uploadFailure("UPLOAD_UNAVAILABLE");
-  }
-  if (!lease) return uploadFailure("UPLOAD_BUSY");
-
-  let tempDir: string;
-  try {
-    await ensureStorageHeadroom(tmpdir(), length);
-    tempDir = await fs.mkdtemp(path.join(tmpdir(), "surge-upload-"));
-  } catch (error) {
-    await lease.release();
-    if (error instanceof StorageCapacityError) {
-      return error.toFailure();
-    }
-    return uploadFailure("FORM_STAGING_FAILED");
-  }
-  // 清理是尽力而为：临时目录清理的偶发失败不应把本已成功的上传响应变成 500。
+  let lease: Awaited<ReturnType<typeof tryAcquireUploadLease>> = null;
+  let tempDir: string | null = null;
+  // 仅真实文件占用上传槽与磁盘；纯元信息仍沿用相同的有界解析与校验。
   const cleanup = async () => {
-    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    await lease.release();
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    if (lease) await lease.release();
   };
   const form = new FormData();
   let staged: StagedUpload | null = null;
   let parseError: UploadError | null = null;
   const writes: Promise<void>[] = [];
+  const writing = new AbortController();
 
   try {
     const parser = Busboy({
@@ -120,24 +104,33 @@ export async function readUploadForm(req: Request): Promise<UploadParseResult> {
         stream.resume();
         return;
       }
-      const filePath = path.join(tempDir, "payload");
-      staged = {
-        name: path.basename(info.filename || "upload.bin"),
-        type: info.mimeType || "application/octet-stream",
-        path: filePath,
-        size: 0,
-      };
-      stream.on("data", (chunk: Buffer) => {
-        if (staged) staged.size += chunk.length;
-      });
-      stream.on("limit", () => {
-        parseError = new UploadError("FORM_FILE_TOO_LARGE", {
-          max: Math.round(MAX_ZIP_BYTES / 1024 / 1024),
+      const write = (async () => {
+        try { lease = await tryAcquireUploadLease(); }
+        catch { throw new UploadError("UPLOAD_UNAVAILABLE"); }
+        if (!lease) throw new UploadError("UPLOAD_BUSY");
+        try {
+          await ensureStorageHeadroom(tmpdir(), length);
+          tempDir = await fs.mkdtemp(path.join(tmpdir(), "surge-upload-"));
+        } catch (error) {
+          if (error instanceof StorageCapacityError) throw error;
+          throw new UploadError("FORM_STAGING_FAILED");
+        }
+        const filePath = path.join(tempDir, "payload");
+        staged = {
+          name: path.basename(info.filename || "upload.bin"),
+          type: info.mimeType || "application/octet-stream",
+          path: filePath,
+          size: 0,
+        };
+        stream.on("data", (chunk: Buffer) => { if (staged) staged.size += chunk.length; });
+        stream.on("limit", () => {
+          parseError = new UploadError("FORM_FILE_TOO_LARGE", { max: Math.round(MAX_ZIP_BYTES / 1024 / 1024) });
         });
-      });
-      writes.push(
-        pipeline(stream, createWriteStream(filePath, { flags: "wx", mode: 0o600 })),
-      );
+        await pipeline(stream, createWriteStream(filePath, { flags: "wx", mode: 0o600 }), { signal: writing.signal });
+      })();
+      writes.push(write);
+      // 异步取得租约期间让文件流保持背压；失败销毁解析器，不能留下悬挂请求。
+      void write.catch((error: Error) => { stream.resume(); parser.destroy(error); });
     });
 
     parser.on("filesLimit", () => {
@@ -159,7 +152,10 @@ export async function readUploadForm(req: Request): Promise<UploadParseResult> {
 
     return { ok: true, value: { form, file: staged, cleanup } };
   } catch (error) {
+    writing.abort();
+    await Promise.allSettled(writes);
     await cleanup();
+    if (error instanceof StorageCapacityError) return error.toFailure();
     // 仅透传结构化解析拒绝；其余内部异常一律走通用错误码，避免泄漏
     // 内部 error.message。中文文案由 Route Handler 统一生成。
     if (error instanceof UploadError) {

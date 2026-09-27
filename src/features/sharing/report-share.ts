@@ -1,3 +1,4 @@
+import { withShareTokenRetry } from "./share-token-retry";
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "node:util";
 import { serverEnv } from "@/infrastructure/environment/server";
@@ -17,6 +18,7 @@ import {
 } from "@/features/sharing/share-credentials";
 import type { DisplayMode } from "@/features/reports/display-mode";
 import { ReportShareError } from "@/features/sharing/report-share-errors";
+import { parseShareExpiryDays, shareExpiryDate } from "@/features/sharing/share-expiry";
 
 // ── 分享链接工具 ──
 // token 用 8 位小写字母和数字；
@@ -65,6 +67,7 @@ export function generateSharePasscode(): string {
   return result;
 }
 
+// 自定义提取码接受完整字母数字；自动生成排除易混字符只为便于人工辨认。
 export function isValidSharePasscode(value: unknown): value is string {
   return typeof value === "string" && /^[A-Z0-9]{4}$/.test(value);
 }
@@ -120,7 +123,6 @@ export function unlockCookieName(token: string): string {
   return `share_${token}`;
 }
 
-const SHARE_EXPIRY_DAYS = [0, 1, 7, 30] as const;
 const MAX_SHARES_PER_REPORT = 5;
 
 export type ManagedShare = {
@@ -129,6 +131,7 @@ export type ManagedShare = {
   hasPassword: boolean;
   passcode: string | null;
   expiresAt: Date | null;
+  disabled: boolean;
   viewCount: number;
   createdAt: Date;
 };
@@ -148,22 +151,19 @@ export async function createReportShare(input: {
   if (requestedPasscode && !isValidSharePasscode(requestedPasscode)) {
     throw new ReportShareError("SHARE_PASSCODE_INVALID");
   }
-  const expiresInDays = Number(input.expiresInDays ?? 0);
-  if (!SHARE_EXPIRY_DAYS.includes(expiresInDays as (typeof SHARE_EXPIRY_DAYS)[number])) {
+  const expiresInDays = parseShareExpiryDays(input.expiresInDays ?? 0);
+  if (expiresInDays === null) {
     throw new ReportShareError("SHARE_EXPIRY_INVALID");
   }
   const passcode =
     requestedPasscode ?? (input.passwordProtected ? generateSharePasscode() : null);
-  const expiresAt =
-    expiresInDays > 0
-      ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
-      : null;
+  const expiresAt = shareExpiryDate(expiresInDays);
 
   // scrypt 在事务外完成，避免昂贵计算长期占用连接或报告行锁。
   const passwordHash = passcode ? await hashSharePassword(passcode) : null;
   const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
   const id = generateShareId();
-  const token = generateShareToken();
+  let token = "";
   const createdAt = new Date();
   const client = await db.connect();
   try {
@@ -188,21 +188,24 @@ export async function createReportShare(input: {
       });
     }
 
-    await client.query(
-      `INSERT INTO report_shares
-         (id, report_id, token_hash, token_enc, password_hash, password_enc, expires_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        id,
-        reportId,
-        shareTokenHash(token),
-        encryptShareToken(token),
-        passwordHash,
-        passwordEnc,
-        expiresAt,
-        createdAt,
-      ],
-    );
+    await withShareTokenRetry(client, "report_shares_token_hash_unique", async () => {
+      token = generateShareToken();
+      await client.query(
+        `INSERT INTO report_shares
+           (id, report_id, token_hash, token_enc, password_hash, password_enc, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          reportId,
+          shareTokenHash(token),
+          encryptShareToken(token),
+          passwordHash,
+          passwordEnc,
+          expiresAt,
+          createdAt,
+        ],
+      );
+    });
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -217,34 +220,124 @@ export async function createReportShare(input: {
     hasPassword: passcode !== null,
     passcode,
     expiresAt,
+    disabled: false,
     viewCount: 0,
     createdAt,
   };
 }
 
-/** 撤销属主分享并递增 capability_epoch，使已签发访问能力立即失效。 */
+/** 删除分享授权来源，仅使这个分享签发的访问能力立即失效。 */
 export async function revokeReportShare(userId: string, shareId: string): Promise<void> {
+  const deleted = await db.query(
+    `DELETE FROM report_shares s USING reports r
+      WHERE r.id = s.report_id AND r.user_id = $1 AND s.id = $2`,
+    [userId, shareId],
+  );
+  if (!deleted.rowCount) throw new ReportShareError("SHARE_NOT_FOUND");
+}
+
+/**
+ * 更新属主侧分享设置（有效期 / 提取码 / 暂停分享）。
+ *
+ * 与面板设置对齐：只有显式传入的字段才会被改写；任何影响访问权限的改动
+ * （暂停态、提取码、有效期）都会让 access_epoch + 1，从而立即作废此前签发的
+ * 解锁 Cookie（绑定 epoch）与 capability（资源路由按 epoch 校验）。
+ * 返回本次生成或清除的提取码，供 UI 回显。
+ */
+export async function updateReportShareSettings(input: {
+  userId: string;
+  shareId: string;
+  expiresInDays?: unknown;
+  password?: unknown;
+  regeneratePassword?: unknown;
+  disabled?: unknown;
+}): Promise<{ passcode: string | null | undefined }> {
+  let expiresAt: Date | null | undefined;
+  if (input.expiresInDays !== undefined) {
+    const days = parseShareExpiryDays(input.expiresInDays);
+    if (days === null) throw new ReportShareError("SHARE_EXPIRY_INVALID");
+    expiresAt = shareExpiryDate(days);
+  }
+
+  let passcode: string | null | undefined;
+  let passwordHash: string | null | undefined;
+  let passwordEnc: string | null | undefined;
+  if (input.regeneratePassword === true) {
+    passcode = generateSharePasscode();
+    passwordHash = await hashSharePassword(passcode);
+    passwordEnc = encryptSharePasscode(passcode);
+  } else if (input.password !== undefined) {
+    if (input.password === null || input.password === "") {
+      passcode = null;
+      passwordHash = null;
+      passwordEnc = null;
+    } else if (typeof input.password === "string") {
+      const next = input.password.trim().toUpperCase();
+      if (!isValidSharePasscode(next)) {
+        throw new ReportShareError("SHARE_PASSCODE_INVALID");
+      }
+      passcode = next;
+      passwordHash = await hashSharePassword(next);
+      passwordEnc = encryptSharePasscode(next);
+    } else {
+      throw new ReportShareError("SHARE_PASSWORD_SETTING_INVALID");
+    }
+  }
+
+  if (input.disabled !== undefined && typeof input.disabled !== "boolean") {
+    throw new ReportShareError("SHARE_DISABLED_INVALID");
+  }
+
+  if (
+    expiresAt === undefined &&
+    passwordHash === undefined &&
+    input.disabled === undefined
+  ) {
+    throw new ReportShareError("SHARE_NO_CHANGES");
+  }
+
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const deleted = await client.query<{ report_id: string }>(
-      `DELETE FROM report_shares s
-       USING reports r
-       WHERE r.id = s.report_id
-         AND r.user_id = $1
-         AND s.id = $2
-       RETURNING s.report_id`,
-      [userId, shareId],
+    const current = await client.query<{
+      id: string;
+      disabled_at: Date | null;
+    }>(
+      `SELECT s.id, s.disabled_at FROM report_shares s
+       JOIN reports r ON r.id = s.report_id
+       WHERE s.id = $1 AND r.user_id = $2
+       LIMIT 1 FOR UPDATE OF s`,
+      [input.shareId, input.userId],
     );
-    const reportId = deleted.rows[0]?.report_id;
-    if (!reportId) throw new ReportShareError("SHARE_NOT_FOUND");
-    const updated = await client.query(
-      `UPDATE reports SET capability_epoch = capability_epoch + 1 WHERE id = $1`,
-      [reportId],
+    const row = current.rows[0];
+    if (!row) throw new ReportShareError("SHARE_NOT_FOUND");
+
+    const nextDisabled =
+      typeof input.disabled === "boolean" ? input.disabled : !!row.disabled_at;
+    const accessChanged =
+      nextDisabled !== !!row.disabled_at ||
+      passwordHash !== undefined ||
+      expiresAt !== undefined;
+
+    await client.query(
+      `UPDATE report_shares
+          SET password_hash = CASE WHEN $2::boolean THEN $3 ELSE password_hash END,
+              password_enc = CASE WHEN $2::boolean THEN $4 ELSE password_enc END,
+              disabled_at = CASE WHEN $5::boolean THEN NOW() ELSE NULL END,
+              expires_at = CASE WHEN $6::boolean THEN $7 ELSE expires_at END,
+              access_epoch = access_epoch + CASE WHEN $8::boolean THEN 1 ELSE 0 END
+        WHERE id = $1`,
+      [
+        input.shareId,
+        passwordHash !== undefined,
+        passwordHash ?? null,
+        passwordEnc ?? null,
+        nextDisabled,
+        expiresAt !== undefined,
+        expiresAt ?? null,
+        accessChanged,
+      ],
     );
-    if (updated.rowCount !== 1) {
-      throw new Error("report disappeared while revoking share");
-    }
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -252,17 +345,21 @@ export async function revokeReportShare(userId: string, shareId: string): Promis
   } finally {
     client.release();
   }
+
+  return { passcode };
 }
 
 // ── 查询 ──
 
 export interface ShareRow {
+  access_epoch: number;
   id: string;
   report_id: string;
   token: string;
   password_hash: string | null;
   passcode: string | null;
   expires_at: Date | null;
+  disabled_at: Date | null;
   view_count: number;
   created_at: Date;
 }
@@ -274,12 +371,14 @@ type StoredShareRow = Omit<ShareRow, "token" | "passcode"> & {
 
 function revealShare(row: StoredShareRow): ShareRow {
   return {
+    access_epoch: row.access_epoch,
     id: row.id,
     report_id: row.report_id,
     token: decryptShareToken(row.token_enc),
     password_hash: row.password_hash,
     passcode: row.password_enc ? decryptSharePasscode(row.password_enc) : null,
     expires_at: row.expires_at,
+    disabled_at: row.disabled_at,
     view_count: row.view_count,
     created_at: row.created_at,
   };
@@ -330,7 +429,7 @@ export interface ValidShare {
   capabilityEpoch: number; // capability 纪元（签发 capability 用）
 }
 
-/** token → 有效分享（存在 + 未撤销 + 未过期）；无效返回 null */
+/** token → 有效分享（存在 + 未暂停 + 未过期）；无效返回 null */
 export async function findValidShare(
   token: string,
 ): Promise<ValidShare | null> {
@@ -353,7 +452,9 @@ export async function findValidShare(
   );
   const row = r.rows[0];
   if (!row) return null;
-  if (row.expires_at && row.expires_at.getTime() < Date.now()) return null;
+  // 暂停分享（disabled_at）与过期都按"无效"处理，公开路径 fail closed
+  if (row.disabled_at) return null;
+  if (row.expires_at && row.expires_at.getTime() <= Date.now()) return null;
   const {
     display_mode,
     owner_id,
@@ -389,11 +490,13 @@ export async function shouldCountView(token: string, ip: string): Promise<boolea
   ).allowed;
 }
 
-/** 分享是否仍有效（管理列表用轻量判断） */
+/** 分享状态（管理列表用轻量判断）：暂停优先于过期展示，属主需要看到自己的暂停动作 */
 export function shareStatus(row: {
   expires_at: Date | null;
-}): "active" | "expired" {
-  if (row.expires_at && row.expires_at.getTime() < Date.now()) return "expired";
+  disabled_at?: Date | null;
+}): "active" | "expired" | "paused" {
+  if (row.disabled_at) return "paused";
+  if (row.expires_at && row.expires_at.getTime() <= Date.now()) return "expired";
   return "active";
 }
 

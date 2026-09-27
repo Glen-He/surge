@@ -38,6 +38,7 @@ export default async function ReportPage({
     report.id,
     report.revision_id,
     report.capability_epoch,
+    { kind: "owner" },
   );
 
   return (

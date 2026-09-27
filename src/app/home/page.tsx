@@ -24,10 +24,10 @@ export default async function HomePage() {
         {/* 页头 + 右侧按钮组（与用户中心同一视觉轴） */}
         <div className="mb-[42px] flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
-            <h1 className="whitespace-nowrap text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]">
+            <h1 className="whitespace-nowrap type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               工作汇报系统
             </h1>
-            <p className="mt-2 text-[15px] leading-[1.5] text-[var(--text-secondary)]">
+            <p className="mt-2 type-body text-[var(--text-secondary)]">
               {reports.length > 0 ? `共 ${reports.length} 个项目` : "暂无项目"}
             </p>
           </div>

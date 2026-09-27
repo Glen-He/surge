@@ -1,3 +1,5 @@
+import { checkShareLookupRate } from "@/features/sharing/share-lookup-rate";
+import { ShareLookupNotice } from "@/features/sharing/share-lookup-notice";
 import { BoardReportView } from "@/features/sharing/board-report-view";
 import { cookies, headers } from "next/headers";
 import { findValidShare, verifyUnlockProof, shouldCountView, incrementShareView } from "@/features/sharing/report-share";
@@ -27,12 +29,15 @@ export default async function SharePage({
   if (item !== undefined) {
     return <BoardReportView token={token} itemId={typeof item === "string" ? item : ""} landing />;
   }
+  const ip = clientIp(await headers());
+  const lookupRate = await checkShareLookupRate(ip, token);
+  if (!lookupRate.allowed) return <ShareLookupNotice retryAfter={lookupRate.retryAfter} />;
   const found = await findValidShare(token);
 
   if (!found) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
-        <div className="w-full max-w-[400px] rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+        <div className="w-full max-w-[400px] rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--page-bg)]">
             <svg viewBox="0 0 24 24" fill="none" stroke="var(--icon-muted)" strokeWidth="1.8" className="h-6 w-6">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -53,7 +58,7 @@ export default async function SharePage({
   if (found.share.password_hash && !isOwner) {
     const jar = await cookies();
     const proof = jar.get(`share_${token}`)?.value;
-    if (!verifyUnlockProof(token, proof)) {
+    if (!verifyUnlockProof(`share:${token}:${found.share.id}:${found.share.access_epoch}`, proof)) {
       return (
         <SharePasswordGate
           token={token}
@@ -65,7 +70,6 @@ export default async function SharePage({
   }
 
   // 浏览量统计（密码通过后）：同 IP 同 token 1 小时内只计 1 次（防刷）
-  const ip = clientIp(await headers());
   // 浏览计数是旁路指标，限流存储短暂故障不能阻断报告本身。
   if (!isOwner && await shouldCountView(token, ip).catch(() => false)) {
     after(async () => {
@@ -79,6 +83,7 @@ export default async function SharePage({
     found.reportId,
     found.revisionId,
     found.capabilityEpoch,
+    { kind: "share", id: found.share.id, epoch: found.share.access_epoch },
     found.share.expires_at
       ? Math.floor(found.share.expires_at.getTime() / 1000)
       : undefined,

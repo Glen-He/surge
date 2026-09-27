@@ -242,10 +242,10 @@ export function Modal({
         <div className={`security-modal-body ${bodyClassName}`}>
           {confirming ? (
             <div className="animate-step">
-              <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+              <p className="type-subtitle text-[var(--text-primary)]">
                 放弃本次修改？
               </p>
-              <p className="mt-1.5 text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+              <p className="mt-1.5 type-body text-[var(--text-secondary)]">
                 当前填写的内容不会保存。
               </p>
               <div className="modal-actions">

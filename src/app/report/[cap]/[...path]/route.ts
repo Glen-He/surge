@@ -99,8 +99,8 @@ export async function GET(
   const grant = verifyCapability(cap);
   if (!grant) return notFound();
 
-  // 报告定位 + 当前世代/纪元校验：报告被删除、文件被替换（revision 轮换）
-  // 或权限被吊销（epoch 递增，如撤销分享）后，旧 capability 立即整体失效
+  // 每次请求先校验内容版本与授权来源，再处理缓存和文件流；
+  // 分享撤销与面板成员变化只使对应来源失效，内容替换仍使全部旧凭证失效。
   const r = await db.query<{
     display_mode: DisplayMode;
     user_id: string;
@@ -110,8 +110,20 @@ export async function GET(
     storage_key: string | null;
   }>(
     `SELECT user_id, revision_id, capability_epoch, template_key, storage_key, display_mode
-     FROM reports WHERE id = $1 LIMIT 1`,
-    [grant.reportId],
+     FROM reports r WHERE r.id = $1
+       AND ($2 = 'owner'
+         OR ($2 = 'share' AND EXISTS (
+           SELECT 1 FROM report_shares s WHERE s.id = $3 AND s.report_id = r.id
+             AND s.access_epoch = $4 AND s.disabled_at IS NULL
+             AND (s.expires_at IS NULL OR s.expires_at > NOW())
+         ))
+         OR ($2 = 'board' AND EXISTS (
+           SELECT 1 FROM share_board_items i JOIN share_boards b ON b.id = i.board_id
+            WHERE i.access_id = $3 AND i.report_id = r.id AND b.access_epoch = $4
+              AND b.disabled_at IS NULL AND (b.expires_at IS NULL OR b.expires_at > NOW())
+         ))) LIMIT 1`,
+    [grant.reportId, grant.source.kind, grant.source.kind === "owner" ? null : grant.source.id,
+      grant.source.kind === "owner" ? 0 : grant.source.epoch],
   );
   const row = r.rows[0];
   if (

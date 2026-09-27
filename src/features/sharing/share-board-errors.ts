@@ -60,7 +60,7 @@ const DEFINITIONS: ShareBoardErrorDefinitionTable = {
   },
   BOARD_EXPIRY_INVALID: {
     status: 400,
-    copy: () => "请选择未来的有效期",
+    copy: () => "有效期档位无效",
   },
   BOARD_DISABLED_INVALID: {
     status: 400,

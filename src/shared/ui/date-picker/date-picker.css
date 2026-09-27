@@ -14,29 +14,27 @@
 }
 
 .date-trigger-modal {
-  height: 42px;
-  border-radius: 10px;
+  height: 40px;
+  border-radius: var(--radius-md);
 }
 
 .date-pop {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 6px);
-  left: 0;
+  /* portal 到 body 后用 fixed 视口定位，top/bottom/left/maxHeight 由
+     date-picker.tsx 按触发器位置计算。不能留在 Modal 里：body 的
+     overflow-y: auto 会裁切越出部分，.animate-fade-up 的 fill-mode: both
+     让弹窗常驻 transform、劫持 fixed 坐标。z-index 需盖过 Modal（z-10）。 */
+  position: fixed;
+  z-index: 60;
   width: 280px;
   padding: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow-y: auto; /* 视口过矮时在弹层内部滚动，保证整体不越出视口 */
   animation: fade-in 0.15s ease;
-}
-
-.date-pop-top {
-  top: auto;
-  bottom: calc(100% + 6px);
 }
 
 .date-pop-head {
@@ -52,10 +50,11 @@
   gap: 3px;
   padding: 4px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -81,7 +80,7 @@
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   transition:
@@ -102,7 +101,9 @@
 
 .date-week span {
   text-align: center;
-  font-size: 12px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
 
@@ -120,7 +121,9 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   transition: background-color 0.12s ease;
 }
@@ -138,14 +141,14 @@
 
 .date-day-today {
   color: var(--accent-text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .date-day-sel,
 .date-day-sel:hover {
   background: var(--accent);
   color: var(--text-on-fill);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* 年份选择视图（点击标题切换）：4 列网格，格子为小圆角矩形 */
@@ -162,9 +165,11 @@
   justify-content: center;
   height: 34px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   transition: background-color 0.12s ease;
 }
@@ -184,7 +189,7 @@
 .date-year-sel:hover {
   background: var(--accent);
   color: var(--text-on-fill);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 @keyframes spin {

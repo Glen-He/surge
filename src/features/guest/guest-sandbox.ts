@@ -122,8 +122,8 @@ export async function initializeGuestSandbox(
     }
 
     await client.query(
-      `INSERT INTO guest_sessions (user_id, expires_at, payload)
-       VALUES ($1, $2, '{}'::jsonb)`,
+      `INSERT INTO guest_sessions (user_id, expires_at)
+       VALUES ($1, $2)`,
       [userId, expiresAt],
     );
 

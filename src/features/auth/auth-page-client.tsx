@@ -532,7 +532,7 @@ export function AuthPageClient({
                 busy={loading}
                 plainHeader
               >
-                <p className="text-[14px] leading-[1.55] text-[var(--text-secondary)]">
+                <p className="type-body text-[var(--text-secondary)]">
                   验证码已发送至{" "}
                   <span className="break-email font-medium text-[var(--text-primary)]">
                     {email}
@@ -565,11 +565,11 @@ export function AuthPageClient({
                         : "重新获取"}
                   </button>
                 </div>
-                <p className="mt-2 text-[13px] text-[var(--text-secondary)]">
+                <p className="mt-2 type-caption text-[var(--text-secondary)]">
                   验证码 6 位数字，输入后自动验证，5 分钟内有效
                 </p>
                 <p className="field-error">{error}</p>
-                <p className="mt-2 h-[18px] text-[13px] leading-[18px] text-[var(--text-secondary)]">
+                <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--text-secondary)]">
                   {loading ? "验证中…" : ""}
                 </p>
               </Modal>

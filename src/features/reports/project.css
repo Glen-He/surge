@@ -13,7 +13,7 @@
   padding: 20px 30px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.015),
     0 10px 30px rgba(0, 0, 0, 0.018);
@@ -44,9 +44,9 @@
 .project-label {
   display: block;
   margin-bottom: 5px;
-  font-size: 13px;
-  line-height: 1.4;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
@@ -54,7 +54,7 @@
 .project-req {
   margin-left: 2px;
   color: var(--danger-text);
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
 }
 
 .project-input {
@@ -63,8 +63,10 @@
   padding: 0 14px;
   background: var(--surface);
   border: 1px solid var(--border-control);
-  border-radius: 12px;
-  font-size: 15px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-regular);
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.18s ease;
@@ -89,35 +91,41 @@ textarea.project-input {
   min-height: 133px;
   padding: 12px 14px;
   resize: none;
-  line-height: 1.6;
+  line-height: var(--line-height-input);
+  /* 与右侧上传区（.upload-zone）同高并排，圆角保持一致 */
+  border-radius: var(--radius-lg);
 }
 
-/* 报错槽位常驻：单行 18px + 2px 上距，紧凑不占位；报错出现/消失零位移 */
+/* 报错槽位常驻：单行 20px + 2px 上距，紧凑不占位；报错出现/消失零位移 */
 .project-error {
-  min-height: 18px;
+  height: var(--line-height-caption);
+  overflow: hidden;
   margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--danger-text);
 }
 
 /* 报告文件卡错误槽与其余字段统一，报错出现时零位移 */
 .upload-error-slot {
-  min-height: 18px;
+  height: var(--line-height-caption);
+  overflow: hidden;
   margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--danger-text);
 }
 
-/* 上传区：顶部与项目说明 textarea 顶对齐（上方留出标签行高度 33px），
+/* 上传区：顶部与项目说明 textarea 顶对齐（上方留出标签行和间距），
    高度同为 133px，底边与日期框和关键词框对齐 */
 .upload-zone {
-  margin-top: 33px;
+  margin-top: calc(var(--line-height-body) + 15px);
   height: 133px;
   padding: 12px 16px;
   border: 1px dashed var(--border-control);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--surface-sunken);
   display: flex;
   flex-direction: column;
@@ -138,23 +146,26 @@ textarea.project-input {
 }
 
 .upload-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .upload-hint {
-  font-size: 12px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
 
 /* 已选文件状态：与 upload-zone 同位替换，同样顶对齐 + 133px */
 .file-state {
-  margin-top: 33px;
+  margin-top: calc(var(--line-height-body) + 15px);
   height: 133px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--surface-sunken);
 }
 
@@ -170,31 +181,37 @@ textarea.project-input {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-medium);
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
 
 .file-name {
   min-width: 0;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 
 .file-size {
-  font-size: 12px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--text-secondary);
 }
 
 .file-check {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--success-text);
 }
 
@@ -215,7 +232,9 @@ textarea.project-input {
 
 .page-actions-error {
   margin-right: auto;
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
   color: var(--danger-text);
 }
 
@@ -231,8 +250,9 @@ textarea.project-input {
   color: var(--text-on-fill);
   border: 0;
   border-radius: 999px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   transition:
     background-color 0.15s ease,
     opacity 0.15s ease;
@@ -256,8 +276,9 @@ textarea.project-input {
   background: var(--surface);
   border: 1px solid var(--border-control);
   border-radius: 999px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   transition:
     background-color 0.15s ease,
@@ -302,7 +323,7 @@ textarea.project-input {
     bottom: 0;
     left: 0;
     border: 1px solid var(--border-subtle);
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
     background: var(--surface);
     box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.015),
@@ -336,7 +357,7 @@ textarea.project-input {
     right: -3px;
     bottom: -3px;
     left: -3px;
-    border-radius: 21px;
+    border-radius: calc(var(--radius-xl) + 3px);
     box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.05),
       0 8px 20px rgba(0, 0, 0, 0.1);
@@ -356,7 +377,7 @@ textarea.project-input {
     right: 0;
     bottom: 0;
     left: 0;
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
     box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.015),
       0 10px 30px rgba(0, 0, 0, 0.018);

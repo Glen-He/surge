@@ -1,3 +1,4 @@
+import { withSchemaInitializationLock } from "./schema-initialization";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
 
@@ -26,9 +27,11 @@ describe.skipIf(!enabled)("PostgreSQL security invariants", () => {
     ]);
     database = db;
     context = await auth.$context;
-    await ensureBetterAuthSchemaCompatible();
-    await context.runMigrations();
-    await ensureSchemaVersioned();
+    await withSchemaInitializationLock(async () => {
+      await ensureBetterAuthSchemaCompatible();
+      await context.runMigrations();
+      await ensureSchemaVersioned();
+    });
     const user = await context.internalAdapter.createUser(
       {
         name: "Integration Test",
