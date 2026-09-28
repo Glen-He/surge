@@ -1,3 +1,4 @@
+import { OTP_TTL_SECONDS } from "../otp-code";
 import {
   internalAuthProof,
   verifyInternalAuthProof,
@@ -13,7 +14,7 @@ export function isGuestEmail(email: string | null | undefined): boolean {
 
 /** 生成仅供原子游客登录流程使用的内部凭证。 */
 export function guestInternalProof(): string {
-  return internalAuthProof("guest-login");
+  return internalAuthProof("guest-login", "");
 }
 
 export function verifyGuestInternalProof(
@@ -23,7 +24,7 @@ export function verifyGuestInternalProof(
 }
 
 /** 仅对游客邮箱返回由用户发码操作产生的页内验证码提示。 */
-export function guestOtpResponse(email: string, code: string, ttlSec = 600) {
+export function guestOtpResponse(email: string, code: string, ttlSec = OTP_TTL_SECONDS) {
   if (!isGuestEmail(email)) return {};
   return {
     guestOtp: { code: String(code).padStart(6, "0"), expiresIn: ttlSec },

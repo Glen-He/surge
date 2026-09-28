@@ -27,3 +27,9 @@ describe("账号安全邮件文案", () => {
     expect(sources.every((source) => source.startsWith("cid:"))).toBe(true);
   });
 });
+
+it("业务邮件补齐验证码并使用平台验证码有效期", () => {
+  const result = accountOtpEmail("password_change", "42");
+  expect(result.html).toContain("000042");
+  expect(result.text).toContain("000042（5 分钟内有效）");
+});

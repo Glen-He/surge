@@ -26,8 +26,8 @@ export async function BoardReportView({ token, itemId, landing = false }: {
     return (
       <main className="flex min-h-svh items-center justify-center bg-[var(--page-bg)] px-6">
         <div className="w-full max-w-[400px] rounded-[var(--radius-xl)] bg-[var(--surface)] p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.05)]">
-          <h1 className="text-[17px] font-semibold">该汇报已不在分享面板中</h1>
-          <Link href={`/board/${token}`} className="mt-5 inline-flex text-[14px] font-semibold text-[var(--accent-text)]">返回分享面板</Link>
+          <h1 className="type-card-title">该汇报已不在分享面板中</h1>
+          <Link href={`/board/${token}`} className="mt-5 inline-flex type-control text-[var(--accent-text)]">返回分享面板</Link>
         </div>
       </main>
     );

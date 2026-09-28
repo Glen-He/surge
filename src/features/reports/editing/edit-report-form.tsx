@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadErrorCopy } from "@/features/reports/upload/upload-errors";
+
 import { useRouter } from "next/navigation";
 import { ProjectForm, type ProjectFormValues } from "@/features/reports/upload/project-form";
 
@@ -30,7 +32,7 @@ export function EditReportForm({
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      return data.error ?? "保存失败，请重试";
+      return data.error ?? uploadErrorCopy("SAVE_FAILED");
     }
     router.push("/home");
     router.refresh();

@@ -55,6 +55,8 @@ pnpm start
 
 所有环境变量的说明和示例值见 [`.env.example`](./.env.example)。不要将密钥、数据库备份或报告数据目录提交到版本库。
 
+生产反向代理、独立内容域和维护任务配置见 [部署指南](./docs/deployment.md)。
+
 ## 上传 API
 
 在账号设置中创建 API 令牌，并通过 `Authorization: Bearer` 请求头认证。`POST /api/v1/reports` 接受 `multipart/form-data`；必填字段为 `title`、`date` 和 `file`，其中 `file` 可以是 HTML 或 ZIP。可选的 `displayMode` 接受 `frame`（汇报展示）或 `bare`（网页发布）。

@@ -54,9 +54,9 @@ describe("报告内容域", () => {
     vi.stubEnv("REPORTS_ORIGIN", "");
   });
 
-  it("优先 x-forwarded-host + proto", () => {
+  it("优先可信 Host + proto，并忽略 X-Forwarded-Host", () => {
     const req = new Request("http://x/", {
-      headers: { "x-forwarded-host": "surge.example", "x-forwarded-proto": "https" },
+      headers: { "host": "surge.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" },
     });
     expect(requestOrigin(req)).toBe("https://surge.example");
   });
@@ -76,12 +76,12 @@ describe("报告内容域", () => {
     );
   });
 
-  it("请求 origin 只取可信反代头，不被应用配置覆盖", () => {
+  it("缺失 Host 时使用请求 URL，拒绝 X-Forwarded-Host 回退", () => {
     vi.stubEnv("BETTER_AUTH_URL", "https://surge.example/app");
     const req = new Request("http://x/", {
       headers: { "x-forwarded-host": "evil.example" },
     });
-    expect(requestOrigin(req)).toBe("http://evil.example");
+    expect(requestOrigin(req)).toBe("http://x");
   });
 });
 

@@ -93,7 +93,7 @@ export const environmentSchema = {
     kind: "config",
     required: "optional",
     default: "127.0.0.1,::1",
-    note: "认证限流信任的反代地址（IP/CIDR，逗号分隔）",
+    note: "认证与业务限流共用的可信反代地址（IP/CIDR，逗号分隔）",
   },
 
   /* ── 注册邀请 ── */

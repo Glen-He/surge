@@ -6,7 +6,7 @@
 // 必须保持零环境依赖（仅 node 内置模块）。
 //
 // 架构：每个登记条目的磁盘文件名、/platform/ URL 文件名与 manifest
-// fileName 三者一致（文件名内嵌内容 hash，如 echarts.<sha256前16位>.min.js），
+// fileName 三者一致（文件名内嵌内容 hash，如 echarts.<sha256 前 16 位>.min.js），
 // 因此 /platform/ 的输出可以安全使用 immutable 长缓存，浏览器跨报告共享
 // 同一份缓存。报告 HTML 直接引用 /platform/<fileName>；文件内容升级时
 // 换新文件名并更新 manifest，URL 随内容轮换。
@@ -87,7 +87,7 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "text/javascript; charset=utf-8",
 ]);
 
-// 文件名内嵌 hash 的唯一合法形态：<主名>.<16位hash>.<扩展名…>，
+// 文件名内嵌 hash 的唯一合法形态：<主名>.<16 位 hash>.<扩展名…>，
 // 且 16 位 hash 段必须与登记值一致（磁盘名、URL、manifest 三者同名）。
 function fileNameIssues(fileName: string, sha256_16: string): string[] {
   const issues: string[] = [];

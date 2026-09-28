@@ -1,3 +1,4 @@
+import { accountVerificationErrorResponse } from "@/features/account/account-verification-errors";
 import { getApiSession } from "@/features/session/api-session";
 import { createChangeToken, getUserVersion } from "@/features/account/change-tokens";
 import { logSecurity } from "@/features/security-audit/security-log";
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     code: otp,
   });
   if (!res.ok) {
-    return Response.json({ error: res.error }, { status: 400 });
+    return accountVerificationErrorResponse(res.error);
   }
 
   // 记录当前用户版本，用于最终修改时的并发安全校验

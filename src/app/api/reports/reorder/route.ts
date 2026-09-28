@@ -33,28 +33,9 @@ export async function POST(req: Request) {
     return Response.json({ error: "参数无效" }, { status: 400 });
   }
 
-  const mine = await getReportsByUser(session.user.id);
-  const mineSet = new Set(mine.map((report) => report.slug));
-  const allowedDates = new Set(mine.map((report) => report.date.slice(0, 10)));
-  const slugs = items.map((item) => item.slug);
-  const baseSlugs = baseItems.map((item) => item.slug);
-  const valid =
-    items.length === mineSet.size &&
-    baseItems.length === mineSet.size &&
-    new Set(slugs).size === slugs.length &&
-    new Set(baseSlugs).size === baseSlugs.length &&
-    items.every(
-      (item) => mineSet.has(item.slug) && allowedDates.has(item.date),
-    ) &&
-    baseItems.every(
-      (item) => mineSet.has(item.slug) && allowedDates.has(item.date),
-    );
-  if (!valid) {
-    return Response.json({ error: "排序与项目列表不匹配" }, { status: 400 });
-  }
-
   const result = await reorderReports(session.user.id, items, baseItems);
-  if (result !== "updated") {
+  if (result === "mismatch") return Response.json({ error: "排序与项目列表不匹配" }, { status: 400 });
+  if (result === "stale") {
     const current = await getReportsByUser(session.user.id);
     return Response.json(
       {

@@ -38,11 +38,11 @@ describe("注册策略", () => {
       registrationInternalProof,
       verifyRegistrationInternalProof,
     } = await import("@/features/auth/registration-policy");
-    const proof = registrationInternalProof("Person@Example.test");
-    expect(verifyRegistrationInternalProof("person@example.test", proof)).toBe(true);
-    expect(verifyRegistrationInternalProof("other@example.test", proof)).toBe(false);
+    const proof = registrationInternalProof("Person@Example.test", "sign-in");
+    expect(verifyRegistrationInternalProof("person@example.test", proof, "sign-in")).toBe(true);
+    expect(verifyRegistrationInternalProof("other@example.test", proof, "sign-in")).toBe(false);
     const tampered = `${proof.slice(0, -1)}${proof.endsWith("0") ? "1" : "0"}`;
-    expect(verifyRegistrationInternalProof("person@example.test", tampered)).toBe(false);
+    expect(verifyRegistrationInternalProof("person@example.test", tampered, "sign-in")).toBe(false);
     vi.unstubAllEnvs();
   });
 });

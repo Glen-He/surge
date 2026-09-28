@@ -43,8 +43,8 @@ export default async function SharePage({
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </div>
-          <h1 className="text-[17px] font-semibold text-[var(--text-primary)]">链接无效或已失效</h1>
-          <p className="mt-2 text-[13px] leading-[1.55] text-[var(--text-secondary)]">
+          <h1 className="type-card-title text-[var(--text-primary)]">链接无效或已失效</h1>
+          <p className="mt-2 type-caption text-[var(--text-secondary)]">
             该分享链接不存在或已过期，请联系分享者获取新链接。
           </p>
         </div>

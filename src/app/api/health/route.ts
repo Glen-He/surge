@@ -30,7 +30,6 @@ export async function GET() {
         maintenance: {
           lastSucceededAt: state?.last_succeeded_at ?? null,
           ageSeconds: maintenanceAgeSeconds,
-          lastError: state?.last_error ?? null,
         },
       },
       { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },

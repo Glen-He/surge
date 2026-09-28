@@ -30,7 +30,7 @@ export const authRequestPolicy = createAuthMiddleware(async (ctx) => {
     ctx.path === "/set-password" &&
     !verifyInternalAuthProof(
       "set-password",
-      "",
+      ctx.headers?.get("cookie") ?? "",
       ctx.headers?.get("x-surge-set-password-proof"),
     )
   ) {
@@ -42,7 +42,7 @@ export const authRequestPolicy = createAuthMiddleware(async (ctx) => {
     ctx.path === "/sign-out" &&
     !verifyInternalAuthProof(
       "end-session",
-      "",
+      ctx.headers?.get("cookie") ?? "",
       ctx.headers?.get("x-surge-end-session-proof"),
     )
   ) {
@@ -82,39 +82,36 @@ export const authRequestPolicy = createAuthMiddleware(async (ctx) => {
     throw new APIError("FORBIDDEN", { message: "请使用验证码注册" });
   }
 
-  // Better Auth 原生 email/OTP 端点可能创建账号，因此新邮箱必须同时
-  // 满足实时注册开关和服务端 HMAC proof。邀请码在自建路由内校验，
-  // proof 只证明请求确实经过了该受控入口。
-  const isOtpSignIn =
-    ctx.path === "/sign-in/email-otp" ||
-    (ctx.path === "/email-otp/send-verification-otp" &&
-      (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification"));
-  if (isOtpSignIn) {
+  // 在查询账号前统一验证入口，避免通过不同拒绝分支枚举邮箱。
+  const registrationOperation =
+    ctx.path === "/sign-in/email-otp"
+      ? "sign-in"
+      : ctx.path === "/email-otp/send-verification-otp" &&
+          (ctx.body?.type === "sign-in" || ctx.body?.type === "email-verification")
+        ? "send-otp"
+        : null;
+  if (registrationOperation) {
     const email =
       typeof ctx.body?.email === "string"
         ? ctx.body.email.trim().toLowerCase()
         : "";
-    if (email && !isGuestEmail(email)) {
-      const existing = await db.query(
-        `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
-        [email],
-      );
-      if (!existing.rows[0]) {
-        const policy = await getRegistrationPolicy();
-        if (!policy.enabled) {
-          throw new APIError("FORBIDDEN", {
-            message: "当前未开放新账号注册",
-          });
-        }
-        if (
-          !verifyRegistrationInternalProof(
-            email,
-            ctx.headers?.get("x-surge-registration-proof"),
-          )
-        ) {
-          throw new APIError("FORBIDDEN", { message: "请使用注册页完成注册" });
-        }
-      }
+    if (
+      !email ||
+      isGuestEmail(email) ||
+      !verifyRegistrationInternalProof(
+        email,
+        ctx.headers?.get("x-surge-registration-proof"),
+        registrationOperation,
+      )
+    ) {
+      throw new APIError("FORBIDDEN", { message: "请使用注册页完成注册" });
+    }
+    const existing = await db.query(
+      `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+      [email],
+    );
+    if (!existing.rows[0] && !(await getRegistrationPolicy()).enabled) {
+      throw new APIError("FORBIDDEN", { message: "当前未开放新账号注册" });
     }
   }
 

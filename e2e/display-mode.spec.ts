@@ -155,7 +155,7 @@ test("网页上传、新标签页、密码门和面板权限完整复用", async
   expect((await saved).status()).toBe(200);
   await expect(page).toHaveURL(/\/home$/);
 
-  const share = await createReportShare({ userId: fixture.userId, slug, passwordProtected: true, requestedPasscode: "A7B2" });
+  const share = await createReportShare({ userEmail: "owner@example.test", userId: fixture.userId, slug, passwordProtected: true, requestedPasscode: "A7B2" });
   const board = await createShareBoard(fixture.userId, "网页发布面板", await hashSharePassword("C3D4"), encryptSharePasscode("C3D4"), null, slug);
   expect(share.token).toMatch(/^[a-z0-9]{8}$/);
   expect(board.token).toMatch(/^[a-z0-9]{8}$/);

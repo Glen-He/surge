@@ -40,6 +40,8 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: "integration",
+          // 集成用例共享数据库中的注册策略等全局状态，文件间串行避免相互污染。
+          fileParallelism: false,
           include: ["src/**/*.integration.test.ts"],
           env: seededEnv,
         },

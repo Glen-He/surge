@@ -61,7 +61,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("分享设置", () => 
   }
 
   it("暂停后公开读取立即失效，恢复后重新可用", async () => {
-    const share = await createReportShare({
+    const share = await createReportShare({ userEmail: "owner@example.test",
       userId,
       slug,
       passwordProtected: false,
@@ -79,7 +79,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("分享设置", () => 
   });
 
   it("改动访问设置递增 access_epoch，并写入新的到期时间", async () => {
-    const share = await createReportShare({
+    const share = await createReportShare({ userEmail: "owner@example.test",
       userId,
       slug,
       passwordProtected: false,
@@ -95,7 +95,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("分享设置", () => 
   });
 
   it("可重新生成或清除提取码，并同步哈希", async () => {
-    const share = await createReportShare({
+    const share = await createReportShare({ userEmail: "owner@example.test",
       userId,
       slug,
       passwordProtected: true,
@@ -119,7 +119,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("分享设置", () => 
   });
 
   it("非法档位、空更新与非属主更新都被拒绝", async () => {
-    const share = await createReportShare({
+    const share = await createReportShare({ userEmail: "owner@example.test",
       userId,
       slug,
       passwordProtected: false,

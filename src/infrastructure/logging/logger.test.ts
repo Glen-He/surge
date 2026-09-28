@@ -32,3 +32,20 @@ describe("结构化日志脱敏", () => {
     expect(line).toContain("fp:");
   });
 });
+
+describe("敏感凭证脱敏", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("递归隐藏提取码和内部证明，同时清理链接片段和查询参数", () => {
+    const write = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.error("test", "failure", {
+      passcode: "2Y83", nested: [{ proof: "internal-proof-value", pwd: "8X2A" }],
+      url: "/share/abcdefgh#pwd=4Z9X", query: "/board/abcdefgh?passcode=7B2C&item=abcd",
+    });
+    const output = String(write.mock.calls[0]?.[0]);
+    for (const secret of ["2Y83", "internal-proof-value", "8X2A", "4Z9X", "7B2C", "abcdefgh"]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(output).toContain("item=abcd");
+  });
+});

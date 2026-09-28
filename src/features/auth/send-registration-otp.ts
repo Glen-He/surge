@@ -43,7 +43,10 @@ export async function sendRegistrationOtp(input: {
   }
 
   const headers = internalAuthHeaders(input.headers);
-  headers.set("x-surge-registration-proof", registrationInternalProof(input.email));
+  headers.set(
+    "x-surge-registration-proof",
+    registrationInternalProof(input.email, "send-otp"),
+  );
   const response = await auth.handler(
     new Request(
       `${internalAuthBaseUrl(input.requestUrl)}/api/auth/email-otp/send-verification-otp`,

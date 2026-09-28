@@ -6,15 +6,14 @@ import {
 } from "crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { db } from "@/infrastructure/database/client";
-import { isOtpCode, OTP_CODE_LENGTH } from "@/features/auth/otp-code";
-import { OTP_CODE_FORMAT_ERROR } from "@/features/auth/auth-errors";
+import { isOtpCode, OTP_CODE_LENGTH, OTP_TTL_SECONDS } from "@/features/auth/otp-code";
+import { AccountVerificationError } from "./account-verification-errors";
 
 /* ================================================================
  * 自管 OTP（修改邮箱 / 修改密码使用）
  * 规则：6 位数字 / 5 分钟有效 / 最多错 3 次 / 一次性
  * ================================================================ */
 
-const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 3;
 
 function otpSecret(): string {
@@ -36,7 +35,7 @@ export async function generateAndStoreOtp(opts: {
     OTP_CODE_LENGTH,
     "0",
   );
-  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+  const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000);
   const email = opts.email.toLowerCase().trim();
   const client = await db.connect();
   try {
@@ -66,7 +65,7 @@ export async function generateAndStoreOtp(opts: {
 
 export type OtpVerifyResult =
   | { ok: true; remaining: 3 }
-  | { ok: false; error: string; remaining: number };
+  | { ok: false; error: AccountVerificationError; remaining: number };
 
 export async function verifyStoredOtp(opts: {
   email: string;
@@ -77,7 +76,7 @@ export async function verifyStoredOtp(opts: {
   if (!isOtpCode(opts.code)) {
     return {
       ok: false,
-      error: OTP_CODE_FORMAT_ERROR,
+      error: new AccountVerificationError("OTP_FORMAT_INVALID"),
       remaining: OTP_MAX_ATTEMPTS,
     };
   }
@@ -101,12 +100,12 @@ export async function verifyStoredOtp(opts: {
 
     if (!row) {
       await client.query("COMMIT");
-      return { ok: false, error: "请先获取验证码", remaining: 0 };
+      return { ok: false, error: new AccountVerificationError("OTP_REQUIRED"), remaining: 0 };
     }
     if (row.expires_at.getTime() < Date.now() || row.attempts >= OTP_MAX_ATTEMPTS) {
       await client.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
       await client.query("COMMIT");
-      return { ok: false, error: "验证码已失效，请重新获取", remaining: 0 };
+      return { ok: false, error: new AccountVerificationError("OTP_EXPIRED"), remaining: 0 };
     }
     const got = Buffer.from(hashOtp(email, opts.purpose, opts.code), "hex");
     const expected = Buffer.from(row.code_hash, "hex");
@@ -117,7 +116,7 @@ export async function verifyStoredOtp(opts: {
       if (attempts >= OTP_MAX_ATTEMPTS) {
         await client.query(`DELETE FROM otp_codes WHERE id = $1`, [row.id]);
         await client.query("COMMIT");
-        return { ok: false, error: "验证码已失效，请重新获取", remaining: 0 };
+        return { ok: false, error: new AccountVerificationError("OTP_EXPIRED"), remaining: 0 };
       }
       await client.query(`UPDATE otp_codes SET attempts = $1 WHERE id = $2`, [
         attempts,
@@ -126,7 +125,7 @@ export async function verifyStoredOtp(opts: {
       await client.query("COMMIT");
       return {
         ok: false,
-        error: `验证码错误，还可尝试 ${OTP_MAX_ATTEMPTS - attempts} 次`,
+        error: new AccountVerificationError("OTP_INCORRECT", { remaining: OTP_MAX_ATTEMPTS - attempts }),
         remaining: OTP_MAX_ATTEMPTS - attempts,
       };
     }

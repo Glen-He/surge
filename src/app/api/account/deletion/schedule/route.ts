@@ -1,3 +1,4 @@
+import { accountVerificationErrorResponse } from "@/features/account/account-verification-errors";
 import { getApiSession } from "@/features/session/api-session";
 import { scheduleDeletion } from "@/features/account/account-deletion";
 import { isGuestEmail } from "@/features/auth/guest/guest-identity";
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     code,
   });
   if (!v.ok) {
-    return Response.json({ error: v.error }, { status: 400 });
+    return accountVerificationErrorResponse(v.error);
   }
 
   // 游客：跳过 15 天冷却，直接销毁沙箱（DB 级联 + 磁盘目录），前端按 redirectTo 跳登录

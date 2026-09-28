@@ -1,5 +1,4 @@
 import { getApiSession } from "@/features/session/api-session";
-import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import {
   createReportShare,
   listSharesBySlug,
@@ -38,9 +37,6 @@ export async function POST(
 ) {
   const session = await getApiSession();
   if (!session) return Response.json({ error: "未登录" }, { status: 401 });
-  if (isGuestEmail(session.user.email)) {
-    return Response.json({ error: "游客模式不支持分享" }, { status: 403 });
-  }
 
   const { slug } = await params;
   const body = (await request.json().catch(() => null)) as {
@@ -51,6 +47,7 @@ export async function POST(
   try {
     const share = await createReportShare({
       userId: session.user.id,
+      userEmail: session.user.email,
       slug,
       requestedPasscode: body?.password,
       passwordProtected: body?.passwordProtected === true,

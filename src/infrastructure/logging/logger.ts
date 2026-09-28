@@ -38,6 +38,7 @@ function fingerprint(value: string): string {
 function sanitizeText(value: string): string {
   return value
     .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [redacted]")
+    .replace(/\b\d{10}\.[0-9a-f]{32}\.[0-9a-f]{64}\b/g, "[redacted]")
     .replace(/\bsgk_[A-Za-z0-9_-]+\b/g, "sgk_[redacted]")
     .replace(
       /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
@@ -47,13 +48,14 @@ function sanitizeText(value: string): string {
       /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
       (address) => `fp:${fingerprint(address)}`,
     )
+    .replace(/([?#&](?:pwd|passcode|proof|token|password)=)[^&#\s]+/gi, "$1[redacted]")
     .replace(/\/(share|board|report)\/[^\s/?#]+/g, "/$1/[redacted]");
 }
 
 function sanitizeValue(key: string, value: unknown): unknown {
   if (value === null || value === undefined) return value;
   const lower = key.toLowerCase();
-  if (/password|secret|authorization|cookie|token|otp|capability/.test(lower)) {
+  if (/password|passcode|proof|pwd|secret|authorization|cookie|token|otp|capability/.test(lower)) {
     return "[redacted]";
   }
   if (typeof value === "string") {

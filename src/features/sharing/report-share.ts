@@ -1,3 +1,4 @@
+import { isGuestEmail } from "@/features/auth/guest/guest-identity";
 import { withShareTokenRetry } from "./share-token-retry";
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "node:util";
@@ -139,11 +140,13 @@ export type ManagedShare = {
 /** 原子创建属主侧分享链接，并在同一事务内执行归属和数量上限检查。 */
 export async function createReportShare(input: {
   userId: string;
+  userEmail: string;
   slug: string;
   requestedPasscode?: unknown;
   passwordProtected: boolean;
   expiresInDays?: unknown;
 }): Promise<ManagedShare> {
+  if (isGuestEmail(input.userEmail)) throw new ReportShareError("SHARE_GUEST_FORBIDDEN");
   const requestedPasscode =
     typeof input.requestedPasscode === "string" && input.requestedPasscode.trim()
       ? input.requestedPasscode.trim().toUpperCase()

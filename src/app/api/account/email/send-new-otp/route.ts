@@ -1,8 +1,8 @@
 import { getApiSession } from "@/features/session/api-session";
 import {
-  AccountOtpError,
-  accountOtpErrorResponse,
-} from "@/features/account/account-otp-errors";
+  AccountVerificationError,
+  accountVerificationErrorResponse,
+} from "@/features/account/account-verification-errors";
 import { sendNewEmailOtp } from "@/features/account/send-account-otp";
 
 export async function POST(request: Request) {
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     });
     return Response.json(result);
   } catch (error) {
-    if (error instanceof AccountOtpError) return accountOtpErrorResponse(error);
+    if (error instanceof AccountVerificationError) return accountVerificationErrorResponse(error);
     throw error;
   }
 }

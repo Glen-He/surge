@@ -10,6 +10,7 @@ const SOURCE_FILE = /\.(?:ts|tsx|mts)$/;
 const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx|mts)$/;
 const ROUTE_INFRASTRUCTURE_ALLOWLIST = new Set([
   "src/app/api/health/route.ts",
+  "src/app/platform/[file]/route.ts",
   "src/app/report/[cap]/[...path]/route.ts",
 ]);
 const FORBIDDEN_SOURCE_DIRECTORIES = ["lib", "components", "actions"];
@@ -117,11 +118,16 @@ for (const file of files) {
     featureGraph.set(sourceFeature, new Set());
   }
   for (const specifier of imports(file)) {
+    const relativeFile = path.relative(ROOT, file).replaceAll(path.sep, "/");
+    if (relativeFile.endsWith("/route.ts") &&
+        !ROUTE_INFRASTRUCTURE_ALLOWLIST.has(relativeFile) &&
+        /^(?:node:)?(?:fs(?:\/promises)?|child_process|sqlite)$|^(?:pg|nodemailer)$/.test(specifier)) {
+      violations.push(`${relativeFile}: Route Handler must call a feature use case instead of ${specifier}`);
+    }
     const target = absoluteModule(specifier, file);
     if (!target) continue;
     const targetLayer = layer(target);
     const targetFeature = feature(target);
-    const relativeFile = path.relative(ROOT, file).replaceAll(path.sep, "/");
     const relativeTarget = path.relative(SRC, target).replaceAll(path.sep, "/");
 
     if (
@@ -137,7 +143,7 @@ for (const file of files) {
     if (
       relativeFile.endsWith("/route.ts") &&
       !ROUTE_INFRASTRUCTURE_ALLOWLIST.has(relativeFile) &&
-      (relativeTarget === "infrastructure/database/client" ||
+      (/^infrastructure\/database\/client(?:\.[cm]?tsx?)?$/.test(relativeTarget) ||
         relativeTarget.startsWith("infrastructure/email/"))
     ) {
       violations.push(

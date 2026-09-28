@@ -1,4 +1,5 @@
 export type ReportShareErrorParamsByCode = {
+  SHARE_GUEST_FORBIDDEN: undefined;
   SHARE_PASSCODE_INVALID: undefined;
   SHARE_EXPIRY_INVALID: undefined;
   SHARE_PASSWORD_SETTING_INVALID: undefined;
@@ -25,6 +26,7 @@ type DefinitionTable = {
 };
 
 const DEFINITIONS: DefinitionTable = {
+  SHARE_GUEST_FORBIDDEN: { status: 403, copy: () => "游客模式不支持分享" },
   SHARE_PASSCODE_INVALID: {
     status: 400,
     copy: () => "提取码必须是 4 位字母或数字",
