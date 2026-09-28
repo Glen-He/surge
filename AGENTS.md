@@ -18,7 +18,7 @@
 4. **依赖方向是硬约束**：`app → features → infrastructure`，`app / features → shared`；`infrastructure`、`shared` 不得反向依赖业务层，feature 不得依赖 `app`。跨 feature 依赖必须单向、稳定且语义明确；出现双向依赖或 Feature 级依赖环时，优先修正 owner、抽取真正的编排 feature 或稳定接口，禁止把业务对象塞进 `shared/` 掩盖边界问题。
 5. **数据库与外部系统分层**：连接池、迁移执行器、SMTP transport 等纯技术能力属于 `infrastructure`；具体报告查询、邀请码核销、账号验证码场景和邮件文案属于相应 feature。基础设施邮件渲染器只接受业务层传入的内容，不得维护登录、改邮箱、删除账号等业务场景表。
 6. **命名必须描述真实职责**：只有真正保存状态的实现才使用 `store`；加密、哈希和凭证序列化使用 `credentials` 等准确名称。文件同时存在多个独立变化原因或跨越多个架构边界时才拆分；生命周期完全一致、拆开只增加跳转的代码应合并。
-7. **自动约束必须随重构更新**：结构变更后运行 `pnpm check:imports` 与 `pnpm check:architecture`。循环检查必须解析真实 TypeScript import graph，不能用会漏掉文件、`import type`、再导出或动态 import 的正则假检查。新增合法基础设施端点须最小化白名单；不得用扩大忽略范围绕过约束检查。
+7. **自动约束必须随重构更新**：结构变更后运行 `pnpm check:imports` 与 `pnpm check:architecture`。循环检查必须解析真实 TypeScript import graph，不能用会漏掉文件、`import type`、再导出或动态 import 的正则假检查。检查范围为生产源码的依赖图，跨层集成测试不参与生产分层与环检测；测试仍须通过类型检查和对应测试套件。新增合法基础设施端点须最小化白名单；不得用扩大忽略范围绕过约束检查。
 8. **重构保持行为与视觉契约**：目录重构不得顺手改变 API、数据库语义、安全边界、用户文案或页面视觉。确需改变行为时必须有明确问题、独立说明和针对性测试。删除旧实现后同步清理导入、注释、测试、文档、空目录与兼容分支，不保留“以后也许会用”的废弃路径。
 9. **最小实现与兼容边界**：以项目声明的生产运行时、浏览器范围、数据库版本和依赖版本为准。无真实调用方、无受支持环境需求或已被当前能力替代的兼容分支、导出、配置、依赖、测试和文档应删除。保留兼容逻辑必须说明兼容对象、存在原因、测试依据和可删除条件。重构以降低认知负担和重复实现为目标，不以行数、抽象层数或形式上的 DRY 为目标；必须保持现有功能、API、数据、安全和视觉契约，并通过与风险相称的静态检查、测试或构建验证。
 
@@ -127,9 +127,9 @@
 
 ## 4. 用户可见文案：中文，仅允许三类位置
 
-1. **文案模块**（领域文案唯一来源）：`src/features/auth/auth-errors.ts`（Better Auth 错误码）、`src/features/auth/registration-errors.ts`（注册）、`src/features/auth/guest/guest-login-errors.ts`（游客登录）、`src/features/account/account-otp-errors.ts`（账号验证码）、`src/features/account/api-token-errors.ts`（API 令牌）、`src/features/account/invitation-errors.ts`（邀请管理）、`src/features/session/end-session-errors.ts`（退出登录）、`src/features/reports/upload/upload-errors.ts`（上传/解压/表单/配额）、`src/features/sharing/report-share-errors.ts`（分享链接）、`src/features/sharing/share-board-errors.ts`（分享面板）、`src/features/auth/password-policy.ts`（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
+1. **文案模块**（领域文案唯一来源）：`src/features/auth/auth-errors.ts`（Better Auth 错误码）、`src/features/auth/registration-errors.ts`（注册）、`src/features/auth/guest/guest-login-errors.ts`（游客登录）、`src/features/account/account-verification-errors.ts`（账号身份验证）、`src/features/account/api-token-errors.ts`（API 令牌）、`src/features/account/invitation-errors.ts`（邀请管理）、`src/features/session/end-session-errors.ts`（退出登录）、`src/features/reports/upload/upload-errors.ts`（上传/解压/表单/配额）、`src/features/sharing/report-share-errors.ts`（分享链接）、`src/features/sharing/share-board-errors.ts`（分享面板）、`src/features/auth/password-policy.ts`（密码策略）。新增可复用领域文案先进文案模块，不散落在业务代码里。
 2. **API 边界层**：路由内一次性的请求级校验文案；Better Auth 适配层（`src/features/auth/auth-request-policy.ts`）抛出的 APIError message（它本身就是响应体机制）。跨越业务层与 API 层的失败必须传递 code + 强类型 params，Route Handler 最后调用对应的 response 函数生成中文与 HTTP 状态，业务层不得提前生成中文字符串。
-3. **纯校验或 UI 适配函数的返回值**：仅在结果不会继续跨层流转时可直接返回文案，如 `passwordPolicyError`、`verifyStoredOtp`。上传等跨层流程的校验函数必须返回结构化失败对象，不得返回裸字符串。
+3. **纯校验或 UI 适配函数的返回值**：仅在结果不会继续跨层流转时可直接返回文案，如 `passwordPolicyError`。`verifyStoredOtp`、上传等跨层流程的校验函数必须返回结构化失败对象，不得返回裸字符串。
 
 错误码与 params 必须通过映射类型绑定：需要参数的 code 漏传、错传或拼错字段应在 `tsc` 阶段失败；无参数 code 不得接收多余 params。HTTP 状态属于 API 适配语义，不放入领域异常对象。
 

@@ -50,7 +50,10 @@ export async function endSession(input: {
   }
 
   const headers = internalAuthHeaders(input.headers);
-  headers.set("x-surge-end-session-proof", internalAuthProof("end-session"));
+  headers.set(
+    "x-surge-end-session-proof",
+    internalAuthProof("end-session", headers.get("cookie") ?? ""),
+  );
   try {
     const response = await auth.handler(
       new Request(`${baseUrl}/api/auth/sign-out`, {

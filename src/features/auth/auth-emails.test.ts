@@ -18,3 +18,9 @@ describe("认证邮件文案", () => {
     expect(email.text).toContain(url);
   });
 });
+
+it("业务邮件补齐验证码并使用平台验证码有效期", () => {
+  const result = loginOtpEmail("42");
+  expect(result.html).toContain("000042");
+  expect(result.text).toContain("000042（5 分钟内有效）");
+});

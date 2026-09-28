@@ -85,7 +85,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("展示模式存储与
   it("网页沿用分享过期、面板停用、成员移除与报告删除规则", async () => {
     const created = await createReport(userId, email, { ...meta, displayMode: "bare" }, file);
     if (!created.ok) throw new Error("test website creation failed");
-    const share = await createReportShare({ userId, slug: created.slug, passwordProtected: false });
+    const share = await createReportShare({ userEmail: "owner@example.test", userId, slug: created.slug, passwordProtected: false });
     expect(share.token).toMatch(/^[a-z0-9]{8}$/);
     expect(await findValidShare(share.token!)).toMatchObject({ displayMode: "bare" });
     await db.query("UPDATE report_shares SET expires_at = NOW() - INTERVAL '1 second' WHERE id = $1", [share.id]);
@@ -103,7 +103,7 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("展示模式存储与
     await updateShareBoard(userId, board.id, { expiresAt: null });
     await setBoardMembership(userId, board.id, created.slug, false);
     expect(await findPublicBoardReport(board.token!, itemId)).toBeNull();
-    const liveShare = await createReportShare({ userId, slug: created.slug, passwordProtected: false });
+    const liveShare = await createReportShare({ userEmail: "owner@example.test", userId, slug: created.slug, passwordProtected: false });
     expect(await deleteReport(userId, created.slug)).toMatchObject({ ok: true });
     expect(await findValidShare(liveShare.token!)).toBeNull();
   });

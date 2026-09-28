@@ -57,14 +57,17 @@
 
 .report-pdf-loading p {
   margin-top: 14px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-semibold);
 }
 
 .report-pdf-loading span:not(.report-pdf-spinner) {
   margin-top: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
 }
 
 .report-pdf-spinner {

@@ -8,7 +8,7 @@ import {
 import { checkOtpRateLimit, recordOtpSent } from "@/features/auth/otp-rate-limit";
 import { sendOtpMail } from "@/features/auth/send-otp-mail";
 import { accountOtpEmail, type AccountOtpEmailPurpose } from "./account-emails";
-import { AccountOtpError } from "./account-otp-errors";
+import { AccountVerificationError } from "./account-verification-errors";
 import { getChangeToken } from "./change-tokens";
 import { generateAndStoreOtp } from "./otp";
 import { logSecurity } from "@/features/security-audit/security-log";
@@ -50,11 +50,11 @@ const PURPOSE_CONFIG: Record<
 function throwRateLimit(rate: Awaited<ReturnType<typeof checkOtpRateLimit>>): never {
   if (rate.ok) throw new Error("rate limit result is unexpectedly allowed");
   if (rate.reason === "daily_limit") {
-    throw new AccountOtpError("OTP_DAILY_LIMIT", {
+    throw new AccountVerificationError("OTP_DAILY_LIMIT", {
       retryAfter: rate.retryAfter,
     });
   }
-  throw new AccountOtpError("OTP_COOLDOWN", {
+  throw new AccountVerificationError("OTP_COOLDOWN", {
     retryAfter: rate.retryAfter,
   });
 }
@@ -106,12 +106,12 @@ export async function sendCurrentAccountOtp(input: {
       ...(config.exposeGuestOtp ? guestOtpResponse(input.email, code) : {}),
     };
   } catch (error) {
-    if (error instanceof AccountOtpError) throw error;
+    if (error instanceof AccountVerificationError) throw error;
     logger.error("account-otp", "failed to send account otp", error as Error, {
       userId: input.userId,
       purpose: input.purpose,
     });
-    throw new AccountOtpError("ACCOUNT_OTP_SEND_FAILED");
+    throw new AccountVerificationError("ACCOUNT_OTP_SEND_FAILED");
   }
 }
 
@@ -123,22 +123,22 @@ export async function sendNewEmailOtp(input: {
   newEmail: string;
 }) {
   if (!input.changeToken) {
-    throw new AccountOtpError("EMAIL_CHANGE_PROOF_REQUIRED");
+    throw new AccountVerificationError("EMAIL_CHANGE_PROOF_REQUIRED");
   }
   if (!input.newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.newEmail)) {
-    throw new AccountOtpError("EMAIL_INVALID");
+    throw new AccountVerificationError("EMAIL_INVALID");
   }
   const change = await getChangeToken(
     input.changeToken,
     input.userId,
     "email_change",
   );
-  if (!change) throw new AccountOtpError("EMAIL_CHANGE_PROOF_EXPIRED");
+  if (!change) throw new AccountVerificationError("EMAIL_CHANGE_PROOF_EXPIRED");
   if (input.newEmail === input.originalEmail.toLowerCase()) {
-    throw new AccountOtpError("EMAIL_UNCHANGED");
+    throw new AccountVerificationError("EMAIL_UNCHANGED");
   }
   if (isGuestEmail(input.originalEmail) && !isGuestEmail(input.newEmail)) {
-    throw new AccountOtpError("GUEST_EMAIL_DOMAIN_REQUIRED", {
+    throw new AccountVerificationError("GUEST_EMAIL_DOMAIN_REQUIRED", {
       domain: GUEST_EMAIL_DOMAIN,
     });
   }
@@ -146,7 +146,7 @@ export async function sendNewEmailOtp(input: {
     `SELECT 1 FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
     [input.newEmail],
   );
-  if (existing.rows[0]) throw new AccountOtpError("EMAIL_ALREADY_USED");
+  if (existing.rows[0]) throw new AccountVerificationError("EMAIL_ALREADY_USED");
 
   try {
     const { rate } = await sendCode({
@@ -161,10 +161,10 @@ export async function sendNewEmailOtp(input: {
       remainingToday: rate.remainingToday,
     };
   } catch (error) {
-    if (error instanceof AccountOtpError) throw error;
+    if (error instanceof AccountVerificationError) throw error;
     logger.error("account-otp", "failed to send new email otp", error as Error, {
       userId: input.userId,
     });
-    throw new AccountOtpError("ACCOUNT_OTP_SEND_FAILED");
+    throw new AccountVerificationError("ACCOUNT_OTP_SEND_FAILED");
   }
 }

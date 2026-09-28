@@ -1331,7 +1331,8 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
     "rgb(52, 199, 89)",
   );
   await page.getByRole("button", { name: "新建面板" }).click();
-  await expect(page.getByText(/提取码 [A-Z0-9]{4}/)).toBeVisible();
+  const createdBoardRow = modal.getByRole("listitem").filter({ hasText: "带密码的测试面板" });
+  await expect(createdBoardRow).toBeVisible();
   const protectedBoard = await db.query<{
     password_hash: string | null;
     password_enc: string | null;
@@ -1345,7 +1346,22 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   const boardPasscode = decryptSharePasscode(protectedBoard.rows[0]!.password_enc!);
   const boardToken = decryptShareToken(protectedBoard.rows[0]!.token_enc!);
   expect(boardPasscode).toMatch(/^[A-Z0-9]{4}$/);
-  await expect(page.getByText(`提取码 ${boardPasscode}`)).toBeVisible();
+  // 捕获复制入口的实际内容，避免两个浏览器争用系统剪贴板；公开链接解锁仍走真实请求。
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          document.documentElement.dataset.copiedShareText = text;
+        },
+      },
+    });
+  });
+  await createdBoardRow.getByRole("button", { name: "复制链接" }).click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-copied-share-text",
+    `${new URL(page.url()).origin}/board/${boardToken}#pwd=${boardPasscode}`,
+  );
   const boardSizeAfterCreate = await modal.evaluate((element) => ({
     width: (element as HTMLElement).offsetWidth,
     height: (element as HTMLElement).offsetHeight,
@@ -1374,7 +1390,8 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
     "rgb(52, 199, 89)",
   );
   await page.getByRole("button", { name: "生成链接" }).click();
-  await expect(page.getByText(/提取码 [A-Z0-9]{4}/)).toBeVisible();
+  const createdShareRow = modal.getByRole("listitem");
+  await expect(createdShareRow).toHaveCount(1);
   const protectedShare = await db.query<{
     password_enc: string | null;
     token_enc: string | null;
@@ -1385,7 +1402,15 @@ test("密码登录、重新验证与分享弹窗交互保持稳定", async ({ pa
   const sharePasscode = decryptSharePasscode(protectedShare.rows[0]!.password_enc!);
   let shareToken = decryptShareToken(protectedShare.rows[0]!.token_enc!);
   expect(sharePasscode).toMatch(/^[A-Z0-9]{4}$/);
-  await expect(page.getByText(`提取码 ${sharePasscode}`)).toBeVisible();
+  await createdShareRow.getByRole("button", { name: "复制链接" }).click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-copied-share-text",
+    `${new URL(page.url()).origin}/share/${shareToken}#pwd=${sharePasscode}`,
+  );
+  await page.evaluate(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+    delete document.documentElement.dataset.copiedShareText;
+  });
   const linkSize = await modal.evaluate((element) => ({
     width: (element as HTMLElement).offsetWidth,
     height: (element as HTMLElement).offsetHeight,

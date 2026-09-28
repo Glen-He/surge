@@ -1,4 +1,5 @@
 export const OTP_CODE_LENGTH = 6;
+export const OTP_TTL_SECONDS = 5 * 60;
 
 const OTP_CODE_PATTERN = /^\d{6}$/;
 

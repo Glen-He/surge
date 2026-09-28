@@ -14,6 +14,9 @@ const OTP_CONTENT: OtpEmailContent = {
   headline: "测试验证码",
   context: "你正在执行测试操作",
   note: "非本人操作可忽略",
+  expiryLabel: "7 分钟内有效",
+  codeLabel: "校验码",
+  footer: "测试邮件页脚",
 };
 
 const RESET_CONTENT: ResetPasswordEmailContent = {
@@ -26,6 +29,7 @@ const RESET_CONTENT: ResetPasswordEmailContent = {
   expiryLabel: "链接 1 小时内有效",
   fallbackIntro: "请使用以下链接设置新密码：",
   safetyNote: "非本人操作请忽略",
+  footer: "测试邮件页脚",
 };
 
 function htmlCids(html: string): string[] {
@@ -60,10 +64,13 @@ describe("renderOtpEmail", () => {
     expect(result.html).toContain(OTP_CONTENT.context);
   });
 
-  it("不足 6 位时补前导零", () => {
+  it("忠实渲染业务提供的有效期、码值和页脚，不自造业务规则", () => {
     const result = renderOtpEmail(OTP_CONTENT, { code: "42" });
-    expect(result.html).toContain("000042");
-    expect(result.text).toContain("000042");
+    expect(result.html).toContain("7 分钟内有效");
+    expect(result.text).toContain("校验码：42（7 分钟内有效）");
+    expect(result.html).toContain("测试邮件页脚");
+    expect(result.text).toContain("测试邮件页脚");
+    expect(result.html).not.toContain("000042");
   });
 
   it("CID 引用与 inline PNG 附件严格对应", () => {

@@ -177,6 +177,11 @@ function copyFor<C extends UploadErrorCode>(
   return COPY[code](params);
 }
 
+/** UI 适配层复用领域文案；业务流程仍只传错误码与参数。 */
+export function uploadErrorCopy<C extends UploadErrorCode>(code: C, ...args: UploadErrorArgs<C>): string {
+  return copyFor(code, paramsFromArgs(args));
+}
+
 /** 构造强类型失败结果；需要参数的错误码无法漏传或错传参数。 */
 export function uploadFailure<C extends UploadErrorCode>(
   code: C,

@@ -1,24 +1,39 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
 
-function secret(): string {
-  // BETTER_AUTH_SECRET 始终必需：缺失或过短在此直接抛错。
-  return serverEnv.BETTER_AUTH_SECRET;
+const PROOF_TTL_SECONDS = 60;
+
+function signature(
+  purpose: string,
+  subject: string,
+  issuedAt: number,
+  nonce: string,
+): Buffer {
+  return createHmac("sha256", serverEnv.BETTER_AUTH_SECRET)
+    .update(JSON.stringify(["surge-internal-auth:v2", purpose, subject, issuedAt, nonce]))
+    .digest();
 }
 
-export function internalAuthProof(purpose: string, subject = ""): string {
-  return createHmac("sha256", secret())
-    .update(`surge-internal-auth:v1:${purpose}:${subject}`)
-    .digest("hex");
+/** 签发短时内部凭证；用途、主体与签发时间共同参与签名，不暴露主体内容。 */
+export function internalAuthProof(purpose: string, subject: string): string {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const nonce = randomBytes(16).toString("hex");
+  return `${issuedAt}.${nonce}.${signature(purpose, subject, issuedAt, nonce).toString("hex")}`;
 }
 
+/** 仅接受当前格式和有效期内的凭证，拒绝未来时间与跨用途、跨主体使用。 */
 export function verifyInternalAuthProof(
   purpose: string,
   subject: string,
   proof: string | null | undefined,
 ): boolean {
-  if (!proof || !/^[0-9a-f]{64}$/.test(proof)) return false;
-  const expected = Buffer.from(internalAuthProof(purpose, subject), "hex");
-  const supplied = Buffer.from(proof, "hex");
-  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  const match = proof?.match(/^(\d{10})\.([0-9a-f]{32})\.([0-9a-f]{64})$/);
+  if (!match) return false;
+  const issuedAt = Number(match[1]);
+  const age = Math.floor(Date.now() / 1000) - issuedAt;
+  if (age < 0 || age >= PROOF_TTL_SECONDS) return false;
+  return timingSafeEqual(
+    Buffer.from(match[3], "hex"),
+    signature(purpose, subject, issuedAt, match[2]),
+  );
 }

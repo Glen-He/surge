@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadErrorCopy } from "@/features/reports/upload/upload-errors";
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -176,7 +178,7 @@ function DeleteIcon({ r }: { r: Report }) {
       const res = await fetch(`/api/reports/${r.slug}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error ?? "删除失败，请重试");
+        setError(data?.error ?? uploadErrorCopy("DELETE_FAILED"));
         return;
       }
       setOpen(false);

@@ -9,13 +9,13 @@ import { uploadFailureResponse } from "@/features/reports/upload/upload-errors";
 // ── 开放 API：程序化上传 ──
 // 认证：Authorization: Bearer sgk_xxx（账号设置页创建）
 // 请求：multipart 表单，字段与网页上传一致
-//   title*(≤20字) date*(YYYY-MM-DD) tag(≤6字) tagColor(色板值)
-//   description(≤200字) keywords(≤50字) file*(HTML 或 zip，≤50MB)
+//   title*(≤20 字) date*(YYYY-MM-DD) tag(≤6 字) tagColor(色板值)
+//   description(≤200 字) keywords(≤50 字) file*(HTML 或 zip，≤50 MB)
 // 响应：{ ok: true, slug }；错误 { error } + 状态码
 //
 // 上传业务与网页端共用 features/reports/upload/（同一套校验/配额/锁）
 
-// 令牌请求全局限速：同 IP 30 次 / 分钟（认证失败另有更严的 20 次/10 分钟）
+// 令牌请求全局限速：同一用户 30 次 / 分钟（认证失败另有更严的 20 次/10 分钟）
 const REQ_LIMIT = 30;
 const REQ_WINDOW_MS = 60 * 1000;
 

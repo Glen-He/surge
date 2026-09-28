@@ -44,13 +44,8 @@ export function reportDocumentUrl(capability: string): string {
 /** 从可信反代头还原浏览器实际访问的 origin。 */
 export function requestOrigin(req: Request): string {
   const requestUrl = new URL(req.url);
-  const forwardedHost = req.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    ?.trim();
-  // 优先使用反向代理覆盖后的 Host；仅在测试/特殊代理未提供 Host 时回退
-  // x-forwarded-host。生产反代必须同时覆盖两者，不能透传客户端伪造值。
-  const host = req.headers.get("host") || forwardedHost || requestUrl.host;
+  // 与主站代理层一致：仅使用反代覆盖后的 Host，缺失时使用请求 URL。
+  const host = req.headers.get("host") || requestUrl.host;
   const forwardedProto = req.headers
     .get("x-forwarded-proto")
     ?.split(",")[0]

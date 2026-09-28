@@ -8,7 +8,7 @@ export const LIMITS = {
   description: 200,
 } as const;
 
-// 全角区段：CJK 部首/汉字/兼容表意/中文标点/全角符号/全角ASCII
+// 全角区段：CJK 部首/汉字/兼容表意/中文标点/全角符号/全角 ASCII
 const FULLWIDTH_RE =
   /[\u1100-\u115F\u2E80-\u9FFF\uA960-\uA97C\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\u3000-\u303F]/;
 

@@ -121,6 +121,9 @@ export type OtpEmailContent = {
   headline: string;
   context: string;
   note: string;
+  expiryLabel: string;
+  codeLabel: string;
+  footer: string;
 };
 
 /** 由 auth feature 提供的重置密码邮件文案。 */
@@ -134,9 +137,9 @@ export type ResetPasswordEmailContent = {
   expiryLabel: string;
   fallbackIntro: string;
   safetyNote: string;
+  footer: string;
 };
 
-const FOOTER_TEXT = "SURGE 工作汇报系统 · 自动发送，请勿回复";
 
 /* ── HTML 渲染 ─────────────────────────────────────────── */
 
@@ -149,7 +152,7 @@ function renderOtpHtml(meta: OtpEmailContent, code: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <title>SURGE 工作汇报系统 · ${meta.title}</title>
+  <title>${meta.title}</title>
   <style>${HEAD_STYLE}  </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background:#F5F5F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif;">
@@ -180,7 +183,7 @@ function renderOtpHtml(meta: OtpEmailContent, code: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:14px 28px 0;">
-              ${renderClockLabel("5 分钟内有效")}
+              ${renderClockLabel(meta.expiryLabel)}
             </td>
           </tr>
           <tr>
@@ -190,7 +193,7 @@ function renderOtpHtml(meta: OtpEmailContent, code: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:8px 28px 44px;">
-              <p style="margin:0;color:#6E6E73;font-size:11px;line-height:18px;">${FOOTER_TEXT}</p>
+              <p style="margin:0;color:#6E6E73;font-size:11px;line-height:18px;">${meta.footer}</p>
             </td>
           </tr>
         </table>
@@ -210,7 +213,7 @@ function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <title>SURGE 工作汇报系统 · ${meta.title}</title>
+  <title>${meta.title}</title>
   <style>${HEAD_STYLE}  </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background:#F5F5F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif;">
@@ -264,7 +267,7 @@ function renderResetHtml(meta: ResetPasswordEmailContent, url: string): string {
           </tr>
           <tr>
             <td align="center" style="padding:8px 28px 44px;">
-              <p style="margin:0;color:#6E6E73;font-size:11px;line-height:18px;">${FOOTER_TEXT}</p>
+              <p style="margin:0;color:#6E6E73;font-size:11px;line-height:18px;">${meta.footer}</p>
             </td>
           </tr>
         </table>
@@ -283,11 +286,11 @@ function otpPlainText(meta: OtpEmailContent, code: string): string {
     "",
     meta.context + "。",
     "",
-    `验证码：${code}（5 分钟内有效）`,
+    `${meta.codeLabel}：${code}（${meta.expiryLabel}）`,
     "",
     meta.note + "。",
     "",
-    FOOTER_TEXT,
+    meta.footer,
   ].join("\n");
 }
 
@@ -301,7 +304,7 @@ function resetPlainText(meta: ResetPasswordEmailContent, url: string): string {
     "",
     `${meta.safetyNote}。`,
     "",
-    FOOTER_TEXT,
+    meta.footer,
   ].join("\n");
 }
 
@@ -311,7 +314,7 @@ export function renderOtpEmail(
   meta: OtpEmailContent,
   opts: { code: string },
 ): EmailRenderResult {
-  const code = String(opts.code).padStart(6, "0");
+  const code = opts.code;
   return {
     subject: meta.subject,
     html: renderOtpHtml(meta, code),

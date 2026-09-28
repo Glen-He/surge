@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CardHead } from "@/shared/ui/card-head";
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
+import { uploadErrorCopy } from "./upload-errors";
 import { LIMITS, charWeight } from "@/features/reports/upload/char-limit";
 import { DEFAULT_TAG_COLOR, TAG_PALETTE, tagSwatchColor, type TagColor } from "@/features/reports/tag-colors";
 
@@ -79,19 +80,19 @@ function fieldLimitError(
   switch (field) {
     case "title":
       return charWeight(v) > LIMITS.title
-        ? `名称最长 ${LIMITS.title} 字`
+        ? uploadErrorCopy("META_TITLE_TOO_LONG", { max: LIMITS.title })
         : undefined;
     case "tag":
       return v.trim().length > LIMITS.tag
-        ? `标签最长 ${LIMITS.tag} 字`
+        ? uploadErrorCopy("META_TAG_TOO_LONG", { max: LIMITS.tag })
         : undefined;
     case "keywords":
       return charWeight(v) > LIMITS.keywords
-        ? `关键词最长 ${LIMITS.keywords} 字`
+        ? uploadErrorCopy("META_KEYWORDS_TOO_LONG", { max: LIMITS.keywords })
         : undefined;
     case "description":
       return charWeight(v) > LIMITS.description
-        ? `简介最长 ${LIMITS.description} 字`
+        ? uploadErrorCopy("META_DESCRIPTION_TOO_LONG", { max: LIMITS.description })
         : undefined;
   }
 }

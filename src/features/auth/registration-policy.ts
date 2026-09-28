@@ -54,16 +54,20 @@ export async function updateRegistrationPolicy(input: {
 }
 
 /** 仅在自建注册流程内部生成的 auth-handler proof。 */
-export function registrationInternalProof(email: string): string {
-  return internalAuthProof("registration", email.trim().toLowerCase());
+export function registrationInternalProof(
+  email: string,
+  operation: "send-otp" | "sign-in",
+): string {
+  return internalAuthProof(`registration:${operation}`, email.trim().toLowerCase());
 }
 
 export function verifyRegistrationInternalProof(
   email: string,
   proof: string | null | undefined,
+  operation: "send-otp" | "sign-in",
 ): boolean {
   return verifyInternalAuthProof(
-    "registration",
+    `registration:${operation}`,
     email.trim().toLowerCase(),
     proof,
   );

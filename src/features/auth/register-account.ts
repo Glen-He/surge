@@ -58,7 +58,7 @@ export async function registerAccount(input: {
     const otpHeaders = internalAuthHeaders(input.headers);
     otpHeaders.set(
       "x-surge-registration-proof",
-      registrationInternalProof(input.email),
+      registrationInternalProof(input.email, "sign-in"),
     );
     let otpResponse: Response;
     try {
@@ -116,7 +116,7 @@ export async function registerAccount(input: {
       const passwordHeaders = internalAuthHeaders(input.headers, sessionCookie);
       passwordHeaders.set(
         "x-surge-set-password-proof",
-        internalAuthProof("set-password"),
+        internalAuthProof("set-password", passwordHeaders.get("cookie") ?? ""),
       );
       await auth.api.setPassword({
         body: { newPassword: input.password },

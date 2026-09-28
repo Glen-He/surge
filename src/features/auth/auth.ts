@@ -1,3 +1,4 @@
+import { clientIpOptions } from "@/infrastructure/security/client-ip";
 import { randomUUID } from "crypto";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
@@ -9,7 +10,7 @@ import { recordOtpSent } from "./otp-rate-limit";
 import { GUEST_EMAIL_DOMAIN, isGuestEmail } from "./guest/guest-identity";
 import { createAuthDatabasePool } from "@/infrastructure/auth/auth-database";
 import { serverEnv } from "@/infrastructure/environment/server";
-import { OTP_CODE_LENGTH } from "./otp-code";
+import { OTP_CODE_LENGTH, OTP_TTL_SECONDS } from "./otp-code";
 
 export const auth = betterAuth({
   // 官方建议：生产环境显式配置 baseURL（读 BETTER_AUTH_URL），
@@ -50,22 +51,8 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30,
   },
 
-  // 反代（OpenResty/nginx）后面的真实客户端 IP 解析：
-  // 限流按客户端 IP 分桶，否则所有请求共用一个桶（启动警告也会消除）
-  advanced: {
-    ipAddress: {
-      ipAddressHeaders: ["x-forwarded-for"],
-      // 信任的反代地址（IP/CIDR，逗号分隔，默认本机反代）。
-      // 反代 append 模式下 XFF 形如「伪造段, 真实IP」；不配置信任代理时
-      // better-auth 遇多段头会直接放弃解析 -> 全站共享同一个限流桶，
-      // 「同 IP 5 次/10 分钟」实际从未按 IP 生效。配置后从 XFF 末段
-      // 往前取第一个非代理 IP（即真实客户端 IP，与 infrastructure/security/client-ip.ts 同语义）。
-      trustedProxies: (serverEnv.TRUSTED_PROXIES ?? "127.0.0.1,::1")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    },
-  },
+  // 认证库与业务限流共用代理信任和地址归一化规则。
+  advanced: { ipAddress: clientIpOptions() },
 
   emailVerification: {
     sendOnSignUp: true,
@@ -81,6 +68,7 @@ export const auth = betterAuth({
     }),
     emailOTP({
       otpLength: OTP_CODE_LENGTH,
+      expiresIn: OTP_TTL_SECONDS,
       // 用验证码邮件替代默认的验证链接邮件，避免双发
       overrideDefaultEmailVerification: true,
       sendVerificationOTP: async ({ email, otp, type }) => {

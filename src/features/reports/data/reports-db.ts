@@ -52,6 +52,17 @@ export async function reorderReports(
          FOR UPDATE`,
         [userId],
       );
+      // 在锁内校验完整所有权和目标日期，校验与写入使用同一份快照。
+      const slugs = new Set(current.rows.map((item) => item.slug));
+      const dates = new Set(current.rows.map((item) => item.date.slice(0, 10)));
+      const matches = (order: ReportOrderItem[]) =>
+        order.length === slugs.size &&
+        new Set(order.map((item) => item.slug)).size === order.length &&
+        order.every((item) => slugs.has(item.slug) && dates.has(item.date));
+      if (!matches(items) || !matches(baseItems)) {
+        await client.query("ROLLBACK");
+        return "mismatch";
+      }
       const stale =
         current.rows.length !== baseItems.length ||
         current.rows.some(

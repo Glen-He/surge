@@ -54,8 +54,8 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("分享来源隔离与
   }
 
   it("单个分享轮换与撤销不影响属主、其他分享或其他面板", async () => {
-    const first = await createReportShare({ userId, slug: report.slug, passwordProtected: true, requestedPasscode: "I0O1" });
-    const second = await createReportShare({ userId, slug: report.slug, passwordProtected: false });
+    const first = await createReportShare({ userEmail: "owner@example.test", userId, slug: report.slug, passwordProtected: true, requestedPasscode: "I0O1" });
+    const second = await createReportShare({ userEmail: "owner@example.test", userId, slug: report.slug, passwordProtected: false });
     const board = await createShareBoard(userId, "来源隔离", null, null, null, report.slug);
     const firstCap = capability({ kind: "share", id: first.id, epoch: 0 });
     const otherCaps = [capability({ kind: "owner" }), capability({ kind: "share", id: second.id, epoch: 0 }), (await boardGrant(board.token)).cap];
