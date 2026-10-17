@@ -2,6 +2,15 @@ import { defineConfig, devices } from "@playwright/test";
 import { loadEnvConfig } from "@next/env";
 
 loadEnvConfig(process.cwd());
+// E2E 会直接创建/删除用户并临时修改注册策略，绝不能落到 `.env.local`
+// 指向的日常开发库；必须显式提供隔离测试库，缺失时 fail fast。
+const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
+if (!e2eDatabaseUrl) {
+  throw new Error(
+    "E2E_DATABASE_URL must point at an isolated test database before running e2e",
+  );
+}
+process.env.DATABASE_URL = e2eDatabaseUrl;
 const configuredPort = Number(process.env.E2E_PORT ?? 3217);
 if (
   !Number.isSafeInteger(configuredPort) ||

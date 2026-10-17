@@ -1,11 +1,9 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHmac,
-  hkdfSync,
-  randomBytes,
-} from "node:crypto";
+import { createHmac, hkdfSync } from "node:crypto";
 import { serverEnv } from "@/infrastructure/environment/server";
+import {
+  openSecret,
+  sealSecret,
+} from "@/infrastructure/security/aes-gcm-envelope";
 
 function rootSecret(): string {
   // 该配置始终必需：缺失或过短由 serverEnv 校验抛错。
@@ -24,25 +22,13 @@ export function inviteCodeHash(code: string): string {
 }
 
 export function encryptInviteCode(code: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", deriveKey("v1-encryption"), iv);
-  const ciphertext = Buffer.concat([cipher.update(code, "utf8"), cipher.final()]);
-  return `v1.${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${ciphertext.toString("base64url")}`;
+  return sealSecret(code, deriveKey("v1-encryption"));
 }
 
 export function decryptInviteCode(value: string): string {
-  const [version, iv, tag, ciphertext] = value.split(".");
-  if (version !== "v1" || !iv || !tag || !ciphertext) {
-    throw new Error("invalid encrypted invite code");
-  }
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
+  return openSecret(
+    value,
     deriveKey("v1-encryption"),
-    Buffer.from(iv, "base64url"),
+    "invalid encrypted invite code",
   );
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(ciphertext, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
 }

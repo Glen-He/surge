@@ -42,8 +42,10 @@ async function runGuestExpiryMaintenance(): Promise<void> {
   }
 }
 
-export async function runMaintenance(): Promise<boolean> {
-  if (running) return false;
+export type MaintenanceResult = "ok" | "busy" | "failed";
+
+export async function runMaintenance(): Promise<MaintenanceResult> {
+  if (running) return "busy";
   running = true;
   try {
     // 数据库背书的租约协调多实例，且不在维护函数各自发起查询时占用
@@ -54,7 +56,7 @@ export async function runMaintenance(): Promise<boolean> {
       1,
       MAINTENANCE_INTERVAL_MS / 1000,
     );
-    if (!lease.allowed) return false;
+    if (!lease.allowed) return "busy";
     await db.query(
       `INSERT INTO maintenance_state (name, last_started_at, last_error)
        VALUES ('full', NOW(), NULL)
@@ -88,10 +90,10 @@ export async function runMaintenance(): Promise<boolean> {
        SET last_succeeded_at = NOW(), last_error = NULL, updated_at = NOW()
        WHERE name = 'full'`,
     );
-    return true;
+    return "ok";
   } catch (error) {
     logger.error("maintenance", "background maintenance run failed", error as Error);
-    return false;
+    return "failed";
   } finally {
     running = false;
   }

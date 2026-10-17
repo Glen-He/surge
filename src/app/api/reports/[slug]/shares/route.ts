@@ -17,18 +17,21 @@ export async function GET(
 
   const { slug } = await params;
   const shares = await listSharesBySlug(session.user.id, slug);
-  return Response.json({
-    shares: shares.map((share) => ({
-      id: share.id,
-      token: share.token,
-      hasPassword: share.password_hash !== null,
-      passcode: share.passcode,
-      expiresAt: share.expires_at,
-      disabled: share.disabled_at !== null,
-      viewCount: Number(share.view_count),
-      createdAt: share.created_at,
-    })),
-  });
+  return Response.json(
+    {
+      shares: shares.map((share) => ({
+        id: share.id,
+        token: share.token,
+        hasPassword: share.password_hash !== null,
+        passcode: share.passcode,
+        expiresAt: share.expires_at,
+        disabled: share.disabled_at !== null,
+        viewCount: Number(share.view_count),
+        createdAt: share.created_at,
+      })),
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(

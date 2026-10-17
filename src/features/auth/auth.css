@@ -236,8 +236,10 @@
 }
 
 .auth-input-error,
-.auth-input-error:focus {
+.auth-input-error:focus,
+.auth-input-error:focus-visible {
   border-color: var(--danger);
+  box-shadow: none;
 }
 
 .auth-input-icon {

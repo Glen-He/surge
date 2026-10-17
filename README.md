@@ -24,7 +24,7 @@ assets/
 └── chart.js
 ```
 
-当前限制：单次上传不超过 50 MiB；ZIP 解压后单份报告不超过 100 MiB、50 个文件和 5 层目录；单个账号的报告存储上限为 2 GiB。
+当前限制：单次上传不超过 50 MiB；ZIP 解压后单份报告不超过 100 MiB、50 个文件和 5 层目录；单个账号的报告存储上限为 2 GiB，所有游客沙箱合计上限为 1 GiB。全站报告存储达到 16 GiB 时记录预警、达到 20 GiB 时暂停上传，需要管理员清理空间。
 
 ## 自托管部署
 
@@ -70,7 +70,7 @@ curl -X POST "https://your-surge.example/api/v1/reports" \
   -F "file=@./report.html;type=text/html"
 ```
 
-成功响应包含新报告的 `slug`。使用 `PATCH /api/v1/reports/{slug}` 更新报告文件或元信息；省略 `file` 时只更新元信息。API 上传与网页上传遵循相同的权限、配额和文件校验规则。
+成功响应包含新报告的 `slug`。使用 `PATCH /api/v1/reports/{slug}` 更新报告文件或元信息；请求仍必须是 `multipart/form-data`，且 `title`、`date` 必填，省略 `file` 时只更新元信息。API 上传与网页上传遵循相同的权限、配额和文件校验规则。
 
 ## 本地开发
 
@@ -88,7 +88,7 @@ pnpm typecheck
 pnpm test:unit
 ```
 
-PostgreSQL 集成测试请使用隔离的测试数据库，可运行 `pnpm test:integration`。更多仓库开发约定见 [`AGENTS.md`](./AGENTS.md)。
+PostgreSQL 集成测试请使用隔离的测试数据库，可运行 `pnpm test:integration`。浏览器测试会创建和删除账号，必须显式提供隔离库：`E2E_DATABASE_URL=postgresql://... pnpm test:e2e`；命令会先执行生产构建。更多仓库开发约定见 [`AGENTS.md`](./AGENTS.md)。
 
 ## 许可
 

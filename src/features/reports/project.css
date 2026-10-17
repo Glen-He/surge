@@ -292,8 +292,10 @@ textarea.project-input {
 
 /* 输入框错误态：只改边框颜色，不产生红色外发光 */
 .project-input-error,
-.project-input-error:focus {
+.project-input-error:focus,
+.project-input-error:focus-visible {
   border-color: var(--danger);
+  box-shadow: none;
 }
 
 /* 管理卡片的长按由应用处理，关闭 Safari 原生链接预览。 */

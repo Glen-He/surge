@@ -169,11 +169,27 @@ export const authRequestPolicy = createAuthMiddleware(async (ctx) => {
       });
     }
     const sourceIp = clientIp(ctx.headers ?? new Headers());
-    const [byIp, global] = await Promise.all([
-      consumeSharedRateLimit("otp-send-ip", sourceIp, 30, 60 * 60),
-      consumeSharedRateLimit("otp-send-global", "global", 1_000, 24 * 60 * 60),
-    ]);
-    if (!byIp.allowed || !global.allowed) {
+    // 先耗尽 IP 桶：被 IP 限流的请求不能继续消耗全站预算，否则
+    // 单个来源就能把全局 OTP 额度打满并阻断所有账号的注册与找回密码。
+    const byIp = await consumeSharedRateLimit("otp-send-ip", sourceIp, 30, 60 * 60);
+    if (!byIp.allowed) {
+      throw new APIError("TOO_MANY_REQUESTS", {
+        message: "验证码发送过于频繁，请稍后再试",
+      });
+    }
+    // 找回密码与注册/登录使用独立的全站桶：未认证的重置请求即使打满，
+    // 也不会连带阻断注册发码和 OTP 登录。
+    const resetFlow =
+      ctx.path === "/request-password-reset" ||
+      ctx.path === "/forget-password/email-otp" ||
+      ctx.path === "/email-otp/request-password-reset";
+    const global = await consumeSharedRateLimit(
+      resetFlow ? "password-reset-global" : "otp-send-global",
+      "global",
+      1_000,
+      24 * 60 * 60,
+    );
+    if (!global.allowed) {
       throw new APIError("TOO_MANY_REQUESTS", {
         message: "验证码发送过于频繁，请稍后再试",
       });

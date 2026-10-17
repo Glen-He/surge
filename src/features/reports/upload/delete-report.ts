@@ -13,14 +13,17 @@ export async function deleteReport(
   userId: string,
   slug: string,
 ): Promise<UploadResult> {
-  return withStorageLocks(userId, async (client) => {
-    try {
-      assertSafeReportSlug(slug);
-    } catch {
-      return uploadFailure("REPORT_NOT_FOUND");
-    }
-    try {
-      const result = await client.query<{
+  try {
+    assertSafeReportSlug(slug);
+  } catch {
+    return uploadFailure("REPORT_NOT_FOUND");
+  }
+
+  let dir: string | null = null;
+  let result: UploadResult;
+  try {
+    result = await withStorageLocks(userId, async (client) => {
+      const deleted = await client.query<{
         template_key: string | null;
         storage_key: string | null;
       }>(
@@ -28,33 +31,39 @@ export async function deleteReport(
          RETURNING template_key, storage_key`,
         [userId, slug],
       );
-      if (result.rowCount !== 1) {
+      if (deleted.rowCount !== 1) {
         return uploadFailure("REPORT_NOT_FOUND");
       }
-      const row = result.rows[0];
+      const row = deleted.rows[0];
       if (!row.template_key) {
-        const dir = reportContentDir({
+        dir = reportContentDir({
           userId,
           storageKey: row.storage_key,
         });
-        await fs.rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(
-          (error) => {
-            logger.warn(
-              "report-delete",
-              "deleted report files left on disk after removal failure",
-              error as Error,
-              { userId, slug },
-            );
-          },
-        );
       }
       return { ok: true, slug };
-    } catch (error) {
-      logger.error("report-delete", "report delete failed", error as Error, {
-        userId,
-        slug,
-      });
-      return uploadFailure("DELETE_FAILED");
-    }
-  });
+    });
+  } catch (error) {
+    logger.error("report-delete", "report delete failed", error as Error, {
+      userId,
+      slug,
+    });
+    return uploadFailure("DELETE_FAILED");
+  }
+
+  // 文件删除放在存储锁之外：数据库授权已经收回，残留字节由孤儿清理兜底，
+  // 不再让一次大目录递归删除阻塞其他上传。
+  if (result.ok && dir) {
+    await fs.rm(dir, { recursive: true, force: true, maxRetries: 3 }).catch(
+      (error) => {
+        logger.warn(
+          "report-delete",
+          "deleted report files left on disk after removal failure",
+          error as Error,
+          { userId, slug },
+        );
+      },
+    );
+  }
+  return result;
 }

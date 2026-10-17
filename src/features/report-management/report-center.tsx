@@ -228,6 +228,7 @@ function DeleteIcon({ r }: { r: Report }) {
               text={code}
               label="复制验证码"
               copiedLabel="验证码已复制"
+              onCopyError={() => setError("复制失败，请稍后重试")}
               className="relative top-[2px]"
             />
           </span>{" "}
@@ -242,7 +243,7 @@ function DeleteIcon({ r }: { r: Report }) {
           placeholder={code}
           autoComplete="off"
           aria-label="删除项目验证码"
-          className="mt-2 h-[40px] w-full rounded-[var(--radius-md)] border border-[var(--border-control)] bg-[var(--surface)] px-3 type-body tracking-[0.2em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="mt-2 h-[40px] w-full rounded-[var(--radius-md)] border border-[var(--border-control)] bg-[var(--surface)] px-3 type-input tracking-[0.2em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
         />
         {/* 错误行固定占位，避免出现时布局跳动 */}
         <p className="mt-2 h-[var(--line-height-caption)] type-caption text-[var(--danger-text)]">{error}</p>

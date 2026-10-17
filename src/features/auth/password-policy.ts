@@ -5,7 +5,7 @@ export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 100;
 
 /** 统一提示文案（输入框 placeholder / 说明文字用） */
-export const PASSWORD_RULE_TEXT = `至少 ${PASSWORD_MIN} 位，含大写字母、小写字母和数字`;
+export const PASSWORD_RULE_TEXT = `至少 ${PASSWORD_MIN} 位，含大写、小写字母和数字`;
 
 /** 返回错误文案；合法返回 null */
 export function passwordPolicyError(password: string): string | null {

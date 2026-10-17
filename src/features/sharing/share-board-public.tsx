@@ -1,4 +1,5 @@
 import { boardReportShareUrl } from "./board-report-url";
+import { ShareManagementEmptyState } from "./share-management-empty-state";
 import { ReportCardLink } from "@/features/reports/board/report-card-link";
 import { type ShareBoardItemView } from "@/features/sharing/share-board";
 
@@ -30,10 +31,11 @@ export function ShareBoardPublic({ title, token, items }: {
         </div>
 
         {items.length === 0 ? (
-          <div className="rounded-[var(--radius-xl)] bg-[var(--surface)] px-6 py-20 text-center shadow-[0_8px_28px_rgba(0,0,0,0.025)]">
-            <p className="type-subtitle">分享者暂未添加内容</p>
-            <p className="mt-2 type-caption text-[var(--text-secondary)]">稍后刷新此页面即可查看新增汇报</p>
-          </div>
+          <ShareManagementEmptyState
+            title="分享者暂未添加内容"
+            hint="稍后刷新此页面即可查看新增汇报"
+            size="page"
+          />
         ) : (
           <div className="space-y-14">
             {Array.from(months).map(([month, reports]) => (

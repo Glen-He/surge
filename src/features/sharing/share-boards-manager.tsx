@@ -304,7 +304,14 @@ export function ShareBoardsManager({
                   disabled={board.disabled}
                   className="inline-flex h-8 w-[96px] items-center justify-center rounded-full bg-[var(--control-bg)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:text-[var(--text-disabled)] disabled:opacity-60"
                 />
-                {!board.disabled && (
+                {board.disabled ? (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex h-8 w-[96px] cursor-not-allowed items-center justify-center rounded-full bg-[var(--control-bg)] type-control-sm text-[var(--text-disabled)]"
+                  >
+                    打开面板
+                  </span>
+                ) : (
                   <Link
                     href={`/board/${board.token}`}
                     target="_blank"

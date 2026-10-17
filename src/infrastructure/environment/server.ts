@@ -64,9 +64,13 @@ function envValue(name: EnvVarName, entry: EnvEntry): unknown {
       (entry.min !== undefined && value < entry.min) ||
       (entry.max !== undefined && value > entry.max)
     ) {
-      throw new Error(
-        `${name} must be an integer between ${entry.min} and ${entry.max}`,
-      );
+      const bound =
+        entry.min !== undefined && entry.max !== undefined
+          ? `between ${entry.min} and ${entry.max}`
+          : entry.min !== undefined
+            ? `of at least ${entry.min}`
+            : `of at most ${entry.max}`;
+      throw new Error(`${name} must be an integer ${bound}`);
     }
     return value;
   }

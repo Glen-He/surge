@@ -14,9 +14,17 @@ function authorized(req: Request): boolean {
 
 export async function POST(req: Request) {
   if (!authorized(req)) return Response.json({ error: "未授权" }, { status: 401 });
-  const ok = await runMaintenance();
+  const result = await runMaintenance();
+  if (result === "ok" || result === "busy") {
+    // 已有实例持有本轮租约不是失败：外部 cron 与进程内调度器会互相
+    // 抢同一个窗口，返回 503 会造成无意义的告警。
+    return Response.json(
+      result === "ok" ? { ok: true } : { ok: true, skipped: true },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
   return Response.json(
-    ok ? { ok: true } : { error: "维护任务未完成或已有任务正在运行" },
-    { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
+    { error: "维护任务未完成" },
+    { status: 503, headers: { "Cache-Control": "no-store" } },
   );
 }

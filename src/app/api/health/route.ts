@@ -1,5 +1,6 @@
 import { isMaintenanceHealthy } from "@/features/maintenance/maintenance-health";
 import { db } from "@/infrastructure/database/client";
+import { logger } from "@/infrastructure/logging/logger";
 import { constants, promises as fs } from "node:fs";
 import { REPORT_DATA_DIR } from "@/features/reports/storage/report-storage";
 import {
@@ -34,7 +35,9 @@ export async function GET() {
       },
       { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    // 健康探测失败需要留下排查线索；响应体仍只暴露整体状态。
+    logger.error("health", "health check failed", error as Error);
     return Response.json(
       { status: "unavailable" },
       { status: 503, headers: { "Cache-Control": "no-store" } },

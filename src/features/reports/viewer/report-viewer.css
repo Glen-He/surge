@@ -107,3 +107,70 @@
     "Microsoft YaHei",
     sans-serif;
 }
+
+/* PDF 预览属于报告查看器自身排版，不放在 shared Modal 样式中。 */
+.report-pdf-shell {
+  position: relative;
+  height: min(76vh, 820px);
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.report-pdf-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--surface);
+  opacity: 0;
+}
+
+.report-pdf-preview--ready {
+  opacity: 1;
+}
+
+.report-pdf-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.report-pdf-loading p {
+  margin-top: 14px;
+  font-size: var(--font-size-input);
+  line-height: var(--line-height-input);
+  font-weight: var(--font-weight-semibold);
+}
+
+.report-pdf-loading span:not(.report-pdf-spinner) {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.report-pdf-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--accent-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@media (max-width: 480px) {
+  .report-pdf-shell {
+    height: 72vh;
+    min-height: 420px;
+  }
+}

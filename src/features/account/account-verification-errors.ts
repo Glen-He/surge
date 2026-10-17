@@ -18,6 +18,7 @@ export type AccountVerificationErrorParamsByCode = {
   EMAIL_UNCHANGED: undefined;
   GUEST_EMAIL_DOMAIN_REQUIRED: { domain: string };
   EMAIL_ALREADY_USED: undefined;
+  EMAIL_CHANGE_RATE_LIMIT: { retryAfter: number };
 };
 
 export type AccountVerificationErrorCode = keyof AccountVerificationErrorParamsByCode;
@@ -78,6 +79,10 @@ const DEFINITIONS: DefinitionTable = {
     status: 400,
     copy: () => "该邮箱已被其他账号使用",
   },
+  EMAIL_CHANGE_RATE_LIMIT: {
+    status: 429,
+    copy: ({ retryAfter }) => `操作过于频繁，请 ${retryAfter} 秒后再试`,
+  },
 };
 
 /** 账号身份验证领域异常，只携带稳定错误码和强类型参数。 */
@@ -112,13 +117,21 @@ export function accountVerificationErrorResponse(error: AccountVerificationError
   const body: { error: string; code?: string; retryAfter?: number } = {
     error: copy,
   };
-  if (error.code === "OTP_DAILY_LIMIT" || error.code === "OTP_COOLDOWN") {
+  if (
+    error.code === "OTP_DAILY_LIMIT" ||
+    error.code === "OTP_COOLDOWN" ||
+    error.code === "EMAIL_CHANGE_RATE_LIMIT"
+  ) {
     body.code = error.code;
   }
-  if (error.code === "OTP_DAILY_LIMIT" || error.code === "OTP_COOLDOWN") {
+  if (
+    error.code === "OTP_DAILY_LIMIT" ||
+    error.code === "OTP_COOLDOWN" ||
+    error.code === "EMAIL_CHANGE_RATE_LIMIT"
+  ) {
     body.retryAfter = (
       error.params as AccountVerificationErrorParams<
-        "OTP_DAILY_LIMIT" | "OTP_COOLDOWN"
+        "OTP_DAILY_LIMIT" | "OTP_COOLDOWN" | "EMAIL_CHANGE_RATE_LIMIT"
       >
     ).retryAfter;
   }

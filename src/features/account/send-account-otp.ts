@@ -1,4 +1,5 @@
 import { db } from "@/infrastructure/database/client";
+import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
 import { logger } from "@/infrastructure/logging/logger";
 import {
   GUEST_EMAIL_DOMAIN,
@@ -140,6 +141,19 @@ export async function sendNewEmailOtp(input: {
   if (isGuestEmail(input.originalEmail) && !isGuestEmail(input.newEmail)) {
     throw new AccountVerificationError("GUEST_EMAIL_DOMAIN_REQUIRED", {
       domain: GUEST_EMAIL_DOMAIN,
+    });
+  }
+  // 邮箱占用检查发生在限流之前；先按用户限速，避免用一个 token 在
+  // 10 分钟内高速探测已注册邮箱（命中与未命中的响应不同）。
+  const probeRate = await consumeSharedRateLimit(
+    "email-change-new-email",
+    input.userId,
+    10,
+    10 * 60,
+  );
+  if (!probeRate.allowed) {
+    throw new AccountVerificationError("EMAIL_CHANGE_RATE_LIMIT", {
+      retryAfter: probeRate.retryAfter,
     });
   }
   const existing = await db.query(

@@ -3,6 +3,7 @@ import {
   MAX_DEPTH,
   MAX_FILES,
   MAX_PROJECT_BYTES,
+  MAX_GUEST_TOTAL_BYTES,
   MAX_USER_TOTAL_BYTES,
   MAX_ZIP_BYTES,
   SITE_TOTAL_WARN_BYTES,
@@ -21,6 +22,12 @@ describe("上传容量常量关系", () => {
 
   it("单用户上限 ≤ 全站上限", () => {
     expect(MAX_USER_TOTAL_BYTES).toBeLessThan(SITE_TOTAL_CAP_BYTES);
+  });
+
+  it("游客总量上限独立于单用户上限，且小于全站上限", () => {
+    expect(MAX_GUEST_TOTAL_BYTES).toBeGreaterThan(0);
+    expect(MAX_GUEST_TOTAL_BYTES).toBeLessThan(SITE_TOTAL_CAP_BYTES);
+    expect(MAX_GUEST_TOTAL_BYTES).toBeLessThan(MAX_USER_TOTAL_BYTES * 2);
   });
 
   it("全站预警线 < 全站硬顶", () => {

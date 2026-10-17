@@ -39,6 +39,7 @@ export type UploadErrorParamsByCode = {
   STORAGE_CAPACITY: undefined;
   SITE_CAP_REACHED: undefined;
   GUEST_UPLOAD_LIMIT: undefined;
+  GUEST_STORAGE_LIMIT: undefined;
   USER_QUOTA_EXCEEDED: { max: number; used: number };
   USER_QUOTA_REPLACE_EXCEEDED: { max: number };
   REPORT_NOT_FOUND: undefined;
@@ -98,6 +99,7 @@ const COPY: UploadCopyTable = {
   STORAGE_CAPACITY: () => "服务器可用存储空间不足，上传暂停，请联系管理员",
   SITE_CAP_REACHED: () => "服务器存储已达上限，上传暂停，请联系管理员",
   GUEST_UPLOAD_LIMIT: () => "游客模式最多上传 1 个项目，删除后可再次上传",
+  GUEST_STORAGE_LIMIT: () => "游客体验存储空间已满，请登录后上传",
   USER_QUOTA_EXCEEDED: (p) =>
     `个人存储上限 ${p.max}MB（已用 ${p.used}MB），请先删除一些报告再上传`,
   USER_QUOTA_REPLACE_EXCEEDED: (p) =>
@@ -146,6 +148,7 @@ const STATUS: { [C in UploadErrorCode]: number } = {
   STORAGE_CAPACITY: 507,
   SITE_CAP_REACHED: 503,
   GUEST_UPLOAD_LIMIT: 403,
+  GUEST_STORAGE_LIMIT: 403,
   USER_QUOTA_EXCEEDED: 403,
   USER_QUOTA_REPLACE_EXCEEDED: 403,
   REPORT_NOT_FOUND: 404,

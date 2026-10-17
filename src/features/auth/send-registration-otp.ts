@@ -5,16 +5,17 @@ import {
 } from "@/infrastructure/auth/internal-auth-request";
 import { auth } from "./auth";
 import { RegistrationError } from "./registration-errors";
-import {
-  inviteCodeHasValidFormat,
-  validateRegistrationInvite,
-} from "./registration-invites";
+import { inviteCodeHasValidFormat } from "./registration-invites";
 import {
   getRegistrationPolicy,
   registrationInternalProof,
 } from "./registration-policy";
 
-/** 校验注册策略与邀请码后，通过受控 Better Auth 入口发送验证码。 */
+/**
+ * 校验注册策略与邀请码格式后发送验证码。
+ * 邀请码是否真实存在延后到 OTP 验证通过后的 registerAccount 校验，
+ * 避免未认证请求用发码接口探测邀请码有效性。
+ */
 export async function sendRegistrationOtp(input: {
   email: string;
   inviteCode: string;
@@ -37,9 +38,6 @@ export async function sendRegistrationOtp(input: {
   }
   if (input.inviteCode && !inviteCodeHasValidFormat(input.inviteCode)) {
     throw new RegistrationError("INVITE_FORMAT");
-  }
-  if (input.inviteCode && !(await validateRegistrationInvite(input.inviteCode))) {
-    throw new RegistrationError("INVITE_INVALID");
   }
 
   const headers = internalAuthHeaders(input.headers);

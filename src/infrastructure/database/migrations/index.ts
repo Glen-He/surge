@@ -6,7 +6,7 @@
 // - pg_advisory_lock 防止多实例并发迁移（同库多进程同时启动的场景）
 //
 // 新增迁移示例：
-//   1. 新建 032-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
+//   1. 新建 033-xxx.ts 导出 Migration；2. 在下方 MIGRATIONS 按版本序追加。
 //   statements 一经发布不可修改（schema_migrations.checksum 会拒绝）。
 
 import { createHash } from "node:crypto";
@@ -80,6 +80,14 @@ const MIGRATIONS: Migration[] = [
   SHARE_DISABLED_AT,
 ];
 
+// 迁移列表必须在模块加载时保持严格递增：版本重复或乱序会让已发布的
+// 数据库按错误顺序执行新迁移，且运行器只按代码顺序遍历，无法自愈。
+for (let i = 1; i < MIGRATIONS.length; i += 1) {
+  if (MIGRATIONS[i].version <= MIGRATIONS[i - 1].version) {
+    throw new Error("migrations must be strictly increasing by version");
+  }
+}
+
 // 专用 advisory lock key（0x53555247 = "SURG"），避免与其他应用碰撞
 const ADVISORY_LOCK_KEY = 0x53555247;
 
@@ -100,6 +108,15 @@ async function run(): Promise<void> {
       "SELECT version, name, checksum FROM schema_migrations",
     );
     const done = new Map(rows.map((r) => [r.version, r]));
+    const knownVersions = new Set(MIGRATIONS.map((migration) => migration.version));
+    for (const version of done.keys()) {
+      if (!knownVersions.has(version)) {
+        // 旧环境可能记录过已被移除的迁移版本；不因此拒绝启动，但必须留痕。
+        logger.warn("migrations", "unknown applied migration version ignored", {
+          version,
+        });
+      }
+    }
 
     for (const m of MIGRATIONS) {
       const checksum = createHash("sha256")

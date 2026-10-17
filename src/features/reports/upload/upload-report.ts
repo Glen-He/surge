@@ -24,6 +24,7 @@ import {
   MAX_FILES,
   MAX_DEPTH,
   MAX_USER_TOTAL_BYTES,
+  MAX_GUEST_TOTAL_BYTES,
   SITE_TOTAL_CAP_BYTES,
   SITE_TOTAL_WARN_BYTES,
   MAX_ZIP_BYTES,
@@ -172,6 +173,19 @@ export async function createReport(
         );
         if (Number(own.rows[0]?.n ?? 0) >= 1) {
           return uploadFailure("GUEST_UPLOAD_LIMIT");
+        }
+        // 游客账号可以免费重建，单账号配额无法约束总量；所有游客
+        // 共享一个独立的存储上限，避免挤占真实用户的全站容量。
+        const guest = await client.query<{ bytes: string }>(
+          `SELECT COALESCE(SUM(r.size_bytes), 0)::text AS bytes
+           FROM reports r
+           JOIN guest_sessions g ON g.user_id = r.user_id`,
+        );
+        if (
+          Number(guest.rows[0]?.bytes ?? 0) + staged.projectBytes >
+          MAX_GUEST_TOTAL_BYTES
+        ) {
+          return uploadFailure("GUEST_STORAGE_LIMIT");
         }
       }
       const used = await storageTotals(client, userId);

@@ -158,6 +158,7 @@ export const environmentSchema = {
     type: "int",
     default: 2,
     min: 1,
+    max: 32,
     note: "跨实例同时解析上传的最大并发",
   },
   STORAGE_MIN_FREE_BYTES: {
@@ -165,7 +166,7 @@ export const environmentSchema = {
     required: "optional",
     type: "int",
     default: 536_870_912,
-    min: 1,
+    min: 64 * 1024 * 1024,
     note: "除本次写入外磁盘至少保留的余量（字节）",
   },
   STORAGE_ORPHAN_GRACE_MINUTES: {

@@ -1,12 +1,21 @@
 export function ShareManagementEmptyState({
   title,
   hint,
+  size = "compact",
 }: {
   title: string;
   hint: string;
+  /** page：公开面板整页空状态；compact：管理卡片内的紧凑空状态 */
+  size?: "compact" | "page";
 }) {
+  const layout =
+    size === "page"
+      ? "px-6 py-20"
+      : "flex min-h-[154px] flex-col items-center justify-center px-6 py-10";
   return (
-    <div className="flex min-h-[154px] flex-col items-center justify-center rounded-[var(--radius-xl)] bg-[var(--surface)] px-6 py-10 text-center shadow-[0_8px_28px_rgba(0,0,0,0.025)]">
+    <div
+      className={`${layout} rounded-[var(--radius-xl)] bg-[var(--surface)] text-center shadow-[0_8px_28px_rgba(0,0,0,0.025)]`}
+    >
       <p className="type-subtitle">{title}</p>
       <p className="mt-2 type-caption text-[var(--text-secondary)]">{hint}</p>
     </div>

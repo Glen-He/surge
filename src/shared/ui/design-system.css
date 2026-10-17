@@ -198,9 +198,16 @@ button {
   border-color: var(--accent);
   box-shadow: none;
 }
-.input-error:focus-visible,
-.auth-input-error:focus-visible,
-.project-input-error:focus-visible {
+/* Chrome / Safari 自动填充统一使用浅蓝底，不保留浏览器默认黄色；
+ * 覆盖所有文本输入，避免登录页与找回/重置/OTP 输入框视觉不一致。 */
+input:is(:autofill, :-webkit-autofill),
+textarea:is(:autofill, :-webkit-autofill) {
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--accent-soft) inset;
+  box-shadow: 0 0 0 1000px var(--accent-soft) inset;
+}
+.input-error:focus-visible {
   border-color: var(--danger);
   box-shadow: none;
 }

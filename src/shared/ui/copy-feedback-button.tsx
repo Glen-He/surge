@@ -133,7 +133,8 @@ export function CopyIconButton({
   className = "",
   onCopyError,
   showTooltip = true,
-}: CopyFeedbackProps & { showTooltip?: boolean }) {
+  inline = false,
+}: CopyFeedbackProps & { showTooltip?: boolean; inline?: boolean }) {
   const { copied, copy } = useCopyFeedback({ text, onCopyError });
   return (
     <button
@@ -144,7 +145,7 @@ export function CopyIconButton({
       title={showTooltip ? (copied ? copiedLabel : label) : undefined}
       data-copy-variant="icon"
       data-copy-state={copied ? "copied" : "idle"}
-      className={`ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)] focus-visible:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`${inline ? "" : "ml-1"} inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)] focus-visible:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
       style={copied ? { color: "var(--success)" } : undefined}
     >
       {/* 两个图标必须同尺寸：按钮是 inline-flex（默认 baseline 对齐），内联元素的基线

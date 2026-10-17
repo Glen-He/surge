@@ -5,11 +5,15 @@ import { db } from "@/infrastructure/database/client";
 import type { TagColor } from "@/features/reports/tag-colors";
 import {
   generateShareId,
+  generateSharePasscode,
   generateShareToken,
+  hashSharePassword,
+  isValidSharePasscode,
 } from "./report-share";
 import {
   decryptSharePasscode,
   decryptShareToken,
+  encryptSharePasscode,
   encryptShareToken,
   shareTokenHash,
 } from "./share-credentials";
@@ -87,6 +91,51 @@ export function boardExpiryFromDays(value: unknown): Date | null {
   const days: ShareExpiryDays | null = parseShareExpiryDays(value);
   if (days === null) throw new ShareBoardError("BOARD_EXPIRY_INVALID");
   return shareExpiryDate(days);
+}
+
+/**
+ * 属主创建分享面板的完整业务规则：标题、提取码、有效期与初始成员
+ * 都在领域层裁决，Route Handler 只解析请求并调用本函数。
+ */
+export async function createOwnerShareBoard(input: {
+  userId: string;
+  title: unknown;
+  password: unknown;
+  passwordProtected: unknown;
+  reportSlug: unknown;
+  expiresInDays: unknown;
+  disabled: unknown;
+}): Promise<ShareBoardSummary> {
+  const title = normalizeBoardTitle(input.title);
+  if (!title) {
+    throw new ShareBoardError("BOARD_TITLE_INVALID", {
+      max: MAX_BOARD_TITLE_LENGTH,
+    });
+  }
+  const requestedPasscode =
+    typeof input.password === "string" && input.password.trim()
+      ? input.password.trim().toUpperCase()
+      : null;
+  if (requestedPasscode && !isValidSharePasscode(requestedPasscode)) {
+    throw new ShareBoardError("BOARD_PASSCODE_INVALID");
+  }
+  const passcode =
+    requestedPasscode ??
+    (input.passwordProtected === true ? generateSharePasscode() : null);
+  const reportSlug =
+    typeof input.reportSlug === "string" ? input.reportSlug : undefined;
+  const passwordHash = passcode ? await hashSharePassword(passcode) : null;
+  const passwordEnc = passcode ? encryptSharePasscode(passcode) : null;
+  const expiresAt = boardExpiryFromDays(input.expiresInDays ?? 0);
+  return createShareBoard(
+    input.userId,
+    title,
+    passwordHash,
+    passwordEnc,
+    expiresAt,
+    reportSlug,
+    input.disabled === true,
+  );
 }
 
 export function toSummary(row: BoardRow): ShareBoardSummary {

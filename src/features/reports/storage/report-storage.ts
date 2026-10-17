@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import type { Dirent } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { tmpdir } from "node:os";
@@ -229,97 +230,105 @@ function isManifest(value: unknown): value is TrashManifest {
 export async function purgeTrash(): Promise<void> {
   const client = await db.connect();
   const globalKey = "storage-quota:global";
+  // 快照之后新写入的清单可能属于正在进行的删除事务，不能在本轮恢复。
+  const snapshotAt = Date.now();
+  let entries: Dirent[] = [];
+  let knownUsers = new Set<string>();
   try {
+    // 锁内只读取一致的清单与用户快照；恢复/删除文件放到锁外，
+    // 避免回收站处理长时间阻塞上传与删除。
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
       globalKey,
     ]);
-    let entries;
     try {
       entries = await fs.readdir(REPORT_TRASH_DIR, { withFileTypes: true });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
       throw error;
     }
-    const manifests = entries.filter(
-      (entry) => entry.isFile() && entry.name.endsWith(".json"),
-    );
-    for (const entry of manifests) {
-      const manifestPath = path.join(REPORT_TRASH_DIR, entry.name);
-      let manifest: TrashManifest;
-      try {
-        const parsed: unknown = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-        if (!isManifest(parsed)) throw new Error("invalid trash manifest");
-        manifest = parsed;
-      } catch (error) {
-        if (await isOlderThan(manifestPath, recoveryRetentionMs())) {
-          await fs.rm(manifestPath, { force: true });
-          logger.warn("storage-recovery", "removed invalid trash manifest past retention", {
-            entry: entry.name,
-          });
-        } else {
-          logger.warn("storage-recovery", "trash manifest unparsable; kept for now", error as Error, {
-            entry: entry.name,
-          });
-        }
-        continue;
-      }
-      const payload = path.join(REPORT_TRASH_DIR, manifest.payload);
-      // 清单还在但数据目录已不存在（删除已提交，或暂存本身没完成）：
-      // 没有任何可恢复的内容，直接回收清单，避免每次启动重复报错、
-      // 并把条目永久堆在回收站里（真实故障：283 条残留清单 + 每次启动 283 条 error）。
-      // 这与正常文件系统上的行为一致（那里会命中 ENOENT 分支做同样的事）。
-      if (!(await pathExists(payload))) {
-        await fs.rm(manifestPath, { force: true });
-        continue;
-      }
-      const exists = await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [
-        manifest.userId,
-      ]);
-      if (exists.rowCount === 0) {
-        await removeTrashedDir(payload, manifestPath);
-        continue;
-      }
-      const original = userReportsDir(manifest.userId);
-      try {
-        await restoreTrashedDir(original, payload, manifestPath);
-        logger.warn("storage-recovery", "restored storage data with uncommitted delete", {
-          kind: manifest.kind,
-          userId: manifest.userId,
-        });
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          await fs.rm(manifestPath, { force: true });
-          continue;
-        }
-        // 绝不覆盖已存在的线上目录：两份都保留给运维排查，
-        // 而不是猜测哪一份才是权威数据。
-        logger.error("storage-recovery", "trash restore failed; data kept", error as Error, {
-          kind: manifest.kind,
-          userId: manifest.userId,
-        });
-      }
-    }
-    const known = new Set(
-      manifests.flatMap((entry) => [entry.name, entry.name.replace(/\.json$/, ".data")]),
-    );
-    const unknown = entries.filter((entry) => !known.has(entry.name));
-    let removedUnknown = 0;
-    for (const entry of unknown) {
-      const full = path.join(REPORT_TRASH_DIR, entry.name);
-      if (!(await isOlderThan(full, recoveryRetentionMs()))) continue;
-      await fs.rm(full, { recursive: true, force: true, maxRetries: 3 });
-      removedUnknown += 1;
-    }
-    if (unknown.length > removedUnknown) {
-      logger.warn("storage-recovery", "manifest-less trash data kept until retention ends", {
-        count: unknown.length - removedUnknown,
-      });
-    }
+    const users = await client.query<{ id: string }>(`SELECT id FROM "user"`);
+    knownUsers = new Set(users.rows.map((row) => row.id));
   } finally {
     await client
       .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
       .catch(() => {});
     client.release();
+  }
+
+  const manifests = entries.filter(
+    (entry) => entry.isFile() && entry.name.endsWith(".json"),
+  );
+  for (const entry of manifests) {
+    const manifestPath = path.join(REPORT_TRASH_DIR, entry.name);
+    let manifest: TrashManifest;
+    try {
+      const parsed: unknown = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+      if (!isManifest(parsed)) throw new Error("invalid trash manifest");
+      manifest = parsed;
+    } catch (error) {
+      if (await isOlderThan(manifestPath, recoveryRetentionMs())) {
+        await fs.rm(manifestPath, { force: true });
+        logger.warn("storage-recovery", "removed invalid trash manifest past retention", {
+          entry: entry.name,
+        });
+      } else {
+        logger.warn("storage-recovery", "trash manifest unparsable; kept for now", error as Error, {
+          entry: entry.name,
+        });
+      }
+      continue;
+    }
+    // 清单在快照之后才出现：删除事务可能正在进行，留到下一轮处理。
+    const manifestStat = await fs.stat(manifestPath).catch(() => null);
+    if (manifestStat && manifestStat.mtimeMs >= snapshotAt) continue;
+    const payload = path.join(REPORT_TRASH_DIR, manifest.payload);
+    // 清单还在但数据目录已不存在（删除已提交，或暂存本身没完成）：
+    // 没有任何可恢复的内容，直接回收清单，避免每次启动重复报错、
+    // 并把条目永久堆在回收站里（真实故障：283 条残留清单 + 每次启动 283 条 error）。
+    // 这与正常文件系统上的行为一致（那里会命中 ENOENT 分支做同样的事）。
+    if (!(await pathExists(payload))) {
+      await fs.rm(manifestPath, { force: true });
+      continue;
+    }
+    if (!knownUsers.has(manifest.userId)) {
+      await removeTrashedDir(payload, manifestPath);
+      continue;
+    }
+    const original = userReportsDir(manifest.userId);
+    try {
+      await restoreTrashedDir(original, payload, manifestPath);
+      logger.warn("storage-recovery", "restored storage data with uncommitted delete", {
+        kind: manifest.kind,
+        userId: manifest.userId,
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        await fs.rm(manifestPath, { force: true });
+        continue;
+      }
+      // 绝不覆盖已存在的线上目录：两份都保留给运维排查，
+      // 而不是猜测哪一份才是权威数据。
+      logger.error("storage-recovery", "trash restore failed; data kept", error as Error, {
+        kind: manifest.kind,
+        userId: manifest.userId,
+      });
+    }
+  }
+  const known = new Set(
+    manifests.flatMap((entry) => [entry.name, entry.name.replace(/\.json$/, ".data")]),
+  );
+  const unknown = entries.filter((entry) => !known.has(entry.name));
+  let removedUnknown = 0;
+  for (const entry of unknown) {
+    const full = path.join(REPORT_TRASH_DIR, entry.name);
+    if (!(await isOlderThan(full, recoveryRetentionMs()))) continue;
+    await fs.rm(full, { recursive: true, force: true, maxRetries: 3 });
+    removedUnknown += 1;
+  }
+  if (unknown.length > removedUnknown) {
+    logger.warn("storage-recovery", "manifest-less trash data kept until retention ends", {
+      count: unknown.length - removedUnknown,
+    });
   }
 }
 
@@ -357,11 +366,14 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
   const client = await db.connect();
   const globalKey = "storage-quota:global";
   let removed = 0;
+  let knownUsers = new Set<string>();
+  let currentArtifacts = new Set<string>();
   try {
+    // 只在锁内取得一致的数据库快照，文件系统遍历和删除放到锁外；
+    // 新上传的文件受 grace 保护，不会在快照后被误删。
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [
       globalKey,
     ]);
-    await fs.mkdir(REPORT_DATA_DIR, { recursive: true });
     const [{ rows: reports }, { rows: users }] = await Promise.all([
       client.query<{
         user_id: string;
@@ -369,56 +381,59 @@ export async function purgeOrphanedReportStorage(): Promise<{ removed: number }>
       }>(`SELECT user_id, storage_key FROM reports`),
       client.query<{ id: string }>(`SELECT id FROM "user"`),
     ]);
-    const knownUsers = new Set(users.map((row) => row.id));
-    const currentArtifacts = new Set(
+    knownUsers = new Set(users.map((row) => row.id));
+    currentArtifacts = new Set(
       reports
         .filter((row) => row.storage_key)
         .map((row) => `${row.user_id}\0${row.storage_key}`),
     );
-    const grace = orphanGraceMs();
-    const userEntries = await fs.readdir(REPORT_DATA_DIR, { withFileTypes: true });
-
-    for (const userEntry of userEntries) {
-      if (!userEntry.isDirectory() || userEntry.name === ".trash") continue;
-      const userId = userEntry.name;
-      const userDir = userReportsDir(userId);
-      if (!knownUsers.has(userId)) {
-        if (await removeIfStale(userDir, grace)) removed += 1;
-        continue;
-      }
-      const entries = await fs.readdir(userDir, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(userDir, entry.name);
-        if (entry.name === ".staging") {
-          const staged = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
-          for (const item of staged) {
-            if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
-          }
-          continue;
-        }
-        if (entry.name === "artifacts") {
-          const artifacts = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
-          for (const item of artifacts) {
-            if (currentArtifacts.has(`${userId}\0${item.name}`)) continue;
-            if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
-          }
-          continue;
-        }
-        if (await removeIfStale(full, grace)) removed += 1;
-      }
-    }
-
-    const osEntries = await fs.readdir(tmpdir(), { withFileTypes: true });
-    for (const entry of osEntries) {
-      if (!entry.name.startsWith("surge-upload-")) continue;
-      if (await removeIfStale(path.join(tmpdir(), entry.name), grace)) removed += 1;
-    }
   } finally {
     await client
       .query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [globalKey])
       .catch(() => {});
     client.release();
   }
+
+  await fs.mkdir(REPORT_DATA_DIR, { recursive: true });
+  const grace = orphanGraceMs();
+  const userEntries = await fs.readdir(REPORT_DATA_DIR, { withFileTypes: true });
+
+  for (const userEntry of userEntries) {
+    if (!userEntry.isDirectory() || userEntry.name === ".trash") continue;
+    const userId = userEntry.name;
+    const userDir = userReportsDir(userId);
+    if (!knownUsers.has(userId)) {
+      if (await removeIfStale(userDir, grace)) removed += 1;
+      continue;
+    }
+    const entries = await fs.readdir(userDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(userDir, entry.name);
+      if (entry.name === ".staging") {
+        const staged = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
+        for (const item of staged) {
+          if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
+        }
+        continue;
+      }
+      if (entry.name === "artifacts") {
+        const artifacts = await fs.readdir(full, { withFileTypes: true }).catch(() => []);
+        for (const item of artifacts) {
+          if (currentArtifacts.has(`${userId}\0${item.name}`)) continue;
+          if (await removeIfStale(path.join(full, item.name), grace)) removed += 1;
+        }
+        continue;
+      }
+      if (await removeIfStale(full, grace)) removed += 1;
+    }
+  }
+
+  const osEntries = await fs.readdir(tmpdir(), { withFileTypes: true });
+  for (const entry of osEntries) {
+    if (!entry.name.startsWith("surge-upload-")) continue;
+    if (await removeIfStale(path.join(tmpdir(), entry.name), grace)) removed += 1;
+  }
+
   if (removed > 0) logger.info("storage", "orphaned storage purged", { removed });
   return { removed };
 }

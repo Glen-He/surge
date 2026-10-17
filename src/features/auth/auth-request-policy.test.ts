@@ -12,10 +12,29 @@ vi.mock("@/infrastructure/database/rate-limit", () => ({ consumeSharedRateLimit:
 import { authRequestPolicy } from "./auth-request-policy";
 import { registrationInternalProof } from "./registration-policy";
 import { internalAuthProof } from "@/infrastructure/security/internal-auth-proof";
+import { consumeSharedRateLimit } from "@/infrastructure/database/rate-limit";
 const policy = authRequestPolicy as unknown as (ctx: { path: string; headers: Headers; body?: Record<string, string> }) => Promise<unknown>;
 
 describe("原生认证入口", () => {
-  beforeEach(() => mocks.query.mockReset());
+  beforeEach(() => {
+    mocks.query.mockReset();
+    vi.clearAllMocks();
+  });
+
+  it("IP 桶拒绝后不再消费全站 OTP 预算", async () => {
+    vi.mocked(consumeSharedRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      retryAfter: 60,
+    });
+    await expect(
+      policy({
+        path: "/request-password-reset",
+        headers: new Headers({ "x-forwarded-for": "203.0.113.9" }),
+        body: { email: "random@example.test" },
+      }),
+    ).rejects.toThrow("验证码发送过于频繁");
+    expect(consumeSharedRateLimit).toHaveBeenCalledTimes(1);
+  });
 
   it.each(["existing@example.test", "new@example.test"])("未授权邮箱 %s 在查询账号前被一致拒绝", async (email) => {
     await expect(policy({ path: "/email-otp/send-verification-otp", headers: new Headers(), body: { email, type: "sign-in" } })).rejects.toThrow("请使用注册页完成注册");

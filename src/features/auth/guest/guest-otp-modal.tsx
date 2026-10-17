@@ -90,6 +90,7 @@ export function GuestOtpModal() {
             text={code}
             label="复制验证码"
             copiedLabel="验证码已复制"
+            inline
           />
       </div>
     </TopNotice>

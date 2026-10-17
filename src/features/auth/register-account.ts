@@ -35,25 +35,17 @@ export async function registerAccount(input: {
   const lockKey = `registration:${input.email.toLowerCase()}`;
   try {
     await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
+    // 注册关闭时对所有邮箱返回同一结果；邀请码是否真实存在延后到
+    // OTP 验证通过后再校验，避免未认证请求在查账号前探测邀请码。
+    const policy = await getRegistrationPolicy(client);
+    if (!policy.enabled) {
+      throw new RegistrationError("REGISTRATION_CLOSED");
+    }
     const before = await client.query<{ id: string }>(
       `SELECT id FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
       [input.email],
     );
     const userExisted = before.rows[0] !== undefined;
-    const policy = await getRegistrationPolicy(client);
-    if (!userExisted && !policy.enabled) {
-      throw new RegistrationError("REGISTRATION_CLOSED");
-    }
-    if (!userExisted && policy.inviteRequired && !input.inviteCode) {
-      throw new RegistrationError("INVITE_REQUIRED");
-    }
-    if (
-      !userExisted &&
-      input.inviteCode &&
-      !(await validateRegistrationInvite(input.inviteCode, client))
-    ) {
-      throw new RegistrationError("INVITE_INVALID");
-    }
 
     const otpHeaders = internalAuthHeaders(input.headers);
     otpHeaders.set(
@@ -110,6 +102,22 @@ export async function registerAccount(input: {
     if (!sessionCookie) {
       await compensate();
       throw new RegistrationError("REGISTRATION_FAILED");
+    }
+
+    // OTP 已证明邮箱归属，此时才校验邀请码：未认证请求无法再用
+    // 发码/注册接口区分邀请码是否有效。已有账号不受邀请码策略影响。
+    if (!userExisted) {
+      if (policy.inviteRequired && !input.inviteCode) {
+        await compensate();
+        throw new RegistrationError("INVITE_REQUIRED");
+      }
+      if (
+        input.inviteCode &&
+        !(await validateRegistrationInvite(input.inviteCode, client))
+      ) {
+        await compensate();
+        throw new RegistrationError("INVITE_INVALID");
+      }
     }
 
     try {

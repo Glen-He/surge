@@ -10,6 +10,7 @@ import { serverEnv } from "@/infrastructure/environment/server";
 
 describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("真实注册与退出认证链路", () => {
   const email = `register-proof-${crypto.randomUUID()}@example.test`;
+  const invalidInviteEmail = `register-bad-invite-${crypto.randomUUID()}@example.test`;
   let userId = "";
   let policy: { registration_enabled: boolean; invite_required: boolean };
   beforeAll(async () => {
@@ -24,6 +25,9 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("真实注册与退出
   });
   afterAll(async () => {
     await db.query('DELETE FROM "user" WHERE lower(email) = lower($1)', [email]);
+    await db.query('DELETE FROM "user" WHERE lower(email) = lower($1)', [
+      invalidInviteEmail,
+    ]);
     if (policy) await db.query("UPDATE registration_settings SET registration_enabled = $1, invite_required = $2 WHERE id = TRUE", [policy.registration_enabled, policy.invite_required]);
   });
   it("一次注册完成验证码核销、会话绑定的初始密码设置和正式退出", async () => {
@@ -40,5 +44,38 @@ describe.skipIf(process.env.SURGE_DB_INTEGRATION !== "1")("真实注册与退出
     expect((await db.query('SELECT count(*) FROM "session" WHERE "userId" = $1', [userId])).rows[0].count).toBe("1");
     await endSession({ requestUrl: `${origin}/api/auth/end-session`, headers });
     expect((await db.query('SELECT count(*) FROM "session" WHERE "userId" = $1', [userId])).rows[0].count).toBe("0");
+  });
+
+  it("OTP 通过后才校验邀请码，无效邀请码会补偿删除新账号", async () => {
+    const origin = serverEnv.BETTER_AUTH_URL ?? "http://localhost:3000";
+    const headers = new Headers({ origin, "x-forwarded-for": "198.51.100.78" });
+    await db.query(
+      "UPDATE registration_settings SET registration_enabled = TRUE, invite_required = TRUE WHERE id = TRUE",
+    );
+    try {
+      const otp = await auth.api.createVerificationOTP({
+        body: { email: invalidInviteEmail, type: "sign-in" },
+      });
+      await expect(
+        registerAccount({
+          email: invalidInviteEmail,
+          otp,
+          password: "Registration-test-2026!",
+          inviteCode: "BAD",
+          clientIp: "198.51.100.78",
+          requestUrl: `${origin}/api/auth/register`,
+          headers,
+        }),
+      ).rejects.toMatchObject({ code: "INVITE_INVALID" });
+      const users = await db.query(
+        'SELECT count(*)::text AS n FROM "user" WHERE lower(email) = lower($1)',
+        [invalidInviteEmail],
+      );
+      expect(users.rows[0].n).toBe("0");
+    } finally {
+      await db.query(
+        "UPDATE registration_settings SET registration_enabled = TRUE, invite_required = FALSE WHERE id = TRUE",
+      );
+    }
   });
 });

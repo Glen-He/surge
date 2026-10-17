@@ -2,13 +2,12 @@ import { checkShareLookupRate } from "@/features/sharing/share-lookup-rate";
 import { cookies, headers } from "next/headers";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { clientIp } from "@/infrastructure/security/client-ip";
-import { boardUnlockCookieName, boardUnlockProof, findPublicShareBoard } from "@/features/sharing/public-share-board";
 import {
-  checkUnlockRate,
-  clearUnlockRate,
-  recordUnlockFailure,
-  verifySharePassword,
-} from "@/features/sharing/report-share";
+  boardUnlockCookieName,
+  boardUnlockProof,
+  findPublicShareBoard,
+} from "@/features/sharing/public-share-board";
+import { verifyShareUnlockAttempt } from "@/features/sharing/unlock-shared-content";
 
 export async function POST(
   req: Request,
@@ -23,36 +22,28 @@ export async function POST(
   );
   const board = await findPublicShareBoard(token);
   if (!board) return Response.json({ error: "面板无效或已停用" }, { status: 404 });
-  if (!board.passwordHash) return Response.json({ ok: true });
 
-  const rateKey = `board:${token}`;
-  const rate = await checkUnlockRate(rateKey, ip);
-  if (!rate.ok) {
+  const body = await req.json().catch(() => ({}));
+  const attempt = await verifyShareUnlockAttempt({
+    token,
+    ip,
+    password: body.password,
+    passwordHash: board.passwordHash,
+    rateKey: `board:${token}`,
+  });
+  if (attempt.kind === "unlock-rate") {
     return Response.json(
-      { error: `尝试次数过多，请 ${rate.retryAfter} 秒后再试` },
+      { error: `尝试次数过多，请 ${attempt.retryAfter} 秒后再试` },
       { status: 429 },
     );
   }
-  const body = await req.json().catch(() => ({}));
-  const password =
-    typeof body.password === "string"
-      ? body.password.toUpperCase()
-      : "";
-  if (
-    !password ||
-    password.length !== 4 ||
-    !(await verifySharePassword(password, board.passwordHash))
-  ) {
-    const failureRate = await recordUnlockFailure(rateKey);
-    if (!failureRate.ok) {
-      return Response.json(
-        { error: `尝试次数过多，请 ${failureRate.retryAfter} 秒后再试` },
-        { status: 429 },
-      );
-    }
+  if (attempt.kind === "wrong-passcode") {
     return Response.json({ error: "提取码不正确" }, { status: 401 });
   }
-  await clearUnlockRate(rateKey, ip);
+  if (attempt.kind === "no-password") {
+    return Response.json({ ok: true });
+  }
+
   const jar = await cookies();
   jar.set(boardUnlockCookieName(token), boardUnlockProof(token, board.accessEpoch), {
     httpOnly: true,

@@ -5,6 +5,7 @@ import { CopyPillButton } from "@/shared/ui/copy-feedback-button";
 import { Modal } from "@/shared/ui/modal/modal";
 import { SelectMenu } from "@/shared/ui/select-menu";
 import { SharePasscodeControl } from "@/features/sharing/share-passcode-control";
+import { ShareListPlaceholder } from "@/features/sharing/share-list-placeholder";
 import { SHARE_EXPIRY_OPTIONS } from "@/features/sharing/share-expiry";
 import type { ShareExpiryDays } from "@/features/sharing/share-expiry";
 import { shareClipboardText } from "@/features/sharing/share-copy";
@@ -355,9 +356,9 @@ function ShareDialog({
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {boardsLoading ? (
-                <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">加载中…</div>
+                <ShareListPlaceholder>加载中…</ShareListPlaceholder>
               ) : boards.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">还没有分享面板，先新建一个</div>
+                <ShareListPlaceholder>还没有分享面板，先新建一个</ShareListPlaceholder>
               ) : (
                 <ul className="space-y-2">
                   {boards.map((board) => {
@@ -387,6 +388,7 @@ function ShareDialog({
                             }
                             label="复制链接"
                             disabled={board.disabled}
+                            onCopyError={() => setBoardError("复制失败，请重试")}
                             className="inline-flex h-[28px] min-w-[78px] items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                           />
                           <button
@@ -482,13 +484,9 @@ function ShareDialog({
             className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {loading ? (
-              <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">
-                加载中…
-              </div>
+              <ShareListPlaceholder>加载中…</ShareListPlaceholder>
             ) : shares.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--border-control)] type-caption text-[var(--text-secondary)]">
-                还没有分享链接，先生成一个
-              </div>
+              <ShareListPlaceholder>还没有分享链接，先生成一个</ShareListPlaceholder>
             ) : (
               <ul className="space-y-2">
               {shares.map((s) => {
@@ -522,6 +520,7 @@ function ShareDialog({
                         }
                         label="复制链接"
                         disabled={!active}
+                        onCopyError={() => setError("复制失败，请重试")}
                         className="inline-flex h-[28px] w-[78px] shrink-0 items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                       />
                       <button

@@ -83,6 +83,8 @@ export async function deleteUserPermanently(
   userId: string,
   reason: "account" | "guest",
 ): Promise<boolean> {
+  // 默认同时持全局存储锁：purgeTrash 也持同一把锁，避免删除事务尚未
+  // 提交时把已移入回收站的目录又恢复回线上位置。
   return withStorageLocks(userId, async (client) => {
     const moved = await moveUserDirToTrash(userId, reason);
     try {
@@ -159,7 +161,7 @@ export async function deleteUserPermanently(
       );
     });
     return true;
-  }, { global: false });
+  });
 }
 
 /** 清理短期凭证，并按保留策略裁剪包含个人信息的审计数据。 */

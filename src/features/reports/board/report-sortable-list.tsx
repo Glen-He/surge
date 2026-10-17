@@ -212,9 +212,10 @@ function ReportDayBoundary({
       data-report-day={date}
       className="col-span-full mb-5 flex h-1 items-center justify-center gap-3"
     >
-      <span className="h-px w-16 bg-[var(--border-subtle)]" />
+      {/* 保持原有占位宽度，但不绘制分割线 */}
+      <span className="h-px w-16" aria-hidden="true" />
       <span className="h-1 w-1 rounded-full bg-[var(--control-off)]" />
-      <span className="h-px w-16 bg-[var(--border-subtle)]" />
+      <span className="h-px w-16" aria-hidden="true" />
     </div>
   );
 }
@@ -546,7 +547,8 @@ export function SortableReportList({
                 )}{" "}
                 份
               </span>
-              <span className="h-px flex-1 bg-[var(--border)]" />
+              {/* 保留自适应占位，不再绘制横向分割线 */}
+              <span className="h-px flex-1" aria-hidden="true" />
             </h3>,
             ...month.days.flatMap((day, dayIndex) => [
               <ReportDayBoundary

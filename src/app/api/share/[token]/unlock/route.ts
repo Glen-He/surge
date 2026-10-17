@@ -3,14 +3,11 @@ import { cookies, headers } from "next/headers";
 import { serverEnv } from "@/infrastructure/environment/server";
 import { clientIp } from "@/infrastructure/security/client-ip";
 import {
-  checkUnlockRate,
-  clearUnlockRate,
   findValidShare,
-  recordUnlockFailure,
   unlockCookieName,
   unlockProof,
-  verifySharePassword,
 } from "@/features/sharing/report-share";
+import { verifyShareUnlockAttempt } from "@/features/sharing/unlock-shared-content";
 
 // 密码解锁：校验通过后签发 HMAC 证明 cookie（HttpOnly + Path 绑定本 token）。
 // 报告子资源使用 capability，不消费分享 cookie，因此无需把 cookie 扩散到全站。
@@ -29,40 +26,28 @@ export async function POST(
   if (!found) {
     return Response.json({ error: "链接无效或已失效" }, { status: 404 });
   }
-  if (!found.share.password_hash) {
-    return Response.json({ ok: true }); // 无密码无需解锁
-  }
 
-  // 限速：每 token 10 分钟窗口 10 次
-  const rl = await checkUnlockRate(token, ip);
-  if (!rl.ok) {
+  const body = await req.json().catch(() => ({}));
+  const attempt = await verifyShareUnlockAttempt({
+    token,
+    ip,
+    password: body.password,
+    passwordHash: found.share.password_hash,
+    rateKey: token,
+  });
+  if (attempt.kind === "unlock-rate") {
     return Response.json(
-      { error: `尝试次数过多，请 ${rl.retryAfter} 秒后再试` },
+      { error: `尝试次数过多，请 ${attempt.retryAfter} 秒后再试` },
       { status: 429 },
     );
   }
-
-  const body = await req.json().catch(() => ({}));
-  const password =
-    typeof body.password === "string"
-      ? body.password.toUpperCase()
-      : "";
-  if (
-    !password ||
-    password.length !== 4 ||
-    !(await verifySharePassword(password, found.share.password_hash))
-  ) {
-    const failureRate = await recordUnlockFailure(token);
-    if (!failureRate.ok) {
-      return Response.json(
-        { error: `尝试次数过多，请 ${failureRate.retryAfter} 秒后再试` },
-        { status: 429 },
-      );
-    }
+  if (attempt.kind === "wrong-passcode") {
     return Response.json({ error: "提取码不正确" }, { status: 401 });
   }
+  if (attempt.kind === "no-password") {
+    return Response.json({ ok: true });
+  }
 
-  await clearUnlockRate(token, ip);
   const jar = await cookies();
   jar.set(unlockCookieName(token), unlockProof(`share:${token}:${found.share.id}:${found.share.access_epoch}`), {
     httpOnly: true,
