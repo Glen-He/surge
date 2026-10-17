@@ -90,9 +90,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // 运行时/客户报告资产是数据，不是应用源码。
+    // 报告资产与制作工作区是数据，不是应用源码。
     "reports/**",
-    "reports_local/**",
+    "workshop/**",
     // 本地工作痕迹（迁移方案、一次性脚本），git 已忽略。
     "tmp/**",
   ]),

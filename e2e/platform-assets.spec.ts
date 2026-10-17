@@ -24,7 +24,7 @@ import {
 // 边界、CSP script-src 与 sandbox 语义。
 // 报告 A/B 使用仓库内最小确定性夹具，分别覆盖 ECharts + data.js +
 // 3Dmol 懒加载及 ECharts + data.js；模板 T 使用 tpl-01。E2E 不依赖
-// 被 gitignore 排除的 reports_local，确保每次运行都使用相同的输入。
+// 被 gitignore 排除的 workshop，确保每次运行都使用相同的输入。
 
 const ECHARTS_URL_FILE = "echarts.42f8329d989b6f65.min.js";
 

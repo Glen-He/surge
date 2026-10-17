@@ -46,4 +46,4 @@ access_log /var/log/nginx/surge-access.log surge_safe;
 
 升级前备份 PostgreSQL、报告数据和加密密钥。分享与邀请码密文依赖对应密钥，不能只恢复数据库而丢弃密钥。迁移由应用的数据库初始化流程执行，部署新版本时检查迁移和健康日志。
 
-本地验证使用独立临时数据库、临时报告目录和测试密钥，不连接生产数据，也不把 `reports_local/` 当作运行目录。按改动运行 lint、`pnpm typecheck`、单元测试；结构变化还需运行 `pnpm check:imports` 与 `pnpm check:architecture`。数据库变更运行集成测试，最终验证生产构建；涉及交互时再运行浏览器测试，结束后关闭临时服务并清理数据。
+本地验证使用独立临时数据库、临时报告目录和测试密钥，不连接生产数据，也不把 `workshop/` 当作运行目录。按改动运行 lint、`pnpm typecheck`、单元测试；结构变化还需运行 `pnpm check:imports` 与 `pnpm check:architecture`。数据库变更运行集成测试，最终验证生产构建；涉及交互时再运行浏览器测试，结束后关闭临时服务并清理数据。
