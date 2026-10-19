@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { CardHead } from "@/shared/ui/card-head";
 import { CopyIconButton } from "@/shared/ui/copy-feedback-button";
@@ -34,23 +34,19 @@ const ICON_INFO = (
   </svg>
 );
 
-export function InvitationCard({ isGuest }: { isGuest: boolean }) {
-  const [invite, setInvite] = useState<InviteSummary | null>(null);
-  const [loaded, setLoaded] = useState(isGuest);
+// 邀请码由账号页在服务端取好传入，首屏直接渲染，不出现"加载中→跳变"
+export function InvitationCard({
+  isGuest,
+  initialInvite,
+  initialError = "",
+}: {
+  isGuest: boolean;
+  initialInvite: InviteSummary | null;
+  initialError?: string;
+}) {
+  const [invite, setInvite] = useState<InviteSummary | null>(initialInvite);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (isGuest) return;
-    fetch("/api/account/invites")
-      .then((response) => response.json())
-      .then((data) => {
-        setInvite(data.invite ?? null);
-        setError(data.error ?? "");
-      })
-      .catch(() => setError("邀请码加载失败，请刷新后重试"))
-      .finally(() => setLoaded(true));
-  }, [isGuest]);
+  const [error, setError] = useState(initialError);
 
   async function mutate(method: "POST" | "PATCH") {
     if (busy) return;
@@ -118,8 +114,6 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
           <p className="type-body text-[var(--text-secondary)]">
             游客模式不支持邀请用户，注册正式账号后可用
           </p>
-        ) : !loaded ? (
-          <p className="type-body text-[var(--text-secondary)]">加载中…</p>
         ) : active ? (
           <div>
             <div className="account-value-row flex min-w-0 items-center">

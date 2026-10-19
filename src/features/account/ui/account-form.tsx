@@ -11,6 +11,8 @@ import { clearGuestClientState } from "@/features/auth/guest/guest-session-clien
 import { DeleteAccountModal } from "@/features/account/ui/delete-account-modal";
 import { ApiTokensCard } from "@/features/account/ui/api-tokens-card";
 import { InvitationCard } from "@/features/account/ui/invitation-card";
+import type { ApiTokenInfo } from "@/features/account/api-tokens";
+import type { InviteSummary } from "@/features/auth/registration-invites";
 
 /** 游客会话倒计时：头像 + 邮箱下方一行，每秒刷新，到点由守望器负责退出 */
 function GuestCountdown({ expiresAt }: { expiresAt: string }) {
@@ -109,11 +111,20 @@ export function AccountForm({
   deletionRequestedAt,
   guestExpiresAt,
   activeSessionCount,
+  apiToken,
+  apiTokenError,
+  invitation,
+  invitationError,
 }: {
   email: string;
   deletionRequestedAt: string | null;
   guestExpiresAt: string | null;
   activeSessionCount: number;
+  // 令牌与邀请码由账号页在服务端取好传入，首屏直接渲染，避免"先空态再跳变"
+  apiToken: ApiTokenInfo | null;
+  apiTokenError?: string;
+  invitation: InviteSummary | null;
+  invitationError?: string;
 }) {
   const router = useRouter();
   const [openEmail, setOpenEmail] = useState(false);
@@ -316,10 +327,18 @@ export function AccountForm({
         </section>
 
         {/* ── API 令牌（程序化上传）── */}
-        <ApiTokensCard isGuest={Boolean(guestExpiresAt)} />
+        <ApiTokensCard
+          isGuest={Boolean(guestExpiresAt)}
+          initialToken={apiToken}
+          initialError={apiTokenError}
+        />
 
         {/* ── 邀请注册（每个正式用户一个邀请码）── */}
-        <InvitationCard isGuest={Boolean(guestExpiresAt)} />
+        <InvitationCard
+          isGuest={Boolean(guestExpiresAt)}
+          initialInvite={invitation}
+          initialError={invitationError}
+        />
       </div>
 
       {/* 弹窗：所有敏感操作在当前页面完成 */}

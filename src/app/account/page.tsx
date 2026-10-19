@@ -7,17 +7,36 @@ import { getGuestExpiry } from "@/features/guest/guest-sandbox";
 import { requireSession } from "@/features/session/session";
 import { getDeletionRequestedAt } from "@/features/account/account-deletion";
 import { listActiveAccountSessions } from "@/features/account/account-sessions";
+import { getApiToken } from "@/features/account/api-tokens";
+import { getAccountInvitation } from "@/features/account/manage-invitation";
+import { API_TOKEN_UNREADABLE_COPY } from "@/features/account/api-token-errors";
+import { INVITATION_UNREADABLE_COPY } from "@/features/account/invitation-errors";
 
 export default async function AccountPage() {
   // 未登录 → 登录页；游客沙箱到期 → 销毁并回登录页
   const session = await requireSession();
   const guest = isGuestEmail(session.user.email);
-  const [deletionRequestedAt, guestExpiry, activeSessions] = await Promise.all([
+  // 令牌与邀请码在服务端一次取好，随首屏一起下发；
+  // 否则客户端组件挂载后才发现"有令牌/有邀请码"，会先渲染空态再跳变。
+  const [
+    deletionRequestedAt,
+    guestExpiry,
+    activeSessions,
+    apiToken,
+    invitation,
+  ] = await Promise.all([
     getDeletionRequestedAt(session.user.id),
     guest ? getGuestExpiry(session.user.id) : Promise.resolve(null),
     guest
       ? Promise.resolve([])
       : listActiveAccountSessions(session.user.id, session.session.id),
+    guest ? Promise.resolve(null) : getApiToken(session.user.id),
+    guest
+      ? Promise.resolve(null)
+      : getAccountInvitation({
+          userId: session.user.id,
+          email: session.user.email,
+        }),
   ]);
 
   return (
@@ -71,6 +90,16 @@ export default async function AccountPage() {
           }
           guestExpiresAt={guestExpiry ? guestExpiry.toISOString() : null}
           activeSessionCount={activeSessions.length}
+          apiToken={apiToken}
+          apiTokenError={
+            apiToken && !apiToken.token ? API_TOKEN_UNREADABLE_COPY : undefined
+          }
+          invitation={invitation}
+          invitationError={
+            invitation && !invitation.code
+              ? INVITATION_UNREADABLE_COPY
+              : undefined
+          }
         />
       </div>
       {guestExpiry && (

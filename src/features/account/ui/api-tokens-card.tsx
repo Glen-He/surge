@@ -1,19 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { CardHead } from "@/shared/ui/card-head";
 import { CopyIconButton } from "@/shared/ui/copy-feedback-button";
+import type { ApiTokenInfo } from "@/features/account/api-tokens";
 
 // API 令牌卡：单令牌密钥面板
 // 无令牌 → 引导创建；有令牌 → 打码显示 + 眼睛切换 + 复制图标 + 更换 + 撤销
 // 使用方法在 /account/api-usage（信息按钮跳转）
 // 卡片高度与其他账号卡严格一致（280px）：内容区 max-h 83px
-
-type TokenInfo = {
-  id: string;
-  token: string | null;
-};
+// 令牌由账号页在服务端取好传入，首屏直接渲染，不出现"加载中→跳变"
 
 const ICON_KEY = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[19px] w-[19px]">
@@ -45,25 +42,20 @@ const ICON_EYE_OFF = (
   </svg>
 );
 
-export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
-  const [token, setToken] = useState<TokenInfo | null>(null);
-  const [loaded, setLoaded] = useState(false);
+export function ApiTokensCard({
+  isGuest,
+  initialToken,
+  initialError = "",
+}: {
+  isGuest: boolean;
+  initialToken: ApiTokenInfo | null;
+  initialError?: string;
+}) {
+  const [token, setToken] = useState<ApiTokenInfo | null>(initialToken);
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
   // 常驻错误槽：报错出现/消失零位移
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (isGuest) return;
-    fetch("/api/account/tokens")
-      .then((r) => r.json())
-      .then((d) => {
-        setToken(d.token ?? null);
-        if (d.error) setError(d.error);
-      })
-      .catch(() => setError("令牌加载失败，请刷新后重试"))
-      .finally(() => setLoaded(true));
-  }, [isGuest]);
+  const [error, setError] = useState(initialError);
 
   async function mutate(method: "POST" | "PATCH") {
     if (busy) return;
@@ -133,8 +125,6 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
           <p className="type-body text-[var(--text-secondary)]">
             游客模式不支持 API 令牌，注册正式账号后可用
           </p>
-        ) : !loaded ? (
-          <p className="type-body text-[var(--text-secondary)]">加载中…</p>
         ) : token ? (
           <div>
             <div className="account-value-row flex items-center gap-1">
