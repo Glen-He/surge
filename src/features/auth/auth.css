@@ -235,6 +235,12 @@
   text-transform: uppercase;
 }
 
+/* 邀请码输入沿用验证码的字距，但 placeholder 是说明文字（“6 位数字或字母”）：
+ * 复位字距，避免被撑开，与其它输入框保持一致。 */
+.auth-input-code::placeholder {
+  letter-spacing: normal;
+}
+
 .auth-input-error,
 .auth-input-error:focus,
 .auth-input-error:focus-visible {

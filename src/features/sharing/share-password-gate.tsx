@@ -97,7 +97,7 @@ export function SharePasswordGate({
           maxLength={4}
           autoCapitalize="characters"
           autoComplete="off"
-          className="mt-5 h-[44px] w-full rounded-full border border-[var(--border-control)] bg-[var(--surface)] px-4 text-center type-input tracking-[0.24em] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="mt-5 h-[44px] w-full rounded-full border border-[var(--border-control)] bg-[var(--surface)] px-4 text-center type-input tracking-[0.24em] placeholder:tracking-normal text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--accent)]"
         />
         {/* 错误行固定占位：避免密码错误提示出现时卡片高度跳变 */}
         <p className="mt-2 h-[var(--line-height-caption)] text-center type-caption text-[var(--danger-text)]">{error}</p>
