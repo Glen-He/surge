@@ -105,7 +105,6 @@ function fieldLimitError(
  */
 export function ProjectForm({
   heading,
-  headingDesc,
   initial,
   requireFile,
   submitLabel,
@@ -113,7 +112,6 @@ export function ProjectForm({
   onSubmit,
 }: {
   heading: string;
-  headingDesc: string;
   initial?: Partial<ProjectFormValues>;
   requireFile: boolean;
   submitLabel: string;
@@ -211,9 +209,6 @@ export function ProjectForm({
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               {heading}
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              {headingDesc}
-            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
             <Link href={`/guide?from=${encodeURIComponent(pathname)}`} className="btn-light">
@@ -249,7 +244,7 @@ export function ProjectForm({
           <div className="project-grid">
             {/* ── 基本信息 ── */}
             <section className="project-card">
-              <CardHead icon={ICON_INFO} title="基本信息" desc="建立项目的基础信息" />
+              <CardHead icon={ICON_INFO} title="基本信息" />
               <div className="project-field">
                 <label className="project-label" htmlFor="np-title">
                   项目名称<span className="project-req">*</span>
@@ -306,7 +301,7 @@ export function ProjectForm({
 
             {/* ── 分类与检索 ── */}
             <section className="project-card">
-              <CardHead icon={ICON_TAG} title="分类与检索" desc="帮助项目后续整理与搜索" />
+              <CardHead icon={ICON_TAG} title="分类与检索" />
               <div className="project-field">
                 <label className="project-label" htmlFor="np-tag">
                   标签
@@ -405,7 +400,7 @@ export function ProjectForm({
 
             {/* ── 项目简介 ── */}
             <section className="project-card">
-              <CardHead icon={ICON_DESC} title="项目简介" desc="简要说明这个项目的背景和内容" />
+              <CardHead icon={ICON_DESC} title="项目简介" />
               <div className="project-field">
                 <label className="project-label" htmlFor="np-desc">
                   项目说明
@@ -433,11 +428,6 @@ export function ProjectForm({
               <CardHead
                 icon={ICON_FILE}
                 title="报告文件"
-                desc={
-                  requireFile
-                    ? "上传报告压缩包（ZIP）或单个 HTML 文件"
-                    : "保留原报告，或更换新的 ZIP / HTML 文件"
-                }
               />
 
               <input

@@ -308,6 +308,7 @@ function ShareDialog({
         >
           <div className="shrink-0 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] p-4">
             <p className="type-label text-[var(--text-primary)]">新建面板并加入当前汇报</p>
+            <p className="mt-1 type-caption text-[var(--text-secondary)]">同一汇报可同时加入多个面板。</p>
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div>
                 <label htmlFor="new-share-board-name" className="mb-1 block type-label text-[var(--text-secondary)]">

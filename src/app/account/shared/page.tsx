@@ -23,11 +23,6 @@ export default async function SharesPage() {
             <h1 className="whitespace-nowrap type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               分享管理
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              {boards.length > 0 || rows.length > 0
-                ? `${boards.length} 个分享面板 · ${rows.length} 条分享链接`
-                : "暂无分享内容"}
-            </p>
           </div>
           <Link href="/home" className="btn-light">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[15px] w-[15px]">

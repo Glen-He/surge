@@ -64,9 +64,6 @@ function ResetPasswordForm() {
           <h1 className="text-center type-page-title tracking-tight">
             设置新密码
           </h1>
-          <p className="mt-2 text-center type-body text-[var(--text-secondary)]">
-            请输入你的新密码
-          </p>
 
           <form
             onSubmit={handleSubmit}

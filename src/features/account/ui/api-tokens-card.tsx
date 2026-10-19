@@ -115,7 +115,6 @@ export function ApiTokensCard({ isGuest }: { isGuest: boolean }) {
       <CardHead
         icon={ICON_KEY}
         title="API 令牌"
-        desc="在脚本或 AI 工具中直接上传汇报"
         extra={
           !isGuest ? (
             <Link

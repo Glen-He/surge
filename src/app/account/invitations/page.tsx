@@ -62,9 +62,6 @@ export default async function InvitationDetailsPage() {
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               邀请详情
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              查看邀请码状态、邀请人数与后续奖励规则
-            </p>
           </div>
           <Link href="/account" className="btn-light shrink-0">
             {ICON_BACK}
@@ -77,7 +74,6 @@ export default async function InvitationDetailsPage() {
             <CardHead
               icon={ICON_INVITE}
               title="邀请状态"
-              desc="当前邀请码及累计注册情况"
             />
             <div className="mt-9 grid grid-cols-2 gap-4">
               <div className="rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-4">
@@ -106,7 +102,6 @@ export default async function InvitationDetailsPage() {
             <CardHead
               icon={ICON_REWARD}
               title="奖励与规则"
-              desc="后续邀请奖励和达成条件将在这里展示"
             />
             <div className="mt-9 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-5 py-5">
               <p className="type-subtitle text-[var(--text-primary)]">

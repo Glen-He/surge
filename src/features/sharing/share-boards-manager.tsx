@@ -199,7 +199,6 @@ export function ShareBoardsManager({
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="type-section-title tracking-[-0.01em]">分享面板</h2>
-          <p className="mt-1 type-caption text-[var(--text-secondary)]">按查看对象创建不同面板，同一汇报可加入多个面板。</p>
         </div>
         <div className="group/new-board relative shrink-0">
           <button

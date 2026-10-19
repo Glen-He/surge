@@ -31,7 +31,6 @@ export function NewReportClient() {
   return (
     <ProjectForm
       heading="新建项目"
-      headingDesc="填写项目基础信息并上传工作报告。"
       requireFile
       submitLabel="创建项目"
       submittingLabel="创建中…"

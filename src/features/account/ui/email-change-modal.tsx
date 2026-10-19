@@ -239,9 +239,6 @@ function EmailChangeDialog({
             <p className="type-subtitle text-[var(--text-primary)]">
               验证当前邮箱
             </p>
-            <p className="mt-1 type-body text-[var(--text-secondary)]">
-              为了保护账号安全，请先验证当前绑定邮箱。
-            </p>
 
             <p className="mt-4 type-caption text-[var(--text-secondary)]">当前绑定邮箱</p>
             <div className="info-card mt-1.5">
@@ -300,9 +297,6 @@ function EmailChangeDialog({
           <div className="security-step-center">
             <p className="type-subtitle text-[var(--text-primary)]">
               设置新的登录邮箱
-            </p>
-            <p className="mt-1 type-body text-[var(--text-secondary)]">
-              新的邮箱将用于后续登录、身份验证和接收安全通知。
             </p>
 
             <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">

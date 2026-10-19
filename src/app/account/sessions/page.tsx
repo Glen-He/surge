@@ -34,9 +34,6 @@ export default async function AccountSessionsPage() {
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               登录设备
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              查看并管理当前账号的活跃登录会话
-            </p>
           </div>
           <Link href="/account" className="btn-light shrink-0">
             {ICON_BACK}

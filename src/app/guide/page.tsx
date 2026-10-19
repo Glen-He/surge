@@ -201,9 +201,6 @@ function GuideContent() {
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               汇报页制作指南
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              用 AI 生成汇报页，上传即可展示和分享。
-            </p>
           </div>
           <Link href={backHref} className="btn-light shrink-0">
             {ICON_BACK}

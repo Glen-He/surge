@@ -325,9 +325,6 @@ function PasswordChangeDialog({
             <p className="type-subtitle text-[var(--text-primary)]">
               选择身份验证方式
             </p>
-            <p className="mt-1 type-body text-[var(--text-secondary)]">
-              为了保护账号安全，请先确认是你本人。
-            </p>
 
             <div className="verify-methods mt-4">
               <button
@@ -368,9 +365,6 @@ function PasswordChangeDialog({
           <div className="security-step-center">
             <p className="type-subtitle text-[var(--text-primary)]">
               验证当前密码
-            </p>
-            <p className="mt-1 type-body text-[var(--text-secondary)]">
-              请输入当前登录密码以继续。
             </p>
 
             <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
@@ -477,9 +471,6 @@ function PasswordChangeDialog({
           <StepIndicator steps={STEPS} current={1} />
 
           <p className="type-subtitle text-[var(--text-primary)]">设置新密码</p>
-          <p className="mt-1 type-body text-[var(--text-secondary)]">
-            请设置一个新的登录密码。
-          </p>
 
           <label className="mb-2 mt-4 block type-label text-[var(--text-primary)]">
             新密码

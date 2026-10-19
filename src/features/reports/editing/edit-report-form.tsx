@@ -42,7 +42,6 @@ export function EditReportForm({
   return (
     <ProjectForm
       heading="编辑项目"
-      headingDesc="修改项目信息，或更换报告文件。"
       initial={initial}
       requireFile={false}
       submitLabel="保存修改"

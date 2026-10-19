@@ -45,9 +45,6 @@ export default async function ApiUsagePage() {
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               API 上传使用说明
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              在命令行、脚本或 AI 工具中直接上传汇报文件。
-            </p>
           </div>
           <Link href="/account" className="btn-light shrink-0">
             {ICON_BACK}

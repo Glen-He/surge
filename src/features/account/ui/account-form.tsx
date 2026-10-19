@@ -174,7 +174,7 @@ export function AccountForm({
       <div className="account-grid">
         {/* ── 账号信息 ── */}
         <section className="account-card">
-          <CardHead icon={ICON_USER} title="账号信息" desc="当前登录账号" />
+          <CardHead icon={ICON_USER} title="账号信息" />
           <div className="card-main flex items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)] type-section-title text-[var(--text-on-fill)]">
               {email.slice(0, 1).toUpperCase()}
@@ -221,7 +221,6 @@ export function AccountForm({
           <CardHead
             icon={ICON_MAIL}
             title="登录邮箱"
-            desc="用于登录、身份验证和接收安全通知"
           />
           <div className="card-main shifted">
             <p className="break-email type-value text-[var(--text-primary)]">
@@ -248,7 +247,6 @@ export function AccountForm({
           <CardHead
             icon={ICON_LOCK}
             title="登录密码"
-            desc="保护你的账号登录安全"
           />
           <div className="card-main shifted">
             <p className="type-value tracking-[0.22em] text-[var(--text-primary)]">
@@ -277,7 +275,6 @@ export function AccountForm({
           <CardHead
             icon={ICON_DEVICE}
             title="登录设备"
-            desc="查看并管理当前账号的活跃会话"
           />
           <div className="card-main shifted">
             <p className="type-value text-[var(--text-primary)]">

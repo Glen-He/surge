@@ -15,9 +15,6 @@ export default async function AdminPage() {
             <h1 className="type-page-title tracking-[-0.02em] text-[var(--text-primary)]">
               管理后台
             </h1>
-            <p className="mt-2 type-body text-[var(--text-secondary)]">
-              管理平台注册策略与其他全局能力
-            </p>
           </div>
           <Link href="/account" className="btn-light shrink-0">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-[15px] w-[15px]">

@@ -6,3 +6,8 @@
   gap: 12px;
   min-height: 40px;
 }
+
+/* 无副标题时右侧只剩一行标题：与 40px 图标垂直居中，避免标题贴顶错位 */
+.card-head-title-only {
+  align-items: center;
+}

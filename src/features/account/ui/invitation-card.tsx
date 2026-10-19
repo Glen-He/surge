@@ -101,7 +101,6 @@ export function InvitationCard({ isGuest }: { isGuest: boolean }) {
       <CardHead
         icon={ICON_INVITE}
         title="邀请注册"
-        desc="使用你的专属邀请码邀请其他用户加入"
         extra={
           !isGuest ? (
             <Link

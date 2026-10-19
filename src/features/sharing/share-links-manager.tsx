@@ -76,9 +76,6 @@ export function ShareLinksManager({
         <h2 className="type-section-title tracking-[-0.01em]">
           分享链接
         </h2>
-        <p className="mt-1 type-caption text-[var(--text-secondary)]">
-          每份汇报集中管理多条独立链接，可分别设置提取码、有效期和访问状态。
-        </p>
       </div>
 
       {reports.length === 0 ? (
