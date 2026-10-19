@@ -10,6 +10,10 @@
 
 本项目不使用 GitHub 平台上的任何自动化执行：禁止新增 GitHub Actions 工作流（`.github/workflows/*.yml`，包括 CI 测试流水线）与依赖自动更新配置（如 `.github/dependabot.yml`）。所有质量检查（lint、类型检查、测试、构建）一律在本地手动运行；相关配置已从仓库及历史中移除，不得以任何理由重新引入。
 
+# 提交规范
+
+commit message 只写单行英文：conventional commits 前缀（feat / fix / refactor / docs / chore / test / perf）+ 一句话说明。不加 body、不写中文、不写成多行；需要展开的理由放进代码注释或对应文档。
+
 # 架构与代码组织
 
 1. **所有权优先于目录整齐**：先读完整文件、重要 callers、dependencies 与相关测试，再判断 keep / rename / move / split / merge。不得按行数、文件名或预设模板机械拆分，不追求目录对称和“文件越多越专业”。
