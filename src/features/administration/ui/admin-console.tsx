@@ -46,7 +46,7 @@ export function AdminConsole({
   }
 
   return (
-    <section className="account-card min-h-[260px]">
+    <section className="account-card">
       <div className="card-head">
         <div>
           <h2 className="type-card-title tracking-[-0.01em]">

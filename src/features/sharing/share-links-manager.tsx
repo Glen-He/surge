@@ -84,7 +84,7 @@ export function ShareLinksManager({
           hint="在项目卡片的分享按钮或报告页的分享按钮里生成链接，都会汇总在这里管理。"
         />
       ) : (
-        <div data-share-links-grid className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div data-share-links-grid className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
           {reports.map((report) => {
             const viewCount = report.shares.reduce(
               (total, share) => total + Number(share.view_count),
@@ -98,8 +98,8 @@ export function ShareLinksManager({
                 key={report.report_slug}
                 data-share-link-card
                 data-report-slug={report.report_slug}
-                className="flex min-w-0 flex-col rounded-[var(--radius-xl)] bg-[var(--surface)] p-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)]"
-                style={{ height: 270, minHeight: 270, maxHeight: 270 }}
+                className="flex min-w-0 flex-col rounded-[var(--radius-xl)] bg-[var(--surface)] px-[22px] py-5 shadow-[0_8px_28px_rgba(0,0,0,0.025)] md:px-[30px]"
+                style={{ height: 280, minHeight: 280, maxHeight: 280 }}
               >
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
@@ -137,7 +137,7 @@ export function ShareLinksManager({
                       <div
                         key={share.id}
                         data-share-item={share.id}
-                        className="flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-2"
+                        className="flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3"
                       >
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 type-badge ${STATUS_CLASS[status]}`}

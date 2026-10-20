@@ -69,8 +69,8 @@ export default async function InvitationDetailsPage() {
           </Link>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <section className="account-card min-h-[260px]">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+          <section className="account-card">
             <CardHead
               icon={ICON_INVITE}
               title="邀请状态"
@@ -98,7 +98,7 @@ export default async function InvitationDetailsPage() {
             </p>
           </section>
 
-          <section className="account-card min-h-[260px]">
+          <section className="account-card">
             <CardHead
               icon={ICON_REWARD}
               title="奖励与规则"

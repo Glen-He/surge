@@ -151,7 +151,7 @@ export function SessionsManager({
 
   return (
     <>
-      <section className="rounded-[var(--radius-xl)] bg-[var(--surface)] px-8 py-8 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-10">
+      <section className="rounded-[var(--radius-xl)] bg-[var(--surface)] px-9 py-9 shadow-[0_1px_2px_rgba(0,0,0,0.02),0_10px_30px_rgba(0,0,0,0.05)] md:px-14">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <h2 className="type-card-title text-[var(--text-primary)]">
