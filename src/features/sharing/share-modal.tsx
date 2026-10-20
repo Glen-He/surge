@@ -507,7 +507,6 @@ function ShareDialog({
                         type="button"
                         onClick={() => rotate(s.id)}
                         disabled={!active || !!rotatingId || !!revokingId}
-                        title="更换后旧链接立即失效，提取码与有效期保持不变"
                         className="inline-flex h-[28px] w-[78px] shrink-0 items-center justify-center rounded-full border border-[var(--border-control)] type-control-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--control-hover)] disabled:opacity-40"
                       >
                         {rotatingId === s.id ? "更换中…" : "更换链接"}

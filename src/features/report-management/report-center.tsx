@@ -130,7 +130,6 @@ function ShareIcon({ r }: { r: Report }) {
         draggable={false}
         onClick={() => setOpen(true)}
         aria-label={`分享 ${r.title}`}
-        title="分享项目"
         className="absolute right-14 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
@@ -195,7 +194,6 @@ function DeleteIcon({ r }: { r: Report }) {
         draggable={false}
         onClick={showModal}
         aria-label={`删除 ${r.title}`}
-        title="删除项目"
         className="absolute right-24 bottom-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--danger-soft)] hover:text-[var(--danger-text)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg
@@ -305,7 +303,6 @@ function ReportCard({
         href={`/edit/${r.slug}`}
         draggable={false}
         aria-label={`编辑 ${r.title}`}
-        title="编辑项目"
         className="absolute bottom-4 right-4 z-10 flex h-8 w-8 translate-y-1 items-center justify-center rounded-full text-[var(--icon-muted)] opacity-0 transition-all hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover/report-card:translate-y-0 group-hover/report-card:opacity-100 max-sm:translate-y-0 max-sm:opacity-100"
       >
         <svg

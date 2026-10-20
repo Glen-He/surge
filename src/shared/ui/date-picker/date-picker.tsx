@@ -260,7 +260,6 @@ export function DatePicker({
         <button
           type="button"
           aria-label={clearLabel}
-          title={clearLabel}
           onClick={() => {
             onChange("");
             closeWithFocusRestore();

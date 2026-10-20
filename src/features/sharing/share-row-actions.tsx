@@ -67,7 +67,6 @@ export function ShareRowActions({
         label="复制链接"
         disabled={!active || disabled || revoking}
         onCopyError={() => setError("复制失败，请重试")}
-        showTooltip={false}
         className="!ml-0 !h-6 !w-6 rounded-full hover:bg-[var(--control-hover)]"
       />
       <button

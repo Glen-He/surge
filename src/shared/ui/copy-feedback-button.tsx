@@ -105,7 +105,6 @@ export function CopyPillButton({
       disabled={disabled}
       onClick={() => void copy()}
       aria-label={copied ? copiedLabel : label}
-      title={copied ? copiedLabel : label}
       data-copy-variant="pill"
       data-copy-state={copied ? "copied" : "idle"}
       className={className}
@@ -132,9 +131,8 @@ export function CopyIconButton({
   disabled = false,
   className = "",
   onCopyError,
-  showTooltip = true,
   inline = false,
-}: CopyFeedbackProps & { showTooltip?: boolean; inline?: boolean }) {
+}: CopyFeedbackProps & { inline?: boolean }) {
   const { copied, copy } = useCopyFeedback({ text, onCopyError });
   return (
     <button
@@ -142,7 +140,6 @@ export function CopyIconButton({
       disabled={disabled}
       onClick={() => void copy()}
       aria-label={copied ? copiedLabel : label}
-      title={showTooltip ? (copied ? copiedLabel : label) : undefined}
       data-copy-variant="icon"
       data-copy-state={copied ? "copied" : "idle"}
       className={`${inline ? "" : "ml-1"} inline-flex h-5 w-5 shrink-0 items-center justify-center text-[var(--icon-muted)] transition-colors hover:text-[var(--accent)] focus-visible:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}

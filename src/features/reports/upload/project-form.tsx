@@ -325,7 +325,6 @@ export function ProjectForm({
                   <button
                     type="button"
                     aria-label="选择标签颜色"
-                    title="选择标签颜色"
                     aria-expanded={colorOpen}
                     onClick={() => setColorOpen((o) => !o)}
                     style={{ backgroundColor: tagSwatchColor(tagColor) }}
@@ -343,7 +342,6 @@ export function ProjectForm({
                           <button
                             key={c.bg}
                             type="button"
-                            title={`标签颜色：${c.name}`}
                             aria-label={`标签颜色：${c.name}`}
                             aria-pressed={tagColor === c.bg}
                             onClick={() => {
