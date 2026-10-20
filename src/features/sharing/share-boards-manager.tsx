@@ -258,11 +258,11 @@ export function ShareBoardsManager({
                 </span>
               </div>
 
-              <div className="mt-4 h-[118px] shrink-0 space-y-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="mt-4 h-[134px] shrink-0 space-y-1.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {board.items.length === 0 ? (
-                  <p className="flex h-10 items-center rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3 type-caption text-[var(--text-secondary)]">暂无汇报，请从汇报的分享弹窗加入</p>
+                  <p className="flex h-9 items-center rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3 type-caption text-[var(--text-secondary)]">暂无汇报，请从汇报的分享弹窗加入</p>
                 ) : board.items.map((report) => (
-                  <div key={report.slug} className="flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3">
+                  <div key={report.slug} className="flex h-9 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3">
                     <Link href={`/view/${report.slug}`} target={report.displayMode === "bare" ? "_blank" : undefined} rel={report.displayMode === "bare" ? "noopener noreferrer" : undefined} className="min-w-0 flex-1 truncate type-label hover:text-[var(--accent-text)]">{report.title}</Link>
                     {report.displayMode === "bare" && (
                       <span className="shrink-0 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 type-badge text-[var(--accent-text)]">网页</span>
@@ -283,7 +283,7 @@ export function ShareBoardsManager({
                 ))}
               </div>
 
-              <div className="mt-auto flex items-center justify-end gap-3 pt-4">
+              <div className="flex items-center justify-end gap-3 pt-2.5">
                 {/* 与「复制链接」同款浅色胶囊，放在其左侧 */}
                 <button
                   type="button"

@@ -122,7 +122,7 @@ export function ShareLinksManager({
                   )}
                 </div>
 
-                <div className="mt-4 h-[118px] shrink-0 space-y-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="mt-4 h-[134px] shrink-0 space-y-1.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {report.shares.map((share) => {
                     const status = shareStatus(share);
                     const details = [
@@ -137,7 +137,7 @@ export function ShareLinksManager({
                       <div
                         key={share.id}
                         data-share-item={share.id}
-                        className="flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3"
+                        className="flex h-9 shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-sunken)] px-3"
                       >
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 type-badge ${STATUS_CLASS[status]}`}
@@ -166,7 +166,7 @@ export function ShareLinksManager({
                   })}
                 </div>
 
-                <div className="mt-auto flex justify-end pt-4">
+                <div className="flex justify-end pt-2.5">
                   <Link
                     href={href}
                     target={newTab ? "_blank" : undefined}
