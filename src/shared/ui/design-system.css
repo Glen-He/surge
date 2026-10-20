@@ -67,10 +67,11 @@
   --warning-text: #9a5700;
   --warning-soft: #fff2e0;
   --danger: #ff3b30;
-  --danger-hover: #e4382d;
-  /* 文字红选亮度更高的一档（白底 4.83:1、浅红底 4.51:1，均满足 AA 小字），
-     与填充红 --danger 同色相家族，避免旧值 #d70015 观感偏黑。 */
-  --danger-text: #dc2626;
+  /* 朱红系：填充红与其悬停色偏向暖橙红，与项目分类标签的砖红 #B91C1C 拉开距离 */
+  --danger-hover: #e3321f;
+  /* 文字红取更暖、饱和度更高的一档（白底 4.87:1，满足 AA 小字）；
+     旧值 #dc2626 与标签砖红 #B91C1C 色相、明度都太近，观感像同一个红。 */
+  --danger-text: #d92b1a;
   --danger-soft: #fff0ef;
   /* 浅红底胶囊（撤销等）的悬停色：比 --danger-soft 深一档，
      与 --control-bg → --control-hover 的递进幅度一致，避免悬停无反馈。 */
